@@ -2,9 +2,16 @@
 
 > **Status: prototype.** This repository still holds an early snapshot. The completed version (one-pass rendering of all stills, motion normalization, review & redo of single segments, upscale) will be published here this week (week of 26 Oct 2026).
 
+<p align="center"><img src="docs/a4_nosun.gif" width="320" alt="Four seasons, one pass: summer, autumn, winter, spring"></p>
+
+<p align="center"><sub>Four stills, one LTX 2.5 render pass (737 frames, 24 fps), shown at 2x speed.</sub></p>
+
 ComfyUI custom nodes that turn a sequence of stills into a (looping) film:
 pairwise first/last-frame video segments (LTX 2.5 / Wan 2.2 FLF2V), stitched and finished.
 Built for a single GPU shared with a local LLM (VRAM handoff).
+
+![Workflow: stills and prompts → render → normalize/concat → upscale](docs/workflow.png)
+<sub>Example workflow (four seasons): images + prompts → Film Chain · Render → Normalize Time / Concat → Upscale.</sub>
 
 | Node | Purpose |
 |---|---|
