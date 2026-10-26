@@ -1,6 +1,6 @@
 # Movie Nodes (ComfyUI)
 
-> **Status: prototype.** This repository still holds an early snapshot. The completed version (one-pass rendering of all stills, motion normalization, review & redo of single segments, upscale) will be published here this week (week of 27 Oct 2026).
+> **Status: prototype.** This repository still holds an early snapshot. The completed version (one-pass rendering of all stills, motion normalization, review & redo of single segments, upscale) will be published here this week (week of 26 Oct 2026).
 
 ComfyUI custom nodes that turn a sequence of stills into a (looping) film:
 pairwise first/last-frame video segments (LTX 2.5 / Wan 2.2 FLF2V), stitched and finished.
