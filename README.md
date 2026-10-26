@@ -1,5 +1,7 @@
 # Movie Nodes (ComfyUI)
 
+> **Status: prototype.** This repository still holds an early snapshot. The completed version (one-pass rendering of all stills, motion normalization, review & redo of single segments, upscale) will be published here this week (week of 27 Oct 2026).
+
 ComfyUI custom nodes that turn a sequence of stills into a (looping) film:
 pairwise first/last-frame video segments (LTX 2.5 / Wan 2.2 FLF2V), stitched and finished.
 Built for a single GPU shared with a local LLM (VRAM handoff).
@@ -18,4 +20,4 @@ Requires ComfyUI with the V3 node API, ffmpeg (imageio_ffmpeg or on PATH); RIFE 
 
 Install: clone into `ComfyUI/custom_nodes/` and restart ComfyUI.
 
-Status: work in progress.
+Status: prototype – completion this week.
