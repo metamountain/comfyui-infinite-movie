@@ -1,4 +1,4 @@
-# Infinite Movie Nodes (ComfyUI)
+# Infinite Movie (ComfyUI)
 
 > **Status: prototype.** This repository still holds an early snapshot. The completed version (one-pass rendering of all stills, motion normalization, review & redo of single segments, upscale) will be published here this week (week of 26 Oct 2026).
 
