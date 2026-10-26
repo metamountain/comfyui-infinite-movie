@@ -1,0 +1,13 @@
+[project]
+name = "comfyui-filmchain"
+version = "0.1.0"
+description = "FilmChain: one node that turns a sequence of images into a looping film (pairwise FLF2V segments + concat). V3 ComfyNode with graph expansion."
+requires-python = ">=3.10"
+dependencies = []
+
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+packages = ["comfyui_filmchain"]
