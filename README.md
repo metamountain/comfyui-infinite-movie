@@ -24,7 +24,7 @@ for example inside a group. The example workflow ships one engine group, **1 · 
 at the top, above the row Settings → Images → Prompts → Director → Choose → Assemble. **Infinite Movie - Engine Wan 2.2** contains only the
 **ENGINE: Wan 2.2** group (16 fps, 4n+1 frame grid) – copy it into your workflow and mute the LTX group. Other engines work the same way: build the chain between *Engine Start* and *Engine Result*.
 
-- **Leave images out = mute them.** Select *Load Image* nodes and press Ctrl+M: the Director skips them, their Auto Prompts are muted too and keep their text (one image + `loop` = a one-shot film). Unmute to get everything back.
+- **Leave images out = mute them.** Select *Load Image* nodes and press Ctrl+M: the Director skips them, their Auto Prompts are muted too and keep their text (one image + `loop` = a shot that returns to its image; one image without `loop` = an open shot: start image + prompt, no end image). Unmute to get everything back.
 - **Switching engines = muting groups.** If you build a second engine group, keep ONE active and mute the other (Ctrl+M).
   Muted nodes are excluded from the prompt, so the muted engine never runs.
 - **Director · engine input is optional.** When connected, exactly that *Engine Result* is used.

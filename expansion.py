@@ -47,9 +47,12 @@ def segment_path_b(output_dir, index):
 def _segment_plan(n_images: int, loop: bool, scene_lengths: list, length: int) -> list:
     """Ordered segment plan: scene0..scene(n-2), then loop (last image -> first) if loop.
 
-    Returns (start_idx, end_idx, seg_length, kind) tuples; kind is 'scene' or 'loop'.
-    One image + loop = a single loop shot (image -> itself). Intro/outro were removed in 71.
+    Returns (start_idx, end_idx, seg_length, kind) tuples; kind is 'scene', 'loop' or 'open'.
+    One image + loop = a single loop shot (image -> itself). One image without loop = an
+    'open' shot: start image + prompt, no end image (end_idx None). Intro/outro removed in 71.
     """
+    if n_images == 1 and not loop:
+        return [(0, None, scene_lengths[0] if scene_lengths else length, "open")]
     plan = []
     for i in range(n_images - 1):
         seg_length = scene_lengths[i] if i < len(scene_lengths) else length
@@ -501,6 +504,45 @@ def _replace_links_to(graph: dict, source_id: str, new_value):
     graph.pop(source_id, None)
 
 
+# Open shot (1 image, loop off): image nodes between the end-image loader and the
+# conditioning node are dropped with it; the conditioning node loses the end image.
+_END_PASSTHROUGH = {"LTXVPreprocess", "ImageScale", "ImageScaleBy", "ImageScaleToTotalPixels",
+                    "ImageResizeKJv2", "UpscaleCropUniversal", "ImageResize+"}
+# class -> optional end-image input (deleted -> the node runs without an end frame)
+_END_OPTIONAL = {"WanFirstLastFrameToVideo": "end_image", "WanFunInpaintToVideo": "end_image",
+                 "Wan22FunControlToVideo": "end_image"}
+# class -> {output slot: input to pass through} (node bypassed, its guide disappears)
+_END_BYPASS = {"LTXVAddGuide": {0: "positive", 1: "negative", 2: "latent"}}
+
+
+def _drop_end_image(graph: dict, source_id: str) -> None:
+    """Remove the end-image loader and everything that only exists to feed the end
+    frame into the model (open shot: start image + prompt, end not defined)."""
+    for nid, n in list(graph.items()):
+        if nid not in graph:
+            continue
+        for key, value in list(n.get("inputs", {}).items()):
+            if not (is_link(value) and value[0] == source_id):
+                continue
+            cls = n["class_type"]
+            if cls in _END_PASSTHROUGH:
+                _drop_end_image(graph, nid)
+            elif _END_OPTIONAL.get(cls) == key:
+                del n["inputs"][key]
+            elif cls in _END_BYPASS:
+                bypass = _END_BYPASS[cls]
+                for cid, c in graph.items():
+                    for ck, cv in list(c.get("inputs", {}).items()):
+                        if is_link(cv) and cv[0] == nid:
+                            c["inputs"][ck] = n["inputs"][bypass[cv[1]]]
+                graph.pop(nid, None)
+            else:
+                raise ValueError(
+                    f"InfiniteMovieRender: 1 image without loop needs an engine that can run "
+                    f"without an end image; '{cls}.{key}' needs it. Turn loop on or add an image.")
+    graph.pop(source_id, None)
+
+
 def _find_loader_by_consumer(template: dict, loader_class: str,
                              consumer_class: str, consumer_input: str) -> str | None:
     """Find the loader node whose output is consumed by a specific consumer.
@@ -643,7 +685,10 @@ def build_segment(template: dict, cfg: dict, prefix: str,
     if start_src is None or end_src is None:
         raise ValueError("Template missing LoadImage markers for preset")
     _replace_links_to(seg, prefix + start_src, start_tensor)
-    _replace_links_to(seg, prefix + end_src, end_tensor)
+    if end_tensor is None:
+        _drop_end_image(seg, prefix + end_src)
+    else:
+        _replace_links_to(seg, prefix + end_src, end_tensor)
 
     # 2b. Replace template loader nodes with connected model inputs (Auftrag 29).
     # The loader IDs in the template are unprefixed; _apply_model_inputs resolves
@@ -769,7 +814,7 @@ def build_expansion_graph(unique_id: str, preset: str,
     n_images = len(images)
     # --- Per-segment graphs ---
     # Auftrag 41A: per-scene lengths (n_scenes Eintraege)
-    n_scenes = n_images - 1
+    n_scenes = n_images - 1 if n_images > 1 else (0 if loop else 1)
     if scene_seconds:
         from .nodes import _scene_frames
         scene_lengths = _scene_frames(scene_seconds, cfg["fps"], cfg["length_mod"], length)
@@ -778,13 +823,14 @@ def build_expansion_graph(unique_id: str, preset: str,
     plan = _segment_plan(n_images, loop, scene_lengths, length)
     n_segments = len(plan)
     if n_segments < 1:
-        raise ValueError("InfiniteMovieRender needs at least 2 images, or 1 image with loop on.")
+        raise ValueError("InfiniteMovieRender needs at least 1 image.")
 
     graph: dict = {}
     save_ids: list[str] = []      # Variant A save nodes (the collector links to these)
     save_ids_b: list[str] = []    # Variant B save nodes (Auftrag 61, only when variants >= 2)
 
     for i, (start_idx, end_idx, seg_length, kind) in enumerate(plan):
+        end_tensor = images[end_idx] if end_idx is not None else None
         if kind == "loop":
             seg_prompt = prompts[-1] if prompts else ""
         else:  # scene (start_idx == scene index)
@@ -796,8 +842,8 @@ def build_expansion_graph(unique_id: str, preset: str,
         # (seed / prompt / preset / images / length). 73: negative entfällt.
         h = hashlib.md5(seg_prompt.encode("utf-8"))
         h.update(preset.encode("utf-8"))
-        for t in (images[start_idx], images[end_idx]):
-            h.update(t.cpu().numpy().tobytes())
+        for t in (images[start_idx], end_tensor):
+            h.update(t.cpu().numpy().tobytes() if t is not None else b"open")
         # Modell-Bezeichner (Auftrag 29): stabil (Klasse + Name-Kurzform), kein
         # id() (das aendert sich je Lauf). Ohne Bezeichner wuerde bei neu
         # verbundenem Modell das alte Segment stillschweigend wiederverwendet.
@@ -815,7 +861,7 @@ def build_expansion_graph(unique_id: str, preset: str,
             seg_a, save_id_a = build_segment(
                 template, cfg, prefix_a,
                 start_tensor=images[start_idx],
-                end_tensor=images[end_idx],
+                end_tensor=end_tensor,
                 prompt=seg_prompt,
                 seed=seg_seed,
                 width=width, height=height, length=seg_length,
@@ -839,7 +885,7 @@ def build_expansion_graph(unique_id: str, preset: str,
                 seg_b, save_id_b = build_segment(
                     template, cfg, prefix_b,
                     start_tensor=images[start_idx],
-                    end_tensor=images[end_idx],
+                    end_tensor=end_tensor,
                     prompt=seg_prompt,
                     seed=seg_seed + 500,
                     width=width, height=height, length=seg_length,

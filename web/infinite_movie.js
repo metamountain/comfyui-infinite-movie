@@ -2373,10 +2373,10 @@ function fcChoosePlan(node) {
   const d = fcChooseDirectorOf(node);
   if (!d) return null;
   const nImg = (d.inputs || []).filter((i) => i.name?.startsWith("images.") && i.link != null).length;
-  if (nImg < 2) return { n: 0, variants: false, director: d, nImg };
+  if (nImg < 1) return { n: 0, variants: false, director: d, nImg };
   const wv = (name) => d.widgets?.find((w) => w.name === name)?.value;
-  const loop = !!wv("loop");
-  let n = loop ? nImg : nImg - 1;
+  const loop = !!wv("loop");  // 1 image: loop = shot image -> itself, else open shot (no end image)
+  let n = loop ? nImg : Math.max(nImg - 1, 1);
   return { n, variants: String(wv("variants")) === "2", director: d, nImg };
 }
 
@@ -2455,7 +2455,7 @@ function fcChooseState(node) {
   const plan = fcChoosePlan(node);
   const marked = node.properties?.marked || [];
   if (!plan) return { text: "Connect the Director's shots output to this node.", tone: "warn", btn: null };
-  if (!plan.n) return { text: `Director needs at least 2 images (connected: ${plan.nImg}).`, tone: "warn", btn: null };
+  if (!plan.n) return { text: "Connect at least 1 image to the Director.", tone: "warn", btn: null };
   if (fcRun.running && fcRun.promptOnly) {
     const st = fcChooseStateIdle(node, entries, plan, marked);
     return { ...st, text: `Writing prompt (${fcRun.node})… · ${st.text}` };

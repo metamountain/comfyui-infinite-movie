@@ -837,8 +837,8 @@ class InfiniteMovieRender(io.ComfyNode):
 
         # 1. Collect + preprocess images.
         raw_images = _collect_images(images or [])
-        if len(raw_images) < 2:
-            raise ValueError("InfiniteMovieRender needs at least 2 images")
+        # 1 image: loop on = shot image -> itself; loop off = open shot (start image +
+        # prompt, no end image). See expansion._segment_plan (Nutzer 2026-11-04).
         # 69: Größe aus dem ersten Eingangsbild (Settings › aspect = "from images");
         # raw_images sind H×W×C (np.uint8) -> shape[:2] = (h, w).
         if get_setting(settings, "aspect") == ASPECT_FROM_IMAGES:
@@ -854,7 +854,7 @@ class InfiniteMovieRender(io.ComfyNode):
 
         # 2. Build per-transition prompts.
         n_images = len(image_tensors)
-        n_segments = n_images if loop else n_images - 1
+        n_segments = n_images if loop else max(n_images - 1, 1)
         # Wired per-image prompts (shot_prompts.prompt0..) win over the text field.
         wired = _wired_prompts(shot_prompts)
         seg_prompts = _build_prompts(json.dumps(wired) if wired else "", None, n_segments)
@@ -877,7 +877,7 @@ class InfiniteMovieRender(io.ComfyNode):
         # 57a: Gesamt-Segmentanzahl (Szenen + Loop); vor dem Skip-Check berechnet, der sie braucht.
         # 71: Intro/Outro entfernt – nur noch Szenen + optionales Loop-Segment.
         from .expansion import segment_path, segment_path_b
-        n_scenes = n_images - 1
+        n_scenes = n_images - 1 if n_images > 1 else (0 if loop else 1)  # 1 image, loop off = open shot
         total_segments = n_scenes + (1 if loop else 0)
         _skip_render = False
         # 76 (Nutzer 2026-11-03: „not rendering when I press Run … old images“): vorhandene Segmente nur
