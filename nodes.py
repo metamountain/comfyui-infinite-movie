@@ -1,0 +1,1623 @@
+"""InfiniteMovieRender custom nodes (V3 ComfyNode API).
+
+Nodes:
+- InfiniteMovieRender: the main node. Takes a sequence of images + per-transition
+  prompts, expands into per-segment FLF2V sub-graphs, and returns the final
+  film path + segment paths.
+- InfiniteMovieSegmentSave: writes one segment's frames to an mp4 file (ffmpeg).
+- InfiniteMovieAssemble: concatenates segment mp4s into one film, removing duplicate
+  seam frames.
+- InfiniteMovieFramePairSwitch: standalone helper that selects one (first, last, prompt)
+  transition from a sequence of images.
+- InfiniteMovieVRAMAcquire: waits until the GPU is free for ComfyUI rendering.
+- InfiniteMovieVRAMRelease: frees GPU memory and (optionally) wakes the local LLM.
+
+All names are English (package, classes, node_id, display_name, inputs,
+outputs, category, log).
+"""
+
+from __future__ import annotations
+
+import json
+import math
+import os
+import re
+import shutil
+import subprocess
+import tempfile
+
+import numpy as np
+import torch
+
+from comfy_api.latest import io
+
+from . import vram
+from .expansion import build_expansion_graph
+# 75: _input_videos moved here from ghost_nodes.py (ghost_nodes.py -> tools/ghost_check.py)
+def _input_videos() -> list[str]:
+    """Video files in ComfyUI/input, with '(none)' as first option (Auftrag 48B).
+    '(none)' means 'no file' – used when film/segments/video is connected."""
+    import os
+    import folder_paths
+    d = folder_paths.get_input_directory()
+    files = [f for f in os.listdir(d) if os.path.isfile(os.path.join(d, f))]
+    vids = sorted(folder_paths.filter_files_content_types(files, ["video"]))
+    return ["(none)"] + vids
+# 57d: SETTINGS-Pipe + get_setting (settings_nodes importiert nur .vram + lazy .autoprompt,
+# kein Zirkel). settings-Eingang am ENDE des Schemas, damit sich die Slot-Indizes der
+# Autogrow-Eingaenge (images/shot_prompts) NICHT verschieben (RAG: Links haengen am Index).
+from .settings_nodes import SETTINGS, get_setting, chain_settings, ASPECT_FROM_IMAGES, resolve_ratio
+
+# Image slots: Autogrow starts with one, the next appears once one is connected
+# (Nutzer 2026-10-26: max. 12). Keep in sync with MAX_IMAGES in web/infinite_movie.js.
+MAX_IMAGES = 12
+
+# Auftrag 32: shots-Pipe - ein "Pipe"-Typ (wie rgthree-Context /
+# Efficiency-Pipes). Inhalt: dict mit segments, save_folder, save_name, fps,
+# loop, width, height, frames_per_segment, seed, render_id.
+# 57b2 (2026-11-01): Typ umbenannt (Nutzer-Entscheidung: Pipe heißt überall
+# "shots" – ID, Anzeige UND Typ; alter Typ-Name ist in tools/migrate_workflows.py).
+SHOTS = io.Custom("SHOTS")
+
+# ---------------------------------------------------------------------------
+# ffmpeg (imageio_ffmpeg binary, see guide 04)
+# ---------------------------------------------------------------------------
+
+_FFMPEG_CANDIDATES = [
+    r"D:\ComfyUI_windows_portable\python_embeded\Lib\site-packages\imageio_ffmpeg\binaries\ffmpeg-win-x86_64-v7.1.exe",
+    "ffmpeg",
+]
+
+
+def _ffmpeg() -> str:
+    for cand in _FFMPEG_CANDIDATES:
+        if os.path.isabs(cand):
+            if os.path.exists(cand):
+                return cand
+        else:
+            if shutil.which(cand):
+                return cand
+    # Fallback: try to import imageio_ffmpeg.
+    try:
+        import imageio_ffmpeg
+        return imageio_ffmpeg.get_ffmpeg_exe()
+    except Exception:
+        raise RuntimeError("ffmpeg not found (tried imageio_ffmpeg + PATH)")
+
+
+def _no_window() -> dict:
+    """57e: subprocess-Kwargs, damit ffmpeg/ffprobe unter Windows KEIN
+    Konsolenfenster aufreist (CREATE_NO_WINDOW = 0x08000000). Auf POSIX leer.
+    Einziges Definition – post_nodes.py und retime_nodes.py importieren es
+    von hier (nodes.py ist die Basis, wird von beiden importiert)."""
+    if os.name == "nt":
+        return {"creationflags": 0x08000000}
+    return {}
+
+
+# ---------------------------------------------------------------------------
+# Image helpers
+# ---------------------------------------------------------------------------
+
+def _to_numpy_image(tensor) -> np.ndarray:
+    """Convert a ComfyUI image tensor (B, H, W, C) float [0,1] to HWC uint8."""
+    if isinstance(tensor, torch.Tensor):
+        t = tensor.detach().cpu().float()
+    else:
+        t = torch.as_tensor(np.asarray(tensor), dtype=torch.float32)
+    if t.dim() == 4 and t.shape[0] == 1:
+        t = t[0]
+    if t.dim() == 3 and t.shape[-1] in (1, 3, 4):
+        img = t.numpy()
+    elif t.dim() == 3 and t.shape[0] in (1, 3, 4):
+        img = t.permute(1, 2, 0).numpy()  # (C,H,W) -> (H,W,C)
+    else:
+        img = t.numpy()
+    img = np.clip(img * 255.0, 0, 255).astype(np.uint8)
+    if img.shape[-1] == 1:
+        img = np.repeat(img, 3, axis=-1)
+    if img.shape[-1] == 4:
+        img = img[..., :3]
+    return img
+
+
+def center_crop_resize(img: np.ndarray, width: int, height: int) -> np.ndarray:
+    """Center-crop to the target aspect ratio, then resize to width x height.
+
+    Mirrors tools/loop_prepare.py center_crop_45 (LANCZOS resize).
+    """
+    from PIL import Image
+    h, w = img.shape[:2]
+    target_ratio = width / height
+    src_ratio = w / h
+    if abs(src_ratio - target_ratio) < 1e-6:
+        cropped = img
+    elif src_ratio > target_ratio:
+        # Source is wider -> crop width.
+        new_w = int(round(h * target_ratio))
+        x0 = (w - new_w) // 2
+        cropped = img[:, x0:x0 + new_w]
+    else:
+        # Source is taller -> crop height.
+        new_h = int(round(w / target_ratio))
+        y0 = (h - new_h) // 2
+        cropped = img[y0:y0 + new_h, :]
+    pil = Image.fromarray(cropped)
+    pil = pil.resize((width, height), Image.LANCZOS)
+    return np.asarray(pil)
+
+
+def _collect_images(images) -> list[np.ndarray]:
+    """Collect images from the Autogrow inputs (2026-11-04: folder input removed).
+
+    The Autogrow input arrives at execute() as a DICT keyed by slot name
+    (image_0, image_1, ...) - see comfy_api/latest/_io.py build_nested_inputs
+    (line 2095) and the core usage in comfy_api_nodes/nodes_bfl.py:1038
+    (`(images or {}).values()`). A plain list is also accepted (direct calls
+    from the offline test).
+    """
+    if isinstance(images, dict):
+        tensors = [v for v in images.values() if v is not None]
+    else:
+        tensors = [t for t in (images or []) if t is not None]
+    if not tensors:
+        raise ValueError("InfiniteMovieRender: no images provided (connect images)")
+    return [_to_numpy_image(t) for t in tensors]
+
+
+def _parse_prompt_list(prompts: str) -> list[str] | None:
+    """Per-image prompts from the web extension (web/infinite_movie.js): a JSON list,
+    one entry per image (entry i = transition image i -> i+1). Empty entries
+    take the previous prompt. None if `prompts` is plain multiline text."""
+    text = (prompts or "").strip()
+    if not text.startswith("["):
+        return None
+    try:
+        items = json.loads(text)
+    except ValueError:
+        return None
+    if not isinstance(items, list):
+        return None
+    out: list[str] = []
+    for it in items:
+        s = " ".join(str(it or "").split())
+        out.append(s if s else (out[-1] if out else ""))
+    return out
+
+
+def _wired_prompts(shot_prompts) -> list[str]:
+    """Autogrow dict {prompt0: str, prompt1: str, ...} -> list ordered by slot
+    number; [] if nothing is wired or all entries are empty."""
+    if not isinstance(shot_prompts, dict):
+        return []
+    def idx(k: str) -> int:
+        m = re.search(r"(\d+)$", k)
+        return int(m.group(1)) if m else 0
+    vals = [str(shot_prompts[k] or "") for k in sorted(shot_prompts, key=idx)]
+    return vals if any(v.strip() for v in vals) else []
+
+
+def _clean_prompt(text: str, max_words: int = 350) -> str:
+    """Clean an LLM-generated prompt: remove think blocks, Markdown, and
+    truncate to max_words at a word boundary."""
+    import re
+    # Remove think...think and think.../think blocks (case-insensitive).
+    text = re.sub(r"think.*?/think", "", text, flags=re.DOTALL | re.IGNORECASE)
+    # Remove Markdown formatting: **bold**, *italic*, # headers, `code`.
+    text = re.sub(r"\*\*(.*?)\*\*", r"\1", text)
+    text = re.sub(r"\*(.*?)\*", r"\1", text)
+    text = re.sub(r"^#{1,6}\s*", "", text, flags=re.MULTILINE)
+    text = re.sub(r"`(.*?)`", r"\1", text)
+    # Truncate to max_words at a word boundary.
+    words = text.split()
+    if len(words) > max_words:
+        text = " ".join(words[:max_words])
+    return text.strip()
+
+
+def _build_prompts(prompts: str, style_prompt: str, n_segments: int) -> list[str]:
+    """Split the prompts into one per transition, repeating the last if there
+    are fewer entries than segments. Accepts plain multiline text (one line per
+    transition) or the per-image JSON list. Append the style prompt."""
+    per_image = _parse_prompt_list(prompts)
+    if per_image is not None:
+        # keep positions (entry i = segment i); leading empties stay "" (no shift)
+        lines = per_image[:n_segments] or [""]
+    else:
+        lines = [ln.strip() for ln in (prompts or "").splitlines() if ln.strip()]
+    if not lines:
+        lines = [""]
+    if style_prompt and style_prompt.strip():
+        lines = [ln + ", " + style_prompt.strip() for ln in lines]
+    out = []
+    for i in range(n_segments):
+        out.append(lines[i] if i < len(lines) else lines[-1])
+    return out
+
+
+# ---------------------------------------------------------------------------
+# ffmpeg helpers
+# ---------------------------------------------------------------------------
+
+def _write_frames_to_dir(frames: torch.Tensor, tmp_dir: str, fps: int) -> None:
+    """Write a frames tensor (B, H, W, C) float [0,1] to PNG files in tmp_dir."""
+    from PIL import Image
+    img = _to_numpy_image(frames)
+    # img is (B, H, W, C)
+    for i in range(img.shape[0]):
+        Image.fromarray(img[i]).save(os.path.join(tmp_dir, f"frame_{i:05d}.png"))
+
+
+def _run_ffmpeg_to(cmd: list, out_path: str, timeout_s: int = 600, tries: int = 2) -> None:
+    """Run an ffmpeg command whose LAST element is out_path, hang-safe (2026-10-26).
+
+    Observed: inside ComfyUI one InfiniteMovieSegmentSave encode wrote 99 % of the file within seconds, then
+    spun for 21 min without finishing (no moov atom). The same command outside ComfyUI takes 2 s.
+    Defences: -nostdin + stdin=DEVNULL (ffmpeg otherwise inherits the ComfyUI console as stdin),
+    write to <name>.part<ext> and rename when complete (no other process sees a half-written file),
+    timeout with one retry."""
+    root, ext = os.path.splitext(out_path)
+    part = f"{root}.part{ext}"
+    full = [cmd[0], "-nostdin"] + list(cmd[1:-1]) + [part]
+    last_err = None
+    for attempt in range(1, tries + 1):
+        try:
+            subprocess.run(full, check=True, capture_output=True, stdin=subprocess.DEVNULL,
+                           timeout=timeout_s, **_no_window())
+            os.replace(part, out_path)
+            return
+        except subprocess.TimeoutExpired as e:  # subprocess.run kills the child on timeout
+            last_err = e
+            print(f"[InfiniteMovie] ffmpeg timeout after {timeout_s} s (attempt {attempt}/{tries}): {out_path}")
+        except Exception as e:
+            # Transient errors (ffmpeg exit!=0, file lock, I/O) – retry once.
+            # 2026-10-27: Assemble failed transiently (run 194805), retry succeeded (run 202653).
+            last_err = e
+            print(f"[InfiniteMovie] ffmpeg error (attempt {attempt}/{tries}): {out_path}: {e}")
+            try:
+                if os.path.exists(part):
+                    os.remove(part)
+            except OSError:
+                pass
+    raise RuntimeError(f"ffmpeg failed {tries}x writing {out_path}") from last_err
+
+
+def _write_audio_to_wav(audio: dict, wav_path: str) -> None:
+    """Write a ComfyUI AUDIO dict {"waveform": tensor, "sample_rate": int} to a 16-bit PCM WAV.
+
+    Vorbild: comfy_extras/nodes_audio.py SaveAudio (RAG). waveform shape
+    (batch, channels, samples) float; stdlib `wave` + numpy (kein scipy/soundfile
+    in embedded Python nötig).
+    """
+    import wave as _wave
+    waveform = audio["waveform"]
+    sample_rate = int(audio.get("sample_rate", 44100))
+    w = waveform.detach().cpu().float()
+    # ComfyUI AUDIO: waveform shape (batch, channels, samples).
+    if w.dim() == 3:
+        w = w[0]  # (channels, samples)
+    elif w.dim() == 1:
+        w = w.unsqueeze(0)  # (samples,) -> (1, samples)
+    # Now w is (channels, samples).
+    n_channels = w.shape[0]
+    w = w.t().numpy()  # (samples, channels)
+    w16 = (np.clip(w, -1.0, 1.0) * 32767.0).astype(np.int16)
+    with _wave.open(wav_path, "wb") as wf:
+        wf.setnchannels(n_channels)
+        wf.setsampwidth(2)  # 16-bit PCM
+        wf.setframerate(sample_rate)
+        wf.writeframes(w16.tobytes())
+
+
+def _encode_dir_to_mp4(frame_dir: str, out_path: str, fps: int, audio_wav: str | None = None) -> None:
+    """Encode a directory of frame_*.png into an mp4 (crf 17, yuv420p).
+
+    76: optional audio_wav is muxed in as AAC (192k, -shortest).
+    """
+    ff = _ffmpeg()
+    os.makedirs(os.path.dirname(out_path), exist_ok=True)
+    cmd = [
+        ff, "-y",
+        "-framerate", str(fps),
+        "-i", os.path.join(frame_dir, "frame_%05d.png"),
+    ]
+    if audio_wav:
+        cmd += ["-i", audio_wav]
+    cmd += [
+        "-c:v", "libx264",
+        "-pix_fmt", "yuv420p",
+        "-crf", "17",
+    ]
+    if audio_wav:
+        cmd += ["-c:a", "aac", "-b:a", "192k", "-shortest"]
+    cmd += [out_path]
+    _run_ffmpeg_to(cmd, out_path)
+
+
+def _video_fps(video_path: str) -> str:
+    """Frame rate of the first video stream as an ffmpeg rate string ('24', '16', '24000/1001').
+    Read from the ffmpeg banner (imageio_ffmpeg ships no ffprobe); '24' if it cannot be read."""
+    from fractions import Fraction
+    try:
+        err = subprocess.run([_ffmpeg(), "-hide_banner", "-i", video_path],
+                             capture_output=True, text=True, timeout=30, **_no_window()).stderr
+        m = re.search(r"Video:.*?([\d.]+) fps", err)
+        if m:
+            fr = Fraction(m.group(1)).limit_denominator(1001)
+            return str(fr.numerator) if fr.denominator == 1 else f"{fr.numerator}/{fr.denominator}"
+    except Exception:  # noqa: BLE001
+        pass
+    return "24"
+
+
+def _count_frames(video_path: str) -> int:
+    """Return the number of frames in a video file, or -1 on error.
+
+    Tries ffprobe first (fast, no decode). imageio_ffmpeg does not ship
+    ffprobe, so it falls back to decoding with ffmpeg and reading the final
+    frame counter from the progress output.
+    """
+    ff = _ffmpeg()
+    # 1. Try ffprobe (fast path, no decode).
+    ffprobe = ff.replace("ffmpeg", "ffprobe")
+    if os.path.exists(ffprobe):
+        try:
+            out = subprocess.run(
+                [ffprobe, "-v", "error", "-count_packets",
+                 "-select_streams", "v:0", "-show_entries", "packet=pts",
+                 "-of", "csv=p=0", video_path],
+                capture_output=True, text=True, timeout=60, **_no_window(),
+            ).stdout.strip().splitlines()
+            n = len([ln for ln in out if ln.strip()])
+            if n > 0:
+                return n
+        except Exception:
+            pass
+    # 2. Fall back to decoding with ffmpeg and reading the frame counter.
+    try:
+        res = subprocess.run(
+            [ff, "-i", video_path, "-map", "0:v:0", "-f", "null", "-"],
+            capture_output=True, text=True, timeout=300, **_no_window(),
+        )
+        out = res.stderr.replace("\r", "\n")
+        matches = re.findall(r"frame=\s*(\d+)", out)
+        if matches:
+            return int(matches[-1])
+        return -1
+    except Exception:
+        return -1
+
+
+def _has_audio_stream(video_path: str) -> bool:
+    """True if the file has an audio stream (ffmpeg -i banner contains 'Audio:')."""
+    try:
+        err = subprocess.run([_ffmpeg(), "-hide_banner", "-i", video_path],
+                             capture_output=True, text=True, timeout=30, **_no_window()).stderr
+        return "Audio:" in err
+    except Exception:  # noqa: BLE001
+        return False
+
+
+def _segment_is_complete(mp4_path: str, expected_frames: int) -> bool:
+    """A segment is complete if the file exists and has the expected frames."""
+    if not os.path.exists(mp4_path):
+        return False
+    if expected_frames <= 0:
+        return True
+    count = _count_frames(mp4_path)
+    if count < 0:
+        # Cannot count; assume complete if file is non-empty.
+        return os.path.getsize(mp4_path) > 0
+    return count >= expected_frames
+
+
+def _parse_reseed(text: str) -> dict:
+    """'2' / '2,4' / '2,2' -> {segment number: bumps}. Each mention adds one bump."""
+    bumps: dict = {}
+    for tok in re.split(r"[,;\s]+", text or ""):
+        if tok.strip().isdigit() and int(tok) > 0:
+            bumps[int(tok)] = bumps.get(int(tok), 0) + 1
+    return bumps
+
+
+def _motion_check(mp4_path: str) -> tuple:
+    """Frame-to-frame difference (gray, 96x120). Returns (largest step, frame of it, start->end change).
+    A good FLF transition spreads the change over many frames (largest step <= ~10 % of start->end);
+    LTX's failure is a still segment with one hard cut that carries almost all of it
+    (2026-10-26, seg 2 of vier_jahreszeiten: step 27.8 of ~28 at 11->12). The median is no use:
+    2 s segments hold still at both ends and a smooth one had median 0.18."""
+    w, h = 96, 120
+    raw = subprocess.run([_ffmpeg(), "-v", "error", "-i", mp4_path, "-vf", f"scale={w}:{h}",
+                          "-f", "rawvideo", "-pix_fmt", "gray", "-"],
+                         capture_output=True, **_no_window()).stdout
+    a = np.frombuffer(raw, np.uint8)
+    n = a.size // (w * h)
+    if n < 2:
+        return 0.0, -1, 0.0
+    a = a[: n * w * h].reshape(n, h, w).astype(np.float32)
+    d = np.abs(np.diff(a, axis=0)).mean(axis=(1, 2))
+    k = int(d.argmax())
+    return float(d[k]), k, float(np.abs(a[-1] - a[0]).mean())
+
+
+def _segment_check_report(seg_paths: list) -> list:
+    """One line per segment: ok / CUT (one frame carries >= 35 % of the whole transition)."""
+    lines, bad = [], []
+    for i, p in enumerate(seg_paths, 1):
+        try:
+            jump, k, total = _motion_check(p)
+        except Exception as e:  # noqa: BLE001
+            lines.append(f"seg {i}: check failed ({e})")
+            continue
+        share = jump / max(total, 1.0)
+        cut = jump > 8.0 and share >= 0.35
+        if cut:
+            bad.append(str(i))
+        lines.append(f"seg {i}: {f'CUT @{k}->{k + 1}' if cut else 'ok'} "
+                     f"(largest step {share:.0%} of the transition)")
+    lines.append(f"-> reseed {','.join(bad)} in Infinite Movie · Director" if bad else "-> all segments ok")
+    return lines
+
+
+def _snap_length(length: int, mod: int) -> int:
+    """Round length to the nearest value of the form (mod*n + 1).
+
+    Wan uses mod=4 (4n+1), LTX uses mod=8 (8n+1).
+    """
+    if length <= 1:
+        return 1
+    k = int((length - 1) / mod + 0.5)  # round half up
+    return k * mod + 1
+
+
+def _seconds_to_frames(seconds: float, fps: float, length_mod: int) -> int:
+    """seconds -> frames (Auftrag 21, Änderung 3 + Korrektur 2026-10-26):
+    frames = floor(seconds*fps/length_mod + 0.5) * length_mod + 1  (Round half up,
+    KEIN Banker-Rounding wie Python's round()), minimum 1*length_mod+1.
+
+    Das Ergebnis liegt immer auf dem (mod*n+1)-Grid des Presets.
+    Sollwerte LTX (24 fps, mod 8): 0.5 s=17, 1 s=25, 1.5 s=41, 2 s=49, 5 s=121.
+    """
+    k = int(math.floor(seconds * fps / length_mod + 0.5))
+    return max(k * length_mod + 1, 1 * length_mod + 1)
+
+
+# ---------------------------------------------------------------------------
+# Auftrag 41: Per-scene length + max length estimate + tail
+# ---------------------------------------------------------------------------
+
+def _scene_frames(seconds_list: list, fps: float, length_mod: int, default_frames: int) -> list:
+    """Auftrag 41A: Per-scene frame counts.
+
+    seconds_list: one entry per scene (transition i -> i+1). Empty/0 = use the
+    global length (default_frames, already snapped to the grid).
+    Returns: list of frame counts L_i, each on the (mod*n+1) grid.
+    """
+    n = len(seconds_list)
+    result = []
+    for i in range(n):
+        s = seconds_list[i] if i < len(seconds_list) else 0
+        if s is None or s <= 0:
+            result.append(default_frames)   # 82: 0 = globale Laenge (Frames, nicht Sekunden)
+        else:
+            result.append(_seconds_to_frames(s, fps, length_mod))
+    return result
+
+
+def _parse_shot_seconds(text) -> list:
+    """82: Per-shot length from the Director 'shot_seconds' widget.
+
+    "2, 3,,4" -> [2.0, 3.0, 0.0, 4.0]; empty or invalid entries -> 0.0
+    (0 = use the global 'seconds'); trailing zeros are stripped.
+    """
+    if not text:
+        return []
+    result = []
+    for part in str(text).split(","):
+        part = part.strip()
+        if not part:
+            result.append(0.0)
+            continue
+        try:
+            v = float(part)
+        except (TypeError, ValueError):
+            v = 0.0
+        result.append(v)
+    while result and result[-1] == 0.0:
+        result.pop()
+    return result
+
+
+def _unique_output_path(folder: str, name: str, ext: str = ".mp4") -> str:
+    """Return <folder>/<name><ext>, appending _001, _002, ... if it exists.
+
+    NEVER overwrites an existing file (Auftrag 16, point 1). The folder is
+    created if it does not exist.
+
+    Relative folders are resolved against the ComfyUI output directory
+    (folder_paths.get_output_directory()), so the result is always an
+    absolute path independent of the process CWD (Auftrag 32, CWD-Fallstrick).
+    """
+    folder = (folder or "").strip()
+    if not folder:
+        raise ValueError("save_folder is empty")
+    name = (name or "film").strip() or "film"
+    # Resolve relative paths against the ComfyUI output directory (absolute).
+    if not os.path.isabs(folder):
+        import folder_paths
+        folder = os.path.join(folder_paths.get_output_directory(), folder)
+    os.makedirs(folder, exist_ok=True)
+    base = os.path.join(folder, name)
+    candidate = base + ext
+    i = 1
+    while os.path.exists(candidate):
+        candidate = f"{base}_{i:03d}{ext}"
+        i += 1
+    return candidate
+
+
+def _send_progress(text: str, node_id: str) -> None:
+    """Send progress text to the browser (no-op if the server is not running).
+
+    Signature: PromptServer.send_progress_text(text, node_id, sid=None)
+    (ComfyUI/server.py:1588). Usage pattern: nodes_loop.py:304.
+
+    The frontend renders this as a READ-ONLY widget on the node (the
+    `$$node-text-preview` widget, type `progressText`); it is visible while the
+    job runs and cleared when the job resets.
+    """
+    try:
+        from server import PromptServer
+        inst = PromptServer.instance
+        if inst is not None and node_id is not None:
+            inst.send_progress_text(text, node_id)
+    except Exception:
+        pass
+
+
+def _display_node_id(cls) -> str | None:
+    """Return the VISIBLE node id to send in-node text to.
+
+    For nodes that run inside a InfiniteMovieRender expansion the engine assigns an
+    ephemeral id; the text must be sent to the DISPLAY id (the visible parent
+    node) so it lands on the right node on the canvas.
+    dynprompt.get_display_node_id walks the ephemeral_display map
+    (comfy_execution/graph.py:64-67). Falls back to the plain unique_id for
+    top-level (non-expanded) nodes.
+    """
+    try:
+        hid = cls.hidden
+        if hid is None:
+            return None
+        uid = hid.unique_id
+        dp = getattr(hid, "dynprompt", None)
+        if dp is not None and hasattr(dp, "get_display_node_id"):
+            return dp.get_display_node_id(uid) or uid
+        return uid
+    except Exception:
+        return None
+
+
+def _display_memory(cls, tag: str = "") -> str:
+    """Show the current VRAM/RAM status on the node and return the string.
+
+    tag is a short prefix such as "before" / "after" so the user can tell the
+    two readings apart (the widget shows the latest message only).
+    """
+    status = vram.get_memory_status()
+    text = f"{tag} {status}".strip() if tag else status
+    _send_progress(text, _display_node_id(cls))
+    print(f"[InfiniteMovie] {text}")
+    return status
+
+
+# ---------------------------------------------------------------------------
+# Node: InfiniteMovieRender
+# ---------------------------------------------------------------------------
+
+
+def _resolve_film_name(settings):
+    """Settings › film_name (leer = "film"); Windows-sicher, ohne .mp4."""
+    n = str(get_setting(settings, "film_name") or "").strip() or "film"
+    n = re.sub(r'[<>:"/\\|?*]', "_", n).strip() or "film"
+    if n.lower().endswith(".mp4"):
+        n = n[:-4] or "film"
+    return n
+
+class InfiniteMovieRender(io.ComfyNode):
+    @classmethod
+    def define_schema(cls):
+        images_template = io.Autogrow.TemplatePrefix(
+            io.Image.Input("image", tooltip="One input image. Images are used pairwise (1->2, 2->3, ...)."),
+            prefix="image",
+            min=1,
+            max=MAX_IMAGES,
+        )
+        return io.Schema(
+            node_id="InfiniteMovieRender",
+            display_name="Infinite Movie · Director",
+            search_aliases=["infinite movie", "infinite_movie", "film", "movie", "video", "ltx", "wan",
+                            "render", "director"],
+            category="Infinite Movie/2 Render",
+            description="Stage 2 (Render) of the Infinite Movie: turns a sequence of images into FLF2V video segments, "
+                        "one per transition. Typically: images from Load Image nodes, shot_prompts from Infinite Movie · "
+                        "Auto Prompt nodes; segment_paths goes to Infinite Movie · Normalize Time or Infinite Movie · Concat. "
+                        "Handles GPU handoff to/from the local LLM. While rendering, a progress bar with "
+                        "segment/step/elapsed/ETA is drawn at the bottom of the node.",
+            is_output_node=True,
+            enable_expand=True,
+            inputs=[
+                # 66 (Nutzer 2026-11-03: „Reihenfolge logisch, sauber verdrahten“): Sockets oben in
+                # Lese-Reihenfolge: settings, engine, images, shot_prompts; dann die Widgets.
+                # Alle Sockets optional – das Frontend setzt required VOR optional, darum ist auch
+                # images optional (execute meldet „no images provided“, wenn nichts kommt).
+                SETTINGS.Input("settings", optional=True, display_name="settings",
+                               tooltip="Settings chain (format, film name, GPU handoff). Without it the built-in defaults apply."),
+                # 57e: engine-Eingang ist optional + lazy.
+                # lazy=True: die Kette läuft NICHT direkt (graph.py add_node legt lazy
+                #   Inputs nicht als Strong-Links an) – kein Double-Run. Der Director
+                #   liest die Verbindung aus dem dynprompt, nicht aus dem engine-Wert.
+                # optional=True: Automatik. Nicht verbunden → die EINE nicht-stumme
+                #   Engine Out im Prompt. Verbunden → genau diese.
+                io.String.Input(
+                    "engine",
+                    force_input=True,
+                    lazy=True,
+                    optional=True,
+                    tooltip="Engine (INFINITE_ENGINE) – the video model chain (Engine Start → model chain → Engine Result). "
+                            "Optional: when unconnected, the single non-muted engine group in the workflow is used. "
+                            "Connect exactly one Engine Result to use a specific engine group.",
+                ),
+                io.Autogrow.Input(
+                    "images",
+                    template=images_template,
+                    optional=True,
+                    tooltip="Input images, used pairwise for transitions.",
+                ),
+                # Wired prompt per image (prompt i = transition image i -> i+1). web/infinite_movie.js
+                # lays the Auto Prompt nodes out between the images.
+                io.Autogrow.Input(
+                    "shot_prompts",
+                    template=io.Autogrow.TemplatePrefix(
+                        io.String.Input("prompt", force_input=True,
+                                        tooltip="Prompt for the transition from this image to the next."),
+                        prefix="prompt",
+                        min=1,
+                        max=MAX_IMAGES,
+                    ),
+                    optional=True,
+                    tooltip="One wired prompt per image (transition to the next image).",
+                ),
+                # 82: per-shot length, edited in Infinite Movie · Choose (⏱ button).
+                # optional=True + declared last -> last widget in the UI
+                # and old saved workflows keep their positional widgets_values.
+                # No Autogrow: Autogrow sub-inputs become required (see comment below).
+                io.String.Input(
+                    "shot_seconds",
+                    default="",
+                    optional=True,
+                    advanced=True,
+                    tooltip="Per-shot length in seconds, comma separated (shot 1, shot 2, …); empty or 0 = global 'seconds'. Set from Choose › ⏱.",
+                ),
+                io.Boolean.Input(
+                    "loop",
+                    default=True,
+                    tooltip="true = add the closing transition (last image -> first image) so the film loops "
+                            "seamlessly; false = the film ends on the last image (no closing transition).",
+                ),
+                io.Float.Input(
+                    "seconds",
+                    default=2.0,
+                    min=0.5,
+                    step=0.5,
+                    tooltip="Default scene length in seconds, snapped to the preset grid (LTX 24 fps 8n+1: 1 s = 25, 2 s = 49 frames). "
+                            "Per-shot lengths can be set in Choose › ⏱.",
+                ),
+
+                io.Int.Input(
+                    "seed",
+                    default=42,
+                    control_after_generate=True,
+                    tooltip="Base seed (per-segment seed = seed + index; 'reseed' adds 1000 for single segments).",
+                ),
+                io.String.Input(
+                    "reseed",
+                    default="",
+                    tooltip="Segments to re-render with a new seed, e.g. '2' or '2,4' (numbers as in the Concat check report). "
+                            "Each mention adds 1000 to that segment's seed ('2,2' = second try); all other segments keep theirs.",
+                ),
+                # mode-Widget entfernt (Auftrag 72): nur noch Segment-Render.
+                # 61: variants (Variants-Builder). AM ENDE der Widgets (nach reseed, vor den
+                # Sockets engine/settings), damit gespeicherte Workflows nichts verschieben
+                # (widgets_values ist positionell). "2" rendert jeden Uebergang zweimal
+                # (Seed A und Seed A+500) fuer den Infinite Movie · Choose-Node.
+                io.Combo.Input(
+                    "variants",
+                    options=["1", "2"],
+                    default="1",
+                    tooltip="Variants (Auftrag 61): '2' renders every transition TWICE (variant A with the "
+                            "normal seed, variant B with seed+500) so Infinite Movie · Choose can pick the "
+                            "better one per transition. '1' (default) renders once, as before.",
+                ),
+                # scene_seconds entfernt (2026-10-27): optional=True funktionierte nicht bei
+                # Autogrow-Sub-Inputs → Validierung verlangte seconds0/seconds1 als required.
+                # Globales 'seconds' Widget wird für alle Szenen verwendet.
+            ],
+            outputs=[
+                # 71 (Nutzer 2026-11-03: „weniger ist mehr“): genau 2 Ausgänge –
+                # shots = Slot 0 (Pipe zum Assemble), settings = Slot 1 (Kette).
+                # film_path / segment_paths / save_folder / save_name / images
+                # entfernt (keine Migration). Blocking: shots ist ein Link zum
+                # internen Node InfiniteMovieShotsOut, der an den Collector hängt
+                # (execution.py 599-612: Strong-Link aus Link-Werten) – der Director
+                # wartet damit auf alle Segmente, ohne einen sichtbaren Ausgang.
+                SHOTS.Output("shots",
+                          display_name="shots ▶ Assemble",
+                          tooltip="Pipe mit allen Shots (Segment-Pfade, Ordner, Name, fps, loop …) von "
+                                  "Infinite Movie · Director."),
+                SETTINGS.Output("settings", display_name="settings ▶ chain",
+                                tooltip="Settings-Kette (57c2): die eingehenden Settings (oder die Defaults) werden "
+                                        "an den nächsten Node der Kette weitergereicht – Auto Prompt -> Auto Prompt -> "
+                                        "Director -> Assemble -> Upscale."),
+            ],
+            hidden=[io.Hidden.unique_id, io.Hidden.dynprompt],
+        )
+
+    @classmethod
+    def fingerprint_inputs(cls, **kwargs):
+        return float("NaN")
+
+    @classmethod
+    def check_lazy_status(cls, *args, **kwargs):
+        # 57e: engine-Eingang ist lazy (Schema lazy=True) – die Kette wird nicht
+        # direkt ausgeführt (kein Strong-Link). Der Director liest die Engine aus
+        # dem dynprompt. check_lazy_status=[] bestätigt: nichts abwarten.
+        return []
+
+    @classmethod
+    def execute(cls, images=None, shot_prompts=None,
+                loop=True, seconds=2.0,
+                seed=42,
+                reseed="", engine=None,
+                shot_seconds="", settings=None, variants="1"):
+        # Format, Name und GPU-Übergabe aus der Settings-Kette; ohne -> Defaults.
+        # 73: negative entfällt (Engine In hat keinen negative-Ausgang mehr).
+        width = get_setting(settings, "width")
+        height = get_setting(settings, "height")
+        llm_url = vram.DEFAULT_LLM_URL  # lokaler LLM-Router (GPU-Übergabe), keine Einstellung
+        min_free_mb = get_setting(settings, "min_free_mb")
+        acquire_timeout_s = get_setting(settings, "acquire_timeout_s")
+        name = _resolve_film_name(settings)
+        # Concatenating, copying and the cleanup switches live on the visible InfiniteMovieAssemble
+        # (2026-10-26 cleanup: the chain only renders segments).
+        unique_id = cls.hidden.unique_id
+        # Model inputs: the engine template already contains the model loaders
+        # (Auftrag 29). External model override is not supported via the render
+        # node – the engine subgraph defines the model chain.
+        model_inputs = {}
+        # 61: variants (Variants-Builder). Normalize to int.
+        try:
+            variants_int = int(variants)
+        except (TypeError, ValueError):
+            variants_int = 1
+        if variants_int not in (1, 2):
+            variants_int = 1
+        # 57e: engine-based template – read the motor graph via dynprompt.
+        # The engine input is optional: when unconnected, engine_to_template
+        # resolves the single non-muted Engine Out in the prompt (or raises).
+        from .expansion import engine_to_template
+        _dynprompt = getattr(cls.hidden, "dynprompt", None)
+        template, cfg = engine_to_template(_dynprompt, unique_id)
+        preset = cfg.get("preset", "ltx25_flf2v")
+
+        # Memory display: "before" reading (visible while the job runs).
+        _display_memory(cls, "before")
+
+        # 0 means "use the preset default"; snap length to the preset grid.
+        if width <= 0:
+            width = cfg["default_width"]
+        if height <= 0:
+            height = cfg["default_height"]
+        length = _seconds_to_frames(seconds, cfg["fps"], cfg["length_mod"])
+        print(f"[InfiniteMovie] {seconds:g} s -> {length} Frames "
+              f"(fps {cfg['fps']}, grid {cfg['length_mod']}n+1)")
+        snapped = _snap_length(length, cfg["length_mod"])
+        if snapped != length:
+            print(f"[InfiniteMovie] length {length} snapped to {snapped} "
+                  f"(grid {cfg['length_mod']}n+1)")
+        length = snapped
+        # 71: Intro/Outro entfernt (Nutzer 2026-11-03: „weniger ist mehr“) –
+        # keine intro/outro Frames, Prompts oder Segmente mehr.
+
+        # 82: per-shot seconds from the 'shot_seconds' widget
+        # ("2, 3,,4" -> [2.0, 3.0, 0.0, 4.0]; 0 = global 'seconds').
+        scene_seconds_list = _parse_shot_seconds(shot_seconds)
+        if scene_seconds_list:
+            print(f"[InfiniteMovie] per-shot seconds: {scene_seconds_list}")
+
+        # 1. Collect + preprocess images.
+        raw_images = _collect_images(images or [])
+        if len(raw_images) < 2:
+            raise ValueError("InfiniteMovieRender needs at least 2 images")
+        # 69: Größe aus dem ersten Eingangsbild (Settings › aspect = "from images");
+        # raw_images sind H×W×C (np.uint8) -> shape[:2] = (h, w).
+        if get_setting(settings, "aspect") == ASPECT_FROM_IMAGES:
+            h0, w0 = raw_images[0].shape[:2]
+            width, height = resolve_ratio(w0, h0, get_setting(settings, "long_side"))
+            print(f"[InfiniteMovie] size from image 1 ({w0}x{h0}) -> {width}x{height}")
+        images_np = [center_crop_resize(im, width, height) for im in raw_images]
+        # Convert to the tensor format the segment nodes expect (B, H, W, C).
+        image_tensors = [
+            torch.from_numpy(np.ascontiguousarray(im)).unsqueeze(0).float() / 255.0
+            for im in images_np
+        ]
+
+        # 2. Build per-transition prompts.
+        n_images = len(image_tensors)
+        n_segments = n_images if loop else n_images - 1
+        # Wired per-image prompts (shot_prompts.prompt0..) win over the text field.
+        wired = _wired_prompts(shot_prompts)
+        seg_prompts = _build_prompts(json.dumps(wired) if wired else "", None, n_segments)
+        # Clean LLM-generated prompts (think blocks, Markdown, word limit).
+        seg_prompts = [_clean_prompt(p) for p in seg_prompts]
+
+        # Auftrag 48G.1: je Szene den benutzten Prompt loggen (erste 80 Zeichen)
+        for _si, _sp in enumerate(seg_prompts):
+            print(f"[InfiniteMovie] scene {_si} prompt: {_sp[:80]}")
+
+        # 3. Output directory.
+        import folder_paths
+        output_root = folder_paths.get_output_directory()
+        output_dir = os.path.join(output_root, "infinite_movie", name)
+        os.makedirs(output_dir, exist_ok=True)
+
+        # 3b. Skip-Mechanism (Auftrag 61): wenn alle Segmente (A+B) schon existieren
+        # und kein reseed gesetzt ist, GPU nicht anfordern und nur die Pfade
+        # durchreichen (Collector-Graph ohne Render). So bleibt mtime stabil.
+        # 57a: Gesamt-Segmentanzahl (Szenen + Loop); vor dem Skip-Check berechnet, der sie braucht.
+        # 71: Intro/Outro entfernt – nur noch Szenen + optionales Loop-Segment.
+        from .expansion import segment_path, segment_path_b
+        n_scenes = n_images - 1
+        total_segments = n_scenes + (1 if loop else 0)
+        _skip_render = False
+        # 76 (Nutzer 2026-11-03: „not rendering when I press Run … old images“): vorhandene Segmente nur
+        # wiederverwenden, wenn sie mit GENAU diesen Einstellungen entstanden sind (Seed, Prompts, Bilder,
+        # Format, Länge, Varianten, Loop). Signatur-Datei im Ausgabe-Ordner; jedes Segment muss jünger sein
+        # als die Signatur (abgebrochener Lauf -> ältere Reste -> neu rendern).
+        import hashlib
+        _h = hashlib.sha1()
+        _h.update(json.dumps([int(seed), seg_prompts, width, height, length,
+                              bool(loop), variants_int,
+                              str(engine)[:200]], default=str).encode("utf-8"))
+        for _t in image_tensors:
+            _h.update(str(tuple(_t.shape)).encode())
+            _h.update(_t[:, ::16, ::16, :].contiguous().numpy().tobytes())
+        _sig = _h.hexdigest()
+        _sig_path = os.path.join(output_dir, "render_signature.txt")
+        _seg_files = [segment_path(output_dir, i) for i in range(total_segments)]
+        if variants_int >= 2:
+            _seg_files += [segment_path_b(output_dir, i) for i in range(total_segments)]
+        if not reseed:
+            try:
+                _old_sig = open(_sig_path, encoding="utf-8").read().strip()
+                _sig_t = os.path.getmtime(_sig_path)
+            except OSError:
+                _old_sig, _sig_t = "", 0.0
+            if _old_sig == _sig and all(os.path.exists(f) and os.path.getmtime(f) >= _sig_t for f in _seg_files):
+                _skip_render = True
+                print(f"[InfiniteMovie] all {len(_seg_files)} segments match this run, skipping render")
+            elif all(os.path.exists(f) for f in _seg_files):
+                print("[InfiniteMovie] segments exist but were made with other settings/seed -> render")
+        if not _skip_render and not reseed:
+            # Neue Signatur VOR dem Render: die neuen Segmente werden danach jünger als diese Datei.
+            with open(_sig_path, "w", encoding="utf-8") as _f:
+                _f.write(_sig)
+
+        # 4. Acquire the GPU (synchronously, BEFORE building the expansion so
+        #    it is guaranteed to run before the first loader).
+        if not _skip_render:
+            # 65: Ollama/LM Studio mit entladen; GPU bleibt belegt -> klarer Abbruch VOR dem Render
+            vram.wait_acquire(
+                llm_url=llm_url,
+                min_free_mb=min_free_mb,
+                timeout_s=acquire_timeout_s,
+            )
+
+        # 5. Build the expansion graph.
+        # save_folder = the output dir; save_name = the film name (no ext).
+        # The collector node always depends on the render output(s), so the
+        # parent (this node) is blocked until the work is finished
+        # (execution.py:600-613 strong links).
+        acquire_kwargs = {
+            "llm_url": llm_url,
+            "min_free_mb": min_free_mb,
+            "timeout_s": acquire_timeout_s,
+        }
+        # segments mode (as before): one render per transition, collector
+        # (InfiniteMovieSegmentPaths) depends on ALL segments.
+        if _skip_render:
+            # Skip-Graph: nur Collector mit hartkodierten Pfaden (kein Render).
+            collector_id = f"{unique_id}_collector"
+            _seg_inputs = {}
+            for i in range(total_segments):
+                # Autogrow flach wie im Collector der Expansion (expansion.py:1021)
+                _seg_inputs[f"segments.segment{i}"] = segment_path(output_dir, i)
+            graph = {collector_id: {"class_type": "InfiniteMovieSegmentPaths",
+                                    "inputs": _seg_inputs}}
+            print(f"[InfiniteMovie] skip-render: {total_segments} segments, "
+                  f"variants={variants_int}, out={output_dir}")
+        else:
+            graph = build_expansion_graph(
+                unique_id=unique_id,
+                preset=preset,
+                images=image_tensors,
+                prompts=seg_prompts,
+                seed=seed,
+                width=width, height=height, length=length,
+                loop=loop,
+                output_dir=output_dir,
+                film_name=name,
+                concat_inside=False,
+                acquire_kwargs=acquire_kwargs,
+                release_kwargs={},
+                seed_bumps=_parse_reseed(reseed),
+                model_inputs=model_inputs,
+                template=template,
+                cfg=cfg,
+                scene_seconds=scene_seconds_list or None,
+                variants=variants_int,
+            )
+            collector_id = f"{unique_id}_collector"
+            print(f"[InfiniteMovie] built expansion: {n_segments} segments, "
+                  f"preset={preset}, size={width}x{height}, length={length}, "
+                  f"loop={loop}, variants={variants_int}, out={output_dir}")
+
+        # 71: images-Ausgang und film_path entfernt – der frames-Collector
+        # (InfiniteMovieFramesCollect) wird hier nicht mehr angehängt.
+        # "after" reading (the heavy work happens in the expansion; this is
+        # the state right after the graph is built / acquire finished).
+        _display_memory(cls, "after")
+        # SHOTS dict (ein "Pipe")
+        # 57a: Gesamt-Segmentanzahl (intro/outro/loop) + per-Segment-Framezahlen.
+        # Segment-Pfade konstruieren (Collector-Output ist ein Link, kein direkter Wert)
+        seg_paths_str = "\n".join(
+            segment_path(output_dir, i) for i in range(total_segments)
+        )
+        # Per-Segment-Framezahlen (Reihenfolge: Szenen…, loop?). 71: Intro/Outro entfernt.
+        if scene_seconds_list:
+            scene_lengths = _scene_frames(scene_seconds_list, cfg["fps"], cfg["length_mod"], length)
+        else:
+            scene_lengths = [length] * n_scenes
+        scene_frames_list = []
+        for k in range(n_scenes):
+            scene_frames_list.append(scene_lengths[k] if k < len(scene_lengths) else length)
+        if loop:
+            scene_frames_list.append(length)
+        film_dict = {
+            "segments": [ln.strip() for ln in (seg_paths_str or "").splitlines() if ln.strip()],
+            "save_folder": output_dir,
+            "save_name": name,
+            "fps": cfg.get("fps", 24.0),
+            "loop": loop,
+            "width": width,
+            "height": height,
+            "frames_per_segment": length,
+            "seed": seed,
+            "render_id": unique_id,  # uid-Zeile fiel in Paket 71 weg (NameError 2026-11-04)
+            "scene_frames": scene_frames_list,
+        }
+        # 61: variants (Variants-Builder). Only present when variants=2 (segments mode).
+        # segments stays the A list, so Assemble without a Chooser works unchanged.
+        if variants_int == 2:
+            film_dict["variants"] = [
+                [segment_path(output_dir, i), segment_path_b(output_dir, i)]
+                for i in range(total_segments)
+            ]
+        # 71: Blocking-Brücke – der shots-Ausgang ist ein Link zu
+        # InfiniteMovieShotsOut, der an den Collector hängt (segment_paths).
+        # Damit wartet der Director auf alle Segmente, ohne einen sichtbaren
+        # Ausgang zu brauchen (execution.py:599-612).
+        shots_id = f"{unique_id}_shots"
+        graph[shots_id] = {
+            "class_type": "InfiniteMovieShotsOut",
+            "inputs": {"segment_paths": [collector_id, 0], "shots": film_dict},
+        }
+        # 57c2: Settings-Kette – eingehendes Dict weiterreichen, sonst Defaults.
+        out_settings = chain_settings(settings)
+        return io.NodeOutput(
+            [shots_id, 0],      # 71: shots = Slot 0 (Link zu InfiniteMovieShotsOut)
+            out_settings,       # 71: settings = Slot 1
+            expand=graph,
+        )
+
+
+# ---------------------------------------------------------------------------
+# Node: InfiniteMovieSegmentSave
+# ---------------------------------------------------------------------------
+
+class InfiniteMovieSegmentSave(io.ComfyNode):
+    @classmethod
+    def define_schema(cls):
+        return io.Schema(
+            node_id="InfiniteMovieSegmentSave",
+            display_name="Infinite Movie · Segment Save (internal)",
+            search_aliases=["infinite movie", "infinite_movie", "film", "movie", "video", "ltx", "wan"],
+            category="Infinite Movie/9 Internal",
+            description="Writes one segment's frames to an mp4 file (ffmpeg). Skips if the segment already exists and is complete (resume).",
+            is_output_node=True,
+            inputs=[
+                io.Image.Input("frames", tooltip="Frames tensor (B, H, W, C) float [0,1]."),
+                io.String.Input("path", tooltip="Output mp4 path for this segment."),
+                io.Int.Input("index", default=0, tooltip="Segment index (for logging/progress)."),
+                io.Int.Input("total", default=1, tooltip="Total number of segments (for progress)."),
+                io.Int.Input("fps", default=16, tooltip="Frame rate for the segment."),
+                io.String.Input("key", optional=True,
+                                tooltip="Render key (seed/prompt/images/length). An existing file is reused only when its key matches."),
+                io.String.Input("trigger", optional=True,
+                                tooltip="Dependency input (value ignored). Used to force execution order."),
+                io.Audio.Input("audio", optional=True,
+                               tooltip="Optional audio (AUDIO) to mux into the segment mp4 as AAC (LTX 2.5)."),
+            ],
+            outputs=[
+                io.String.Output("path", tooltip="Path to the written segment mp4."),
+            ],
+            hidden=[io.Hidden.unique_id],
+        )
+
+    @classmethod
+    def execute(cls, frames, path, index=0, total=1, fps=16, trigger=None, key=None, audio=None):
+        # cls.hidden is set by the ComfyUI engine at runtime; it is None when
+        # execute() is called directly (e.g. from the offline test).
+        unique_id = None
+        try:
+            unique_id = cls.hidden.unique_id
+        except AttributeError:
+            pass
+        expected_frames = frames.shape[0] if isinstance(frames, torch.Tensor) else -1
+        _send_progress(f"segment {index}/{total}", unique_id)
+        key_file = path + ".key"
+        old_key = open(key_file, encoding="utf-8").read().strip() if os.path.exists(key_file) else None
+        if _segment_is_complete(path, expected_frames) and (key is None or key == old_key):
+            print(f"[InfiniteMovieSegmentSave] segment {index} already complete, skipping: {path}")
+            return io.NodeOutput(path)
+        if os.path.exists(path):
+            # Never overwrite: keep the previous render under old/ (seg_001_01.mp4, ...).
+            old_dir = os.path.join(os.path.dirname(path), "old")
+            os.makedirs(old_dir, exist_ok=True)
+            stem, ext = os.path.splitext(os.path.basename(path))
+            n = 1
+            while os.path.exists(os.path.join(old_dir, f"{stem}_{n:02d}{ext}")):
+                n += 1
+            shutil.move(path, os.path.join(old_dir, f"{stem}_{n:02d}{ext}"))
+            print(f"[InfiniteMovieSegmentSave] moved previous segment {index} to old/{stem}_{n:02d}{ext}")
+
+        with tempfile.TemporaryDirectory(prefix="infinite_movie_seg_") as tmp:
+            _write_frames_to_dir(frames, tmp, fps)
+            audio_wav = None
+            if audio is not None:
+                audio_wav = os.path.join(tmp, "audio.wav")
+                _write_audio_to_wav(audio, audio_wav)
+            _encode_dir_to_mp4(tmp, path, fps, audio_wav)
+        if key:
+            with open(key_file, "w", encoding="utf-8") as f:
+                f.write(key)
+        print(f"[InfiniteMovieSegmentSave] wrote segment {index}: {path} ({expected_frames} frames)")
+        return io.NodeOutput(path)
+
+
+# ---------------------------------------------------------------------------
+# Node: InfiniteMovieSegmentPaths (collector)
+# ---------------------------------------------------------------------------
+
+class InfiniteMovieSegmentPaths(io.ComfyNode):
+    """Joins the per-segment mp4 paths into one multiline string.
+
+    Primary use: an internal collector inside the InfiniteMovieRender expansion. The
+    expansion links one Autogrow input per segment to the corresponding
+    InfiniteMovieSegmentSave output, so this node DEPENDS ON EVERY segment. Because
+    InfiniteMovieRender's segment_paths output is a link to this collector, the parent
+    node is blocked until all segments have finished (execution.py:600-613).
+    It is also usable standalone to combine segment paths.
+    """
+
+    @classmethod
+    def define_schema(cls):
+        segment_template = io.Autogrow.TemplatePrefix(
+            io.String.Input("segment", optional=True,
+                            tooltip="One segment mp4 path."),
+            prefix="segment",
+            min=1,
+            max=24,
+        )
+        return io.Schema(
+            node_id="InfiniteMovieSegmentPaths",
+            display_name="Infinite Movie · Segment Paths (internal)",
+            search_aliases=["infinite movie", "infinite_movie", "film", "movie", "video", "ltx", "wan"],
+            category="Infinite Movie/9 Internal",
+            description="Joins the segment mp4 paths (one per input) into a single multiline string. Inside InfiniteMovieRender it acts as the ordering collector that depends on every segment.",
+            is_output_node=True,
+            inputs=[
+                io.Autogrow.Input(
+                    "segments",
+                    template=segment_template,
+                    tooltip="One segment mp4 path per input, in order.",
+                ),
+            ],
+            outputs=[
+                io.String.Output("segment_paths",
+                                 tooltip="All segment paths, one per line."),
+            ],
+            hidden=[io.Hidden.unique_id, io.Hidden.dynprompt],
+        )
+
+    @classmethod
+    def execute(cls, segments=None):
+        # Autogrow arrives as a dict {segment_0: path, segment_1: path, ...}
+        # (comfy_api/latest/_io.py build_nested_inputs, line 2095). A plain
+        # list is also accepted (offline test).
+        if isinstance(segments, dict):
+            # numerisch sortieren (segment10 nicht vor segment2)
+            def _idx(k):
+                d = "".join(c for c in str(k) if c.isdigit())
+                return int(d) if d else 0
+            values = [segments[k] for k in sorted(segments, key=_idx)]
+        else:
+            values = list(segments or [])
+        paths = [str(v).strip() for v in values if v is not None and str(v).strip()]
+        if not paths:
+            raise ValueError("InfiniteMovieSegmentPaths: no segment paths provided")
+        return io.NodeOutput("\n".join(paths))
+
+
+# ---------------------------------------------------------------------------
+# Node: InfiniteMovieShotsOut (internal, Auftrag 71)
+# ---------------------------------------------------------------------------
+
+class InfiniteMovieShotsOut(io.ComfyNode):
+    """71: Interne Blocking-Brücke für den Director.
+
+    Der Director gibt seinen `shots`-Ausgang als Link zu diesem Node zurück.
+    Dieser hängt an den Collector (`segment_paths`, Link) und nimmt das
+    Shots-Dict als Literal entgegen; er gibt das Dict mit den echten
+    Segment-Pfaden (aus dem Collector) zurück. Damit wartet der Director auf
+    alle Segmente, ohne einen sichtbaren Ausgang zu brauchen
+    (execution.py:599-612: Strong-Link aus Link-Werten).
+    """
+
+    @classmethod
+    def define_schema(cls):
+        return io.Schema(
+            node_id="InfiniteMovieShotsOut",
+            display_name="Infinite Movie · Shots Out (internal)",
+            search_aliases=["infinite movie", "infinite_movie", "film", "movie", "video", "ltx", "wan"],
+            category="Infinite Movie/9 Internal",
+            description="Internal bridge: takes the shots dict (literal) and the collector's segment_paths (link) and returns the shots dict with the real segment paths. Used by InfiniteMovieRender to block on the expansion without a visible output.",
+            is_output_node=True,
+            inputs=[
+                io.String.Input("segment_paths",
+                                tooltip="All segment paths, one per line (link to the segment collector)."),
+                SHOTS.Input("shots",
+                            tooltip="The shots dict (literal) from the Director."),
+            ],
+            outputs=[
+                SHOTS.Output("shots",
+                             tooltip="The shots dict with the real segment paths."),
+            ],
+            hidden=[io.Hidden.unique_id, io.Hidden.dynprompt],
+        )
+
+    @classmethod
+    def execute(cls, segment_paths="", shots=None):
+        d = dict(shots) if isinstance(shots, dict) else {}
+        d["segments"] = [ln.strip() for ln in (segment_paths or "").splitlines() if ln.strip()]
+        return io.NodeOutput(d)
+
+
+# ---------------------------------------------------------------------------
+# Node: InfiniteMovieFramesCollect
+# ---------------------------------------------------------------------------
+
+def _collect_frame_ranges(seg_paths: list[str], counts: list[int], loop: bool) -> list[tuple[int, int]]:
+    """Per-segment frame ranges [start, end) - the exact InfiniteMovieAssemble convention:
+    segments after the first drop their first frame (seam duplicate), the last
+    segment drops its last frame when looping."""
+    n = len(seg_paths)
+    out = []
+    for i in range(n):
+        start = 1 if i > 0 else 0
+        end = (counts[i] - 1) if (loop and i == n - 1) else counts[i]
+        if end <= start:
+            raise ValueError(
+                f"InfiniteMovieFramesCollect: segment {i} has only {counts[i]} frames; "
+                f"range [start={start}, end={end}) is empty")
+        out.append((start, end))
+    return out
+
+
+def _output_connected(dynprompt, node_id: str, slot: int) -> bool:
+    """True if any node in the prompt has an input linked to (node_id, slot).
+
+    Used to run the (RAM-hungry) InfiniteMovieFramesCollect only when the InfiniteMovieRender
+    `images` output is actually connected. A subgraph output that is a link
+    would force the source node to run unconditionally (execution.py:612-613,
+    comfy_execution/graph.py add_strong_link 145-151), so the node is added to
+    the expansion conditionally instead.
+    """
+    if dynprompt is None:
+        return False
+    try:
+        ids = dynprompt.all_node_ids()
+    except Exception:  # noqa: BLE001
+        return False
+    for nid in ids:
+        if nid == node_id:
+            continue
+        try:
+            inputs = dynprompt.get_node(nid).get("inputs", {})
+        except Exception:  # noqa: BLE001
+            continue
+        for v in inputs.values():
+            if isinstance(v, list) and len(v) == 2 and v[0] == node_id and v[1] == slot:
+                return True
+    return False
+
+
+def _probe_size(video_path: str) -> tuple[int, int]:
+    """Probe the video size (width, height) via ffprobe (ffmpeg -i stderr)."""
+    ff = _ffmpeg()
+    r = subprocess.run([ff, "-i", video_path], capture_output=True, text=True, **_no_window())
+    m = re.search(r"(\d{2,5})x(\d{2,5})", r.stderr or "")
+    if not m:
+        raise ValueError(f"could not probe size of {video_path}")
+    return int(m.group(1)), int(m.group(2))
+
+
+def _collect_frames_tensor(path: str, width: int, height: int,
+                           max_images_gb: float = 0.0) -> "torch.Tensor":
+    """Read ALL frames from a single video file into one IMAGE tensor (B,H,W,C).
+
+    Frames are read chunk by chunk (ffmpeg rawvideo pipe) into a pre-allocated
+    tensor (no list-concat). RAM estimate: frames*H*W*3*4 bytes (float32);
+    above 8 GB the output is float16. Logs the estimate (Auftrag 30, RAM-Schutz).
+
+    max_images_gb (Auftrag 39D): if > 0 and the estimated RAM usage exceeds
+    this limit, raise a RuntimeError with the estimated size.
+    """
+    n = _count_frames(path)
+    if n <= 0:
+        raise ValueError(f"could not count frames in {path}")
+    est = n * width * height * 3 * 4
+    est_gb = est / 1024 ** 3
+    if max_images_gb > 0 and est_gb > max_images_gb:
+        raise RuntimeError(
+            f"images output would need ~{est_gb:.1f} GB but max_images_gb is "
+            f"{max_images_gb:.1f} GB. Reduce the number of frames, the resolution, "
+            f"or increase max_images_gb.")
+    use_f16 = est > 8 * 1024 ** 3
+    print(f"[InfiniteMovie] images output: {n} frames ({width}x{height}), "
+          f"~{est_gb:.1f} GB float32"
+          + (" -> using float16 (> 8 GB)" if use_f16 else ""))
+    dtype = torch.float16 if use_f16 else torch.float32
+    out = torch.empty(n, height, width, 3, dtype=dtype)
+    ff = _ffmpeg()
+    frame_bytes = width * height * 3
+    proc = subprocess.Popen(
+        [ff, "-v", "error", "-nostdin", "-i", path, "-f", "rawvideo",
+         "-pix_fmt", "rgb24", "-"],
+        stdout=subprocess.PIPE, stdin=subprocess.DEVNULL, **_no_window())
+    try:
+        for i in range(n):
+            data = proc.stdout.read(frame_bytes)
+            if len(data) < frame_bytes:
+                break
+            arr = np.frombuffer(data, dtype=np.uint8).reshape(height, width, 3)
+            out[i] = torch.from_numpy(np.ascontiguousarray(arr)).to(dtype).div_(255.0)
+    finally:
+        proc.stdout.close()
+        proc.wait()
+    return out
+
+
+def _images_output(dynprompt, node_id: str, slot: int, path: str,
+                   width: int, height: int):
+    """Return the images output value for a video node (Auftrag 30, RAM-Schutz).
+
+    If the images output is connected (via _output_connected), read all frames
+    from the video file into a tensor (RAM-hungry, only when needed). Otherwise
+    return a 1x1x1x3 placeholder (never consumed).
+    """
+    if _output_connected(dynprompt, node_id, slot):
+        return _collect_frames_tensor(path, width, height)
+    return torch.zeros(1, 1, 1, 3)
+
+
+class InfiniteMovieFramesCollect(io.ComfyNode):
+    """Internal: reads the segment mp4s in order, removes the seam duplicates
+    (same convention as InfiniteMovieAssemble) and returns ALL film frames as one IMAGE
+    batch. Added to the InfiniteMovieRender expansion only when the `images` output is
+    connected, so it never runs for nothing. Frames are read chunk by chunk
+    (ffmpeg rawvideo pipe), but the final batch is held in RAM:
+    frames*H*W*3*4 bytes (float32) - above 8 GB the output is float16."""
+
+    @classmethod
+    def define_schema(cls):
+        return io.Schema(
+            node_id="InfiniteMovieFramesCollect",
+            display_name="Infinite Movie · Frames Collect (internal)",
+            search_aliases=["infinite movie", "infinite_movie", "film", "movie", "video", "ltx", "wan"],
+            category="Infinite Movie/9 Internal",
+            description="Reads the segment mp4s in order, removes the seam duplicates (same convention as "
+                        "InfiniteMovieAssemble) and returns all film frames as one IMAGE batch. Internal node: InfiniteMovieRender "
+                        "adds it to the expansion only when its `images` output is connected. The whole batch "
+                        "is held in RAM (float32, float16 above 8 GB).",
+            is_output_node=True,
+            inputs=[
+                io.String.Input("paths", multiline=True,
+                                tooltip="Segment mp4 paths, one per line, in order."),
+                io.Boolean.Input("loop", default=True,
+                                 tooltip="true = also drop the last frame of the last segment (seamless loop); "
+                                         "false = keep it."),
+                io.Int.Input("width", default=768, min=1, tooltip="Segment width (pixels)."),
+                io.Int.Input("height", default=960, min=1, tooltip="Segment height (pixels)."),
+                io.Float.Input("max_images_gb", default=0.0, min=0.0, advanced=True,
+                               tooltip="Maximum RAM (in GB) for the images output. 0 = no limit. "
+                                       "If the estimated RAM usage exceeds this limit, an error is raised."),
+            ],
+            outputs=[
+                io.Image.Output("images",
+                                tooltip="All film frames as an IMAGE batch (seams removed). ~1.7 GB for 4×49 frames at "
+                                        "768×960; long films need much more RAM – prefer segment_paths for "
+                                        "long films."),
+            ],
+            hidden=[io.Hidden.unique_id],
+        )
+
+    @classmethod
+    def execute(cls, paths, loop=True, width=768, height=960, max_images_gb=0.0):
+        seg_paths = [ln.strip() for ln in (paths or "").splitlines() if ln.strip()]
+        if not seg_paths:
+            raise ValueError("InfiniteMovieFramesCollect: no segments provided")
+        counts = []
+        for p in seg_paths:
+            if not os.path.exists(p):
+                raise ValueError(f"InfiniteMovieFramesCollect: segment not found: {p}")
+            n = _count_frames(p)
+            if n <= 0:
+                raise ValueError(f"InfiniteMovieFramesCollect: could not count frames in {p}")
+            counts.append(n)
+        ranges = _collect_frame_ranges(seg_paths, counts, loop)
+        total = sum(end - start for start, end in ranges)
+        est = total * width * height * 3 * 4
+        est_gb = est / 1024 ** 3
+        if max_images_gb > 0 and est_gb > max_images_gb:
+            raise RuntimeError(
+                f"InfiniteMovieFramesCollect: images output would need ~{est_gb:.1f} GB but "
+                f"max_images_gb is {max_images_gb:.1f} GB. Reduce the number of frames, the "
+                f"resolution, or increase max_images_gb.")
+        use_f16 = est > 8 * 1024 ** 3
+        print(f"[InfiniteMovieFramesCollect] {total} frames ({width}x{height}), ~{est_gb:.1f} GB float32"
+              + (" -> using float16 (> 8 GB)" if use_f16 else ""))
+        dtype = torch.float16 if use_f16 else torch.float32
+        out = torch.empty(total, height, width, 3, dtype=dtype)
+        ff = _ffmpeg()
+        frame_bytes = width * height * 3
+        i = 0
+        for p, (start, end) in zip(seg_paths, ranges):
+            proc = subprocess.Popen(
+                [ff, "-v", "error", "-nostdin", "-i", p, "-f", "rawvideo", "-pix_fmt", "rgb24", "-"],
+                stdout=subprocess.PIPE, stdin=subprocess.DEVNULL, **_no_window())
+            try:
+                for f in range(end):
+                    data = proc.stdout.read(frame_bytes)
+                    if len(data) < frame_bytes:
+                        break
+                    if f >= start:
+                        arr = np.frombuffer(data, dtype=np.uint8).reshape(height, width, 3)
+                        out[i] = torch.from_numpy(np.ascontiguousarray(arr)).to(dtype).div_(255.0)
+                        i += 1
+            finally:
+                proc.stdout.close()
+                proc.wait()
+        if i != total:
+            raise RuntimeError(f"InfiniteMovieFramesCollect: read {i} of {total} expected frames")
+        return io.NodeOutput(out)
+
+
+# ---------------------------------------------------------------------------
+# Shared: _concat_segments (extracted from InfiniteMovieAssemble, Auftrag 32)
+# ---------------------------------------------------------------------------
+
+def _concat_segments(seg_paths, save_folder, save_name, loop,
+                     free_vram, free_ram, wake_llm, llm_url, min_free_mb,
+                     metadata=None):
+    """Shared concat logic (Auftrag 32): concatenate segment mp4s into one film.
+
+    Args:
+        seg_paths: list of segment mp4 paths (in order).
+        save_folder: output folder for the film.
+        save_name: film file name without extension.
+        loop: True = drop last frame of last segment (seamless loop).
+        free_vram/free_ram/wake_llm/llm_url/min_free_mb: cleanup switches.
+        metadata: optional dict (e.g. {"prompt": ..., "workflow": ...}) written
+            as FFMETADATA into the output mp4 (Auftrag 70).
+
+    76: If ALL segments have an audio stream, the audio is trimmed per segment
+    to match the video frames and concatenated (aac). Otherwise the film is
+    silent (as before).
+
+    Returns:
+        (film_path, check, total_frames, fps)
+    """
+    film_path = _unique_output_path(save_folder, save_name, ".mp4")
+    ff = _ffmpeg()
+    counts = []
+    for p in seg_paths:
+        n = _count_frames(p)
+        if n <= 0:
+            raise ValueError(f"concat: could not count frames in {p}")
+        counts.append(n)
+    n_seg = len(seg_paths)
+    inputs: list[str] = []
+    for p in seg_paths:
+        inputs += ["-i", p]
+    fps = _video_fps(seg_paths[0])
+    # 76: Audio nur mitnehmen, wenn ALLE Segmente einen Audio-Stream haben.
+    # Sonst stumm (kein Versatz, kein Halbstumm).
+    all_have_audio = all(_has_audio_stream(p) for p in seg_paths)
+    filter_parts = []
+    for i in range(n_seg):
+        n = counts[i]
+        start = 1 if i > 0 else 0
+        end = (n - 1) if (loop and i == n_seg - 1) else n
+        if end <= start:
+            raise ValueError(f"concat: segment {i} has only {n} frames; trim [start={start}, end={end}) is empty")
+        filter_parts.append(f"[{i}:v]trim=start_frame={start}:end_frame={end}[v{i}]")
+        if all_have_audio:
+            # Audio passend zu den Video-Frames trimmen (Zeit = Frames / fps),
+            # Timestamps zurücksetzen, damit Segment 0 bei 0 startet.
+            filter_parts.append(
+                f"[{i}:a]atrim=start={start / float(fps):.6f}:end={end / float(fps):.6f},"
+                f"asetpts=PTS-STARTPTS[a{i}]")
+    # 76: [vout] ist der kombinierte concat-Output (a=1 => Video+Audio, a=0 => nur
+    # Video). settb/setpts sind Video-Filter und greifen nur auf den Video-Teil;
+    # Audio laesst man durch. [vout] mappen reicht, ffmpeg extrahiert beide Streams.
+    if all_have_audio:
+        concat_in = "".join(f"[v{i}][a{i}]" for i in range(n_seg))
+        filter_complex = ";".join(filter_parts) + \
+            f";{concat_in}concat=n={n_seg}:v=1:a=1,settb=1/({fps}),setpts=N[vout]"
+    else:
+        concat_in = "".join(f"[v{i}]" for i in range(n_seg))
+        filter_complex = ";".join(filter_parts) + \
+            f";{concat_in}concat=n={n_seg}:v=1:a=0,settb=1/({fps}),setpts=N[vout]"
+    # Auftrag 70: FFMETADATA (prompt, workflow) in die finale MP4 schreiben.
+    meta_path = None
+    if metadata:
+        import json as _json
+        meta_path = film_path + ".meta.txt"
+
+        def _escape_ffmpeg_metadata(key, value):
+            value = str(value)
+            value = value.replace("\\", "\\\\")
+            value = value.replace(";", "\\;")
+            value = value.replace("#", "\\#")
+            value = value.replace("=", "\\=")
+            value = value.replace("\n", "\\n")
+            return f"{key}={value}"
+
+        with open(meta_path, "w", encoding="utf-8") as f:
+            f.write(";FFMETADATA1\n")
+            if "prompt" in metadata:
+                f.write(_escape_ffmpeg_metadata("prompt", _json.dumps(metadata["prompt"])) + "\n")
+            if "workflow" in metadata:
+                f.write(_escape_ffmpeg_metadata("workflow", _json.dumps(metadata["workflow"])) + "\n")
+            for k, v in metadata.items():
+                if k not in ("prompt", "workflow"):
+                    f.write(_escape_ffmpeg_metadata(k, _json.dumps(v)) + "\n")
+        inputs = inputs + ["-f", "ffmetadata", "-i", meta_path]
+    try:
+        # 76: [vout] ist der kombinierte concat-Output; AAC-Codec nur, wenn alle
+        # Segmente Ton haben.
+        codec_args = ["-c:v", "libx264", "-pix_fmt", "yuv420p", "-crf", "17"]
+        if all_have_audio:
+            codec_args += ["-c:a", "aac", "-b:a", "192k"]
+        meta_args = ["-map_metadata", str(n_seg),
+                     "-movflags", "use_metadata_tags+faststart"] if metadata \
+            else ["-movflags", "+faststart"]
+        cmd = [ff, "-y", *inputs,
+               "-filter_complex", filter_complex,
+               "-map", "[vout]",
+               "-r", fps,
+               *codec_args,
+               *meta_args,
+               film_path]
+        _run_ffmpeg_to(cmd, film_path)
+    finally:
+        if meta_path and os.path.exists(meta_path):
+            os.remove(meta_path)
+    total = sum(counts) - (n_seg - 1) - (1 if loop else 0)
+    audio_note = " mit Ton" if all_have_audio else " stumm"
+    print(f"[concat] wrote film: {film_path} ({n_seg} segments, frames={counts} -> {total}{audio_note})")
+    check = "\n".join(_segment_check_report(seg_paths))
+    print(f"[concat] segment check:\n{check}")
+    try:
+        status = vram.do_cleanup(
+            free_vram=free_vram, free_ram=free_ram, wake_llm=wake_llm,
+            llm_url=llm_url, min_free_mb=min_free_mb,
+        )
+    except Exception as e:  # noqa: BLE001
+        status = f"cleanup failed, film is fine: {e}"
+    print(f"[concat] {status}")
+    return film_path, check, total, float(fps)
+
+
+# ---------------------------------------------------------------------------
+# Node: InfiniteMovieAssemble (REMOVED in Auftrag 32 - logic now in _concat_segments)
+# ---------------------------------------------------------------------------
+
+# InfiniteMovieAssemble wurde in Auftrag 32 entfernt - die Logik lebt jetzt in
+# _concat_segments (oben). Der Node ist aus der NODE_LIST entfernt.
+
+
+
+# 75: InfiniteMovieFramePairSwitch removed (not used by any workflow).
+
+
+# 75: InfiniteMovieVRAMAcquire / InfiniteMovieVRAMRelease / InfiniteMovieMemoryStatus removed.
+# The vram.py functions (wait_acquire, do_cleanup, get_memory_status) remain -
+# InfiniteMovieRender calls vram.wait_acquire() directly before building the expansion.
+
+
+# ---------------------------------------------------------------------------
+# Node list
+# ---------------------------------------------------------------------------
+
+NODE_LIST = [InfiniteMovieRender, InfiniteMovieSegmentSave, InfiniteMovieSegmentPaths, InfiniteMovieShotsOut,
+             InfiniteMovieFramesCollect]
+
+
+# ---------------------------------------------------------------------------
+# Route: /infinite_movie/video_info (Auftrag 39D)
+# ---------------------------------------------------------------------------
+
+def _register_video_info_route():
+    """Register the /infinite_movie/video_info route (Auftrag 39D).
+
+    Returns video info (duration, fps, width, height, frame count) for a given
+    video file. Used by the AutoBatch JS to calculate the batch size.
+    """
+    try:
+        from server import PromptServer
+        from aiohttp import web
+
+        _ps = getattr(PromptServer, "instance", None)
+        if _ps is None:
+            return
+        @_ps.routes.get("/infinite_movie/video_info")
+        async def video_info(request):
+            path = request.query.get("path", "")
+            if not path or not os.path.exists(path):
+                return web.json_response({"error": f"file not found: {path}"}, status=404)
+            ff = _ffmpeg()
+            r = subprocess.run([ff, "-hide_banner", "-i", path],
+                               capture_output=True, text=True, timeout=10, **_no_window())
+            stderr = r.stderr or ""
+            info = {"path": path}
+            m = re.search(r"Duration:\s*(\d+):(\d+):(\d+\.?\d*)", stderr)
+            if m:
+                h, mi, s = int(m.group(1)), int(m.group(2)), float(m.group(3))
+                info["duration"] = h * 3600 + mi * 60 + s
+            m = re.search(r"(\d{2,5})x(\d{2,5})", stderr)
+            if m:
+                info["width"] = int(m.group(1))
+                info["height"] = int(m.group(2))
+            m = re.search(r"(\d+\.?\d*)\s*fps", stderr)
+            if m:
+                info["fps"] = float(m.group(1))
+            n = _count_frames(path)
+            info["frames"] = n
+            return web.json_response(info)
+    except Exception as e:
+        print(f"[InfiniteMovie] Failed to register video_info route: {e}")
+
+
+_register_video_info_route()

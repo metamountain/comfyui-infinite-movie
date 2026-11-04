@@ -1,0 +1,25 @@
+__pycache__/
+*.pyc
+.pytest_cache/
+
+# lokale Arbeitsordner (Temp, Rettungskopien, Logs, Screenshots, Renders)
+tmp/
+films/
+inputs/
+mp/
+data/
+.qwen/
+.playwright-mcp/
+
+# große lokale Testdaten
+tests/object_info_snapshot.json
+
+# nur lokal (Nutzer 2026-11-04: auf GitHub nur das Minimum – Code, web, templates, Beispiel-Workflows, README)
+docs/
+workflows/
+tools/*
+!tools/patch_vhs_silent_audio.py
+tests/
+CLAUDE.md
+AGENTS.md
+opencode.json
