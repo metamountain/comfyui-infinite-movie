@@ -782,10 +782,9 @@ def build_expansion_graph(unique_id: str, preset: str,
         loop: whether to add the closing N->1 segment.
         output_dir: directory for segment files (also the film save_folder).
         film_name: name of the final film (without extension, the save_name).
-        acquire_kwargs: kwargs for the InfiniteMovieVRAMAcquire node (llm_url, min_free_mb,
-            timeout_s).
+        acquire_kwargs: GPU check kwargs (min_free_mb, timeout_s).
         release_kwargs: kwargs for the cleanup switches on the (internal)
-            InfiniteMovieAssemble (free_vram, free_ram, wake_llm, min_free_mb, llm_url).
+            InfiniteMovieAssemble (free_vram, free_ram).
         concat_inside: True = build an internal InfiniteMovieAssemble (with the cleanup
             switches) after the collector. False = no internal InfiniteMovieAssemble and
             no InfiniteMovieVRAMRelease; the user attaches a visible InfiniteMovieAssemble node and
@@ -944,8 +943,6 @@ def build_expansion_graph(unique_id: str, preset: str,
             "settings": {
                 "free_vram": release_kwargs.get("free_vram", True),
                 "free_ram": release_kwargs.get("free_ram", False),
-                "wake_llm": release_kwargs.get("wake_llm", True),
-                "release_min_free_mb": release_kwargs.get("min_free_mb", 18000),
             },
         }
         graph[concat_id] = {"class_type": "InfiniteMovieAssemble", "inputs": concat_inputs}

@@ -23,3 +23,7 @@ tests/
 CLAUDE.md
 AGENTS.md
 opencode.json
+
+# Sicherungen / lokale Messwerkzeuge
+*.bak-*
+progress_measure.py

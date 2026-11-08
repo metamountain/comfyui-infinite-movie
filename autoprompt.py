@@ -206,11 +206,19 @@ def generate(image_from, image_to, model_name: str, keywords: str = "", camera: 
     load/gen sind für Tests austauschbar (ohne GPU)."""
     load = load or _load_model
     gen = gen or _gen
+    open_shot = image_to is None                  # 1 Bild ohne Loop: offener Shot, kein Endbild
+    if open_shot:
+        image_to = image_from                     # Beschreibung: Start = Ende (Szene des einen Bildes)
     images = _pair(image_from, image_to) if gen is _gen else None
     hint = f"\nKeywords: {keywords.strip()}" if keywords and keywords.strip() else ""
     frames = "Image 1 is the first frame and image 2 the last frame of one video shot."
     story_frames, story_images = frames, images
-    if _same_image(image_from, image_to):
+    if open_shot:
+        story_frames = ("This image is the first frame of one video shot; the shot has no fixed last frame. Invent "
+                        "one clear, visible change that happens after this moment (follow the instructions). Never "
+                        "say that nothing happens, nothing changes or the scene stays still.")
+        story_images = images[:1] if images is not None else None
+    elif _same_image(image_from, image_to):
         # Ein-Bild-Loop (Nutzer 2026-11-04: "No time-lapse occurs; the two frames are identical" /
         # "A single, unchanging moment of stillness repeats endlessly"): zwei gleiche Bilder lesen kleine Modelle
         # als "nichts passiert". Für die Geschichte darum nur EIN Bild + ausdrücklicher Loop-Auftrag.
@@ -291,8 +299,9 @@ class InfiniteMovieAutoPromptV2(io.ComfyNode):
         # Auto Prompts der Settings-Kette, die bei Regenerate mitlaufen).
         if not str(regen or "").strip() or not model_name or model_name == "off":
             return io.NodeOutput("", out_settings, ui=ui.PreviewText(""))
-        if image_from is None or image_to is None:
-            raise ValueError("Auto Prompt: connect image_from and image_to (or write the prompt yourself).")
+        if image_from is None:
+            raise ValueError("Auto Prompt: connect image_from (and image_to, except for an open shot) "
+                             "or write the prompt yourself.")
         # 73: descriptions wird nicht mehr ausgegeben (generate liefert weiter (text, desc, warning)).
         text, _desc, _warning = generate(
             image_from, image_to, model_name, keywords,

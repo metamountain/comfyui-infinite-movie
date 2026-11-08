@@ -218,12 +218,12 @@ function wrapQueue() {
         if (!window.confirm(`Empty prompt (nothing is generated on Run):\n${names}\n\nRender without prompt?`)) return false;
       }
     }
-    // 65 (Nutzer 2026-11-03: „Render darf nicht losgeschickt werden!“): GPU VOR dem Queue freimachen
-    // (fremde LLMs entladen). Wird sie nicht frei -> Meldung, KEIN Queue.
+    // 65 (Nutzer 2026-11-03: „Render darf nicht losgeschickt werden!“): GPU VOR dem Queue prüfen (eine Messung,
+    // fremde Programme werden nie angefasst). Nicht genug frei -> Meldung, KEIN Queue.
     const director = (app.graph?._nodes || []).find((n) => n.comfyClass === "InfiniteMovieRender" && (n.mode ?? 0) === 0);
     if (director && !window.__fc_skip_gpu_preflight) {
       const min = MIN_FREE_MB;   // 74: Konstante (war Settings-Widget min_free_mb)
-      fcReviewToast("Freeing the GPU (unloading other LLMs) ...");
+      fcReviewToast("Checking GPU memory ...");
       let res = null;
       try {
         const r = await api.fetchApi("/infinite_movie/gpu_preflight", { method: "POST",
@@ -956,7 +956,8 @@ function reconcileChain(chain) {
       // --- 4) Prompt-Slots + AutoPrompt-Paare ---
       const loop = !!chain.widgets?.find((w) => w.name === "loop")?.value;
       // 71: intro/outro entfernt – T = (N-1) scenes + loop
-      const T = (N - 1) + (loop ? 1 : 0);
+      // 1 Bild ohne Loop = offener Shot (nodes.py n_segments = max(n-1, 1)) -> 1 Prompt ohne Endbild
+      const T = N === 1 && !loop ? 1 : (N - 1) + (loop ? 1 : 0);
       const prTpl = (chain.inputs || []).find((i) => i.name?.startsWith(PR));
       const aps = () => (g._nodes || []).filter((n) => n.comfyClass === "InfiniteMovieAutoPrompt");
       const srcOf = (ap, inName) => {
@@ -968,7 +969,8 @@ function reconcileChain(chain) {
         const fi = slotIndex(ap, "image_from");
         const ti = slotIndex(ap, "image_to");
         for (const [idx, node] of [[fi, fromN], [ti, toN]]) {
-          if (idx < 0 || !node) continue;
+          if (idx < 0) continue;
+          if (!node) { if (ap.inputs[idx].link != null) ap.disconnectInput(idx); continue; } // offener Shot
           if (ap.inputs[idx].link != null) ap.disconnectInput(idx);
           node.connect(0, ap, idx);
         }
@@ -981,6 +983,7 @@ function reconcileChain(chain) {
       // Map slot index p → (fromImgIdx, toImgIdx)
       // 71: intro/outro entfernt – nur Szenen + loop
       const pairFor = (p) => {
+        if (N === 1 && !loop) return [0, -1];        // offener Shot: kein Endbild
         if (loop && p === T - 1) return [N - 1, 0]; // loop: last → first
         return [p, p + 1];                          // scenes
       };
@@ -989,7 +992,7 @@ function reconcileChain(chain) {
       for (let p = 0; p < T; p++) {
         const [fi, ti] = pairFor(p);
         const fromId = chainNodes[fi].id;
-        const toId = chainNodes[ti].id;
+        const toId = chainNodes[ti]?.id ?? null;
         const ap = aps().find((a) => !matched.has(a.id) && fcActive(a)
           && srcOf(a, "image_from") === fromId && srcOf(a, "image_to") === toId);
         if (!ap) continue;
@@ -1004,9 +1007,9 @@ function reconcileChain(chain) {
       for (let p = 0; p < T; p++) {
         const [fi, ti] = pairFor(p);
         const fromN = chainNodes[fi];
-        const toN = chainNodes[ti];
+        const toN = chainNodes[ti] || null;
         if (aps().some((a) => matched.has(a.id)
-          && srcOf(a, "image_from") === fromN.id && srcOf(a, "image_to") === toN.id)) continue;
+          && srcOf(a, "image_from") === fromN.id && srcOf(a, "image_to") === (toN?.id ?? null))) continue;
         const idx = ensureSlot(PR + p, prTpl);
         let ap = aps().find((a) => !matched.has(a.id) && fcActive(a));
         if (!ap) {
@@ -1916,13 +1919,15 @@ app.registerExtension({
       ctx.save();
       ctx.fillStyle = "rgba(0,0,0,0.55)";
       ctx.fillRect(x - 2, y - 2, w + 4, h + 4);
+      // 2026-11-05 (Nutzer): Fortschrittsbalken ganz unten, Text darüber
+      const by = y + h - 8;
       ctx.fillStyle = "#333";
-      ctx.fillRect(x, y, w, 8);
+      ctx.fillRect(x, by, w, 8);
       ctx.fillStyle = p.phase === "done" ? "#66bb6a" : "#4fc3f7";
-      ctx.fillRect(x, y, w * frac, 8);
+      ctx.fillRect(x, by, w * frac, 8);
       ctx.fillStyle = "#ddd";
       ctx.font = "12px sans-serif";
-      lines.forEach((t, i) => ctx.fillText(t, x, y + 22 + i * 16));
+      lines.forEach((t, i) => ctx.fillText(t, x, y + 12 + i * 16));
       ctx.restore();
       if (p.phase !== "done") this.setDirtyCanvas(true, false); // Uhr laufen lassen
       return r;
@@ -2129,7 +2134,7 @@ function fcChooseRefreshAll() { for (const n of fcChooseAll()) fcChooseRender(n)
 window.fcChooseRefreshAll = fcChooseRefreshAll;
 api.addEventListener("status", (e) => {
   const busy = (e.detail?.exec_info?.queue_remaining || 0) > 0;
-  if (busy !== fcRun.running) { fcRun.running = busy; if (!busy) { fcRun.node = ""; fcRun.max = 0; fcRun.promptOnly = undefined; } fcChooseRefreshAll(); }
+  if (busy !== fcRun.running) { fcRun.running = busy; if (!busy) { fcRun.node = ""; fcRun.max = 0; fcRun.promptOnly = undefined; fcAsmClear(); } fcChooseRefreshAll(); }
 });
 api.addEventListener("executing", (e) => {
   const id = e.detail?.node ?? e.detail;
@@ -2151,8 +2156,10 @@ api.addEventListener("progress", (e) => {
 api.addEventListener("executed", (e) => {
   const n = app.graph?.getNodeById?.(String(e.detail?.node ?? "").split(":")[0]);
   if (n?.comfyClass !== "InfiniteMovieFilm" && n?.comfyClass !== "InfiniteMovieAssemble") return;
-  for (const c of fcChooseAll()) { c._fc_choose_ran = fcChooseEffective(c).join(","); fcChooseStatus(c); }
+  for (const c of fcChooseAll()) { c._fc_asm_t0 = null; c._fc_choose_ran = fcChooseEffective(c).join(","); fcChooseStatus(c); }
 });
+function fcAsmClear() { for (const c of fcChooseAll()) if (c._fc_asm_t0) { c._fc_asm_t0 = null; fcChooseStatus(c); } }
+api.addEventListener("execution_error", () => { fcAsmClear(); });
 // Abbrechen: halbe/alte Filme entfernen, Fortschritt beenden (Nutzer 2026-11-03)
 api.addEventListener("execution_interrupted", () => {
   for (const n of app.graph?._nodes || []) {
@@ -2160,11 +2167,18 @@ api.addEventListener("execution_interrupted", () => {
     if (p?.t0 && !p.end) { p.end = Date.now(); p.phase = "cancelled"; n.setDirtyCanvas(true, true); }
   }
   fcRun.running = false; fcRun.node = ""; fcRun.max = 0;
+  fcAsmClear();
   fcClearFilms({ choose: true });   // halbe Shots nicht als „bereit“ stehen lassen
   fcReviewToast("Cancelled – film removed.");
 });
 // Restzeit im Choose jede Sekunde nachführen (Ereignisse kommen nur bei Sampler-Schritten)
-setInterval(() => { if (fcRun.running) for (const c of fcChooseAll()) fcChooseStatus(c); }, 1000);
+setInterval(() => {
+  for (const c of fcChooseAll()) {
+    // Nie gestartet (z. B. Validierungsfehler) -> Wartezustand nach 15 s lösen
+    if (c._fc_asm_t0 && !fcRun.running && Date.now() - c._fc_asm_t0 > 15000) c._fc_asm_t0 = null;
+    if (fcRun.running || c._fc_asm_t0 != null) fcChooseStatus(c);
+  }
+}, 1000);
 
 // Choose passt sich VOR dem Lauf an die Filmlänge an. Spaltenzahl aus dem verbundenen
 // Director (verbundene Bilder, loop, intro/outro, variants – gleiche Zählung wie
@@ -2456,6 +2470,13 @@ function fcChooseState(node) {
   const marked = node.properties?.marked || [];
   if (!plan) return { text: "Connect the Director's shots output to this node.", tone: "warn", btn: null };
   if (!plan.n) return { text: "Connect at least 1 image to the Director.", tone: "warn", btn: null };
+  // 2026-11-05 (Nutzer: „man braucht sofortiges Feedback bei Press“): ab dem Klick sichtbar, bis der Film da ist.
+  if (node._fc_asm_t0) {
+    const sec = Math.round((Date.now() - node._fc_asm_t0) / 1000);
+    const where = fcRun.running && fcRun.node ? ` · ${fcRun.node}` : " · queued";
+    const p = fcRun.max ? ` ${fcRun.value}/${fcRun.max}` : "";
+    return { text: `Assembling film… ${sec} s${where}${p}`, tone: "busy", btn: "busy" };
+  }
   if (fcRun.running && fcRun.promptOnly) {
     const st = fcChooseStateIdle(node, entries, plan, marked);
     return { ...st, text: `Writing prompt (${fcRun.node})… · ${st.text}` };
@@ -2531,7 +2552,11 @@ function fcChooseStatus(node) {
   }
   if (b) {
     b.style.visibility = st.btn ? "visible" : "hidden";
-    if (st.btn === "assemble") {
+    b.style.cursor = st.btn === "busy" ? "progress" : "pointer";
+    if (st.btn === "busy") {
+      b.textContent = "⏳ ASSEMBLING…"; b.style.background = "#30363d"; b.style.borderColor = "#4fc3f7";
+      b.title = "Film is being built – see the status line above.";
+    } else if (st.btn === "assemble") {
       b.textContent = "ASSEMBLE ▶"; b.style.background = "#2ea043"; b.style.borderColor = "#2ea043";
       b.title = "Rebuild the film from the chosen variants (Director + Choose come from cache, only Assemble runs).";
     } else if (st.btn === "rerender") {
@@ -2763,21 +2788,28 @@ function fcChooseRender(node) {
   const btn = document.createElement("button");
   btn.style.cssText = `width:100%;height:${FC_CHOOSE_BIG_H}px;font:bold 18px sans-serif;color:#fff;border:1px solid;border-radius:4px;cursor:pointer;`;
   btn.addEventListener("click", () => {
-    if (fcRun.running) return;
+    if (fcRun.running || btn._fc_mode === "busy") return;
     if (btn._fc_mode === "assemble") {
+      node._fc_asm_t0 = Date.now();
+      fcChooseStatus(node);
       // Nur Film bauen: Teil-Lauf auf Film (sonst Assemble), Seeds fest -> Director/Choose aus dem Cache
       const all = app.graph?._nodes || [];
       const on = (t) => all.filter((n) => n.comfyClass === t && (n.mode ?? 0) === 0).map((n) => String(n.id));
       const targets = on("InfiniteMovieFilm").length ? on("InfiniteMovieFilm") : on("InfiniteMovieAssemble");
       if (window.__fc_review_test_skip_queue) console.log("[InfiniteMovie] test: skipped queuePrompt (ASSEMBLE)");
-      else fcQueueFixedSeeds(targets);
-      fcReviewToast("Assembling film…");
+      else Promise.resolve(fcQueueFixedSeeds(targets)).catch((err) => {
+        node._fc_asm_t0 = null; fcChooseStatus(node);
+        fcReviewToast("ASSEMBLE could not be queued – see console", "#d93025");
+        console.error("[InfiniteMovie] ASSEMBLE queue failed", err);
+      });
+      fcReviewToast("ASSEMBLE queued – building film…");
     } else if (btn._fc_mode === "rerender") {
       fcRerenderMarked(node, fcChooseRender);
     }
   });
   el.appendChild(btn);
   node._fc_choose_btn = btn;
+  el.appendChild(status);   // 2026-11-05 (Nutzer): Status/Fortschritt ganz unten
 
   fcChooseStatus(node);
   fcChooseApplyActive(node);
@@ -2934,8 +2966,8 @@ app.registerExtension({
       const seconds = Number(val("seconds")) || 2.0;
       const loop = !!val("loop");
       const nImg = (node.inputs || []).filter((i) => i.name?.startsWith(IMG) && i.link != null).length;
-      const nShots = nImg < 1 ? 0 : (loop ? nImg : nImg - 1);
-      if (nShots < 1) { estWidget.value = "Film: needs 2 images (or 1 with loop)"; node.setDirtyCanvas?.(true, true); return; }
+      const nShots = nImg < 1 ? 0 : (loop ? nImg : Math.max(nImg - 1, 1));   // 1 Bild ohne Loop = offener Shot
+      if (nShots < 1) { estWidget.value = "Film: needs at least 1 image"; node.setDirtyCanvas?.(true, true); return; }
       const per = String(val("shot_seconds") || "").split(",").map((x) => parseFloat(x) || 0);
       let total = 0;
       for (let i = 0; i < nShots; i++) total += per[i] > 0 ? per[i] : seconds;
@@ -3016,7 +3048,7 @@ function fcFilmRender(node) {
       btns.push(b);
       recentRow.appendChild(b);
     }
-    el.appendChild(video); el.appendChild(status); el.appendChild(open); el.appendChild(recentRow);
+    el.appendChild(video); el.appendChild(open); el.appendChild(recentRow); el.appendChild(status);  // Status ganz unten (Nutzer 2026-11-05)
     node._fc_film_open = open;
     node._fc_film_recent_btns = btns;
     node.addDOMWidget("fc_film", "div", el, {
@@ -3028,7 +3060,15 @@ function fcFilmRender(node) {
   }
   const info = fcFilmCurrentInfo(node);
   const v = node._fc_film_video, s = node._fc_film_status;
-  if (fcRun.running) { s.textContent = "Rendering… please wait."; s.style.color = "#4fc3f7"; }
+  // 2026-11-05 (Nutzer: „Open folder ausgegraut, Rendering wait obwohl gerade Director“): sagen, WER läuft;
+  // der letzte Film bleibt sichtbar und bedienbar.
+  const runNode = fcRun.running ? (fcRun.node || "queued") : "";
+  const filmRuns = /film|assemble/i.test(runNode);
+  if (fcRun.running && filmRuns) { s.textContent = "⏳ Building film…"; s.style.color = "#4fc3f7"; }
+  else if (fcRun.running) {
+    s.textContent = `⏳ ${runNode} running – film follows after ASSEMBLE` + (info?.exists ? " · showing last film" : "");
+    s.style.color = "#4fc3f7";
+  }
   else if (!info) { s.textContent = "Waiting for the film – press Run."; s.style.color = "#aaa"; }
   else if (!info.exists) { s.textContent = info.status; s.style.color = "#e3b341"; }
   else {
@@ -3041,12 +3081,12 @@ function fcFilmRender(node) {
   for (let i = 0; i < (node._fc_film_recent_btns || []).length; i++) {
     const has = i < recent.length;
     const sel = i === idx && has;
-    node._fc_film_recent_btns[i].disabled = !has || fcRun.running;
-    node._fc_film_recent_btns[i].style.opacity = has && !fcRun.running ? "1" : "0.35";
+    node._fc_film_recent_btns[i].disabled = !has;
+    node._fc_film_recent_btns[i].style.opacity = has ? "1" : "0.35";
     node._fc_film_recent_btns[i].style.background = sel ? "#2ea043" : "#333";
     node._fc_film_recent_btns[i].style.borderColor = sel ? "#2ea043" : "#555";
   }
-  const canOpen = !!info?.exists && !fcRun.running;
+  const canOpen = !!info?.exists;
   node._fc_film_open.disabled = !canOpen;
   node._fc_film_open.style.opacity = canOpen ? "1" : "0.35";
   node._fc_film_open.style.cursor = canOpen ? "pointer" : "default";
@@ -3059,9 +3099,9 @@ function fcFilmRender(node) {
   if (Math.abs(node.size[0] - need[0]) > 1 || Math.abs(node.size[1] - need[1]) > 1) node.setSize(need);
   node.setDirtyCanvas(true, true);
 }
-api.addEventListener("status", () => {
-  for (const n of (app.graph?._nodes || [])) if (n.comfyClass === "InfiniteMovieFilm") fcFilmRender(n);
-});
+function fcFilmRefreshAll() { for (const n of (app.graph?._nodes || [])) if (n.comfyClass === "InfiniteMovieFilm") fcFilmRender(n); }
+api.addEventListener("status", fcFilmRefreshAll);
+api.addEventListener("executing", () => setTimeout(fcFilmRefreshAll, 0));   // laufenden Node nachführen
 app.registerExtension({
   name: "InfiniteMovie.Film",
   async beforeRegisterNodeDef(nodeType, nodeData) {

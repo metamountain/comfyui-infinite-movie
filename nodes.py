@@ -25,6 +25,7 @@ import re
 import shutil
 import subprocess
 import tempfile
+import time
 
 import numpy as np
 import torch
@@ -93,6 +94,67 @@ def _no_window() -> dict:
     if os.name == "nt":
         return {"creationflags": 0x08000000}
     return {}
+
+
+# ---------------------------------------------------------------------------
+# 88: per-segment timing marks. InfiniteMovieRender stamps the wall-clock start
+# (keyed by its own unique_id) right before building the expansion; each
+# InfiniteMovieSegmentSave measures the time since the previous mark of the same
+# render and appends one line to the timings JSONL (timing.py). Reused segments
+# (PrimitiveString) never run SegmentSave, so they are not logged (intended).
+# ---------------------------------------------------------------------------
+
+_SEG_MARK: dict = {}   # render unique_id (str) -> time.time() of last mark
+_SEG_META: dict = {}   # render unique_id (str) -> {width, height, length, preset, variants}
+
+
+def _render_id_from(unique_id) -> str | None:
+    """88: the render node's unique_id is the prefix of a SegmentSave node's own
+    unique_id before the first '_' or '.'.
+
+    SegmentSave IDs are built as f"{render_uid}_s{i}_" + template_save_id
+    (expansion.py:856 prefix_a, :880 prefix_b, :724 save_id = prefix + save_src).
+    The render node's own ID is a plain ComfyUI node id (e.g. "4" in
+    example_workflows/Infinite Movie.json), so the prefix before the first
+    separator is exactly the render unique_id.
+    """
+    if not unique_id:
+        return None
+    s = str(unique_id)
+    for i, ch in enumerate(s):
+        if ch == "_" or ch == ".":
+            s = s[:i]
+            break
+    return s or None
+
+
+def _log_segment_timing(unique_id, frames) -> None:
+    """88: measure the time since the previous mark of this render and append
+    one line to the timings JSONL. No mark (offline test, reused segment) -> no-op.
+    Never raises: a timing bug must never break a render.
+    """
+    if not unique_id:
+        return
+    render_id = _render_id_from(unique_id)
+    if render_id is None or render_id not in _SEG_MARK:
+        return
+    meta = _SEG_META.get(render_id, {})
+    now = time.time()
+    elapsed = now - _SEG_MARK[render_id]
+    _SEG_MARK[render_id] = now  # reset the mark for the next segment
+    try:
+        from . import timing  # lazy: timing.py is stdlib-only, no cycle
+        timing.record(
+            "segment",
+            width=meta.get("width"),
+            height=meta.get("height"),
+            frames=frames,
+            seconds=elapsed,
+            preset=meta.get("preset", ""),
+            variants=meta.get("variants", 1),
+        )
+    except Exception as e:  # noqa: BLE001
+        print(f"[InfiniteMovieSegmentSave] timing record failed (ignored): {e}")
 
 
 # ---------------------------------------------------------------------------
@@ -784,7 +846,6 @@ class InfiniteMovieRender(io.ComfyNode):
         # 73: negative entfällt (Engine In hat keinen negative-Ausgang mehr).
         width = get_setting(settings, "width")
         height = get_setting(settings, "height")
-        llm_url = vram.DEFAULT_LLM_URL  # lokaler LLM-Router (GPU-Übergabe), keine Einstellung
         min_free_mb = get_setting(settings, "min_free_mb")
         acquire_timeout_s = get_setting(settings, "acquire_timeout_s")
         name = _resolve_film_name(settings)
@@ -915,13 +976,9 @@ class InfiniteMovieRender(io.ComfyNode):
 
         # 4. Acquire the GPU (synchronously, BEFORE building the expansion so
         #    it is guaranteed to run before the first loader).
-        if not _skip_render:
-            # 65: Ollama/LM Studio mit entladen; GPU bleibt belegt -> klarer Abbruch VOR dem Render
-            vram.wait_acquire(
-                llm_url=llm_url,
-                min_free_mb=min_free_mb,
-                timeout_s=acquire_timeout_s,
-            )
+        # 2026-11-05 (Nutzer: „ASSEMBLE … starke Verzögerung“): Acquire erst NACH dem Bau der Expansion und nur,
+        # wenn darin wirklich gerendert wird – sind alle Segmente wiederverwendet (PrimitiveString), kein
+        # 20-GB-Warten/Entladen. Die Expansion läuft erst nach return, die Reihenfolge vor dem Loader bleibt.
 
         # 5. Build the expansion graph.
         # save_folder = the output dir; save_name = the film name (no ext).
@@ -929,7 +986,6 @@ class InfiniteMovieRender(io.ComfyNode):
         # parent (this node) is blocked until the work is finished
         # (execution.py:600-613 strong links).
         acquire_kwargs = {
-            "llm_url": llm_url,
             "min_free_mb": min_free_mb,
             "timeout_s": acquire_timeout_s,
         }
@@ -947,6 +1003,13 @@ class InfiniteMovieRender(io.ComfyNode):
             print(f"[InfiniteMovie] skip-render: {total_segments} segments, "
                   f"variants={variants_int}, out={output_dir}")
         else:
+            # 88: stamp the render start (wall clock) right before building the
+            # expansion; each SegmentSave measures time since the previous mark.
+            _SEG_MARK[str(unique_id)] = time.time()
+            _SEG_META[str(unique_id)] = {
+                "width": width, "height": height, "length": length,
+                "preset": preset, "variants": variants_int,
+            }
             graph = build_expansion_graph(
                 unique_id=unique_id,
                 preset=preset,
@@ -971,6 +1034,19 @@ class InfiniteMovieRender(io.ComfyNode):
             print(f"[InfiniteMovie] built expansion: {n_segments} segments, "
                   f"preset={preset}, size={width}x{height}, length={length}, "
                   f"loop={loop}, variants={variants_int}, out={output_dir}")
+
+        _cheap = {"PrimitiveString", "InfiniteMovieSegmentPaths", "InfiniteMovieShotsOut"}
+        if not _skip_render and any(v.get("class_type") not in _cheap for v in graph.values()):
+            # 65: GPU von einem anderen Programm belegt -> klarer Abbruch VOR dem Render (vram.py, generisch)
+            vram.wait_acquire(
+                min_free_mb=min_free_mb,
+                timeout_s=acquire_timeout_s,
+            )
+            # 88: Marke nach dem GPU-Warten neu setzen – die Wartezeit gehört nicht zur Segmentdauer
+            if str(unique_id) in _SEG_MARK:
+                _SEG_MARK[str(unique_id)] = time.time()
+        elif not _skip_render:
+            print("[InfiniteMovie] all segments reused -> no GPU acquire")
 
         # 71: images-Ausgang und film_path entfernt – der frames-Collector
         # (InfiniteMovieFramesCollect) wird hier nicht mehr angehängt.
@@ -1102,6 +1178,11 @@ class InfiniteMovieSegmentSave(io.ComfyNode):
             with open(key_file, "w", encoding="utf-8") as f:
                 f.write(key)
         print(f"[InfiniteMovieSegmentSave] wrote segment {index}: {path} ({expected_frames} frames)")
+        # 88: log the per-segment duration (time since the previous mark of this
+        # render). Reused segments (PrimitiveString) never run execute(), so they
+        # are not logged (intended). The early "already complete" skip returns
+        # before this line, so resumed segments are not logged either.
+        _log_segment_timing(unique_id, expected_frames)
         return io.NodeOutput(path)
 
 
@@ -1428,8 +1509,7 @@ class InfiniteMovieFramesCollect(io.ComfyNode):
 # ---------------------------------------------------------------------------
 
 def _concat_segments(seg_paths, save_folder, save_name, loop,
-                     free_vram, free_ram, wake_llm, llm_url, min_free_mb,
-                     metadata=None):
+                     free_vram, free_ram, metadata=None):
     """Shared concat logic (Auftrag 32): concatenate segment mp4s into one film.
 
     Args:
@@ -1437,7 +1517,7 @@ def _concat_segments(seg_paths, save_folder, save_name, loop,
         save_folder: output folder for the film.
         save_name: film file name without extension.
         loop: True = drop last frame of last segment (seamless loop).
-        free_vram/free_ram/wake_llm/llm_url/min_free_mb: cleanup switches.
+        free_vram/free_ram: cleanup switches (vram.do_cleanup).
         metadata: optional dict (e.g. {"prompt": ..., "workflow": ...}) written
             as FFMETADATA into the output mp4 (Auftrag 70).
 
@@ -1541,8 +1621,7 @@ def _concat_segments(seg_paths, save_folder, save_name, loop,
     print(f"[concat] segment check:\n{check}")
     try:
         status = vram.do_cleanup(
-            free_vram=free_vram, free_ram=free_ram, wake_llm=wake_llm,
-            llm_url=llm_url, min_free_mb=min_free_mb,
+            free_vram=free_vram, free_ram=free_ram,
         )
     except Exception as e:  # noqa: BLE001
         status = f"cleanup failed, film is fine: {e}"
@@ -1621,3 +1700,47 @@ def _register_video_info_route():
 
 
 _register_video_info_route()
+
+
+# ---------------------------------------------------------------------------
+# Route: /infinite_movie/time_estimate (Auftrag 88)
+# ---------------------------------------------------------------------------
+
+def _register_time_estimate_route():
+    """Register the /infinite_movie/time_estimate route (Auftrag 88).
+
+    GET /infinite_movie/time_estimate?kind=segment&width=768&height=960&frames=121&preset=...
+    -> JSON from timing.estimate(...) or {"seconds": null} when there is no data.
+    Used by the Director/Choose progress bars to show an ETA before the first
+    finished segment exists.
+    """
+    try:
+        from server import PromptServer
+        from aiohttp import web
+        from . import timing
+
+        _ps = getattr(PromptServer, "instance", None)
+        if _ps is None:
+            return
+
+        @_ps.routes.get("/infinite_movie/time_estimate")
+        async def time_estimate(request):
+            kind = request.query.get("kind", "segment")
+            preset = request.query.get("preset", "")
+            try:
+                width = int(request.query.get("width", 0))
+                height = int(request.query.get("height", 0))
+                frames = int(request.query.get("frames", 0))
+            except (TypeError, ValueError):
+                return web.json_response({"seconds": None})
+            if width <= 0 or height <= 0 or frames <= 0:
+                return web.json_response({"seconds": None})
+            est = timing.estimate(kind, width, height, frames, preset=preset)
+            if est is None:
+                return web.json_response({"seconds": None})
+            return web.json_response(est)
+    except Exception as e:
+        print(f"[InfiniteMovie] Failed to register time_estimate route: {e}")
+
+
+_register_time_estimate_route()

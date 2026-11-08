@@ -282,7 +282,7 @@ class InfiniteMovieAssemble(io.ComfyNode):
                                tooltip="Interpolate in-between frames first, then pick. Only effective when even_motion=true. "
                                        "'off' = pick from the original frames (fastest, no GPU); 'RIFE x2' = 2x frames; "
                                        "'RIFE x4' = 4x (smoothest, most GPU time)."),
-                # 57d: llm_url/free_vram/free_ram/wake_llm/min_free_mb jetzt im Settings-Node
+                # 57d: free_vram/free_ram jetzt im Settings-Node
                 # (settings-Eingang am Ende des Schemas).
                 # Auftrag 32: Concat-Optionen (als LETZTE Eingaeinge, widgets_values!).
                 io.Float.Input("keep", default=1.0, min=0.0, max=1.0, step=0.05,
@@ -313,8 +313,8 @@ class InfiniteMovieAssemble(io.ComfyNode):
                 # 57d: settings (SETTINGS) am ENDE, damit sich die Slot-Indizes der
                 # verdrahteten Eingaenge (shots/segments/save_folder/save_name) nicht verschieben.
                 SETTINGS.Input("settings", optional=True, display_name="settings",
-                               tooltip="Shared settings from Infinite Movie · Settings (GPU handoff: free_vram/free_ram/"
-                                       "wake_llm/release_min_free_mb, llm_url). When connected, the cleanup switches "
+                               tooltip="Shared settings from Infinite Movie · Settings (cleanup after the film: "
+                                       "free_vram/free_ram). When connected, the cleanup switches "
                                        "come from the pipe; otherwise the built-in defaults apply."),
             ],
             outputs=[
@@ -336,13 +336,10 @@ class InfiniteMovieAssemble(io.ComfyNode):
                 strength=0.8, interpolate="off",
                 even_motion=True, loop=True, output_size="as rendered", keep=1.0,
                 settings=None) -> io.NodeOutput:
-        # 57d: llm_url/free_vram/free_ram/wake_llm/min_free_mb(=release_min_free_mb)
+        # 57d: free_vram/free_ram
         # kommen aus dem Settings-Node (SETTINGS-Pipe); ohne -> Defaults.
-        llm_url = vram.DEFAULT_LLM_URL  # lokaler LLM-Router (GPU-Übergabe), keine Einstellung
         free_vram = get_setting(settings, "free_vram")
         free_ram = get_setting(settings, "free_ram")
-        wake_llm = get_setting(settings, "wake_llm")
-        min_free_mb = get_setting(settings, "release_min_free_mb")
         # 63: Ausgabe-Ordner für den fertigen Film (Settings › output_folder).
         # Leer = Verhalten wie bisher (Film neben den Shots im save_folder).
         of = (get_setting(settings, "output_folder") or "").strip()
@@ -400,7 +397,7 @@ class InfiniteMovieAssemble(io.ComfyNode):
             # RIFE x2 (twice for x4) per segment; picking then happens on the dense frames
             from .post_nodes import _rife_x2
             times = 2 if interpolate == "RIFE x4" else 1
-            vram.wait_acquire(llm_url=llm_url, min_free_mb=8000, timeout_s=3600)
+            vram.wait_acquire(min_free_mb=8000, timeout_s=3600)
             try:
                 dense = []
                 for i, p in enumerate(paths):
@@ -500,8 +497,7 @@ class InfiniteMovieAssemble(io.ComfyNode):
         # 73: copy_to gestrichen (Parameter von _concat_segments entfernt).
         film_path, check, total_frames, out_fps = _concat_segments(
             concat_paths, sf, sn, loop,
-            free_vram, free_ram, wake_llm, llm_url, min_free_mb,
-            metadata=meta or None)
+            free_vram, free_ram, metadata=meta or None)
         # 77: output_size – nach dem Verketten skalieren + mittig beschneiden (lanczos).
         if output_size != "as rendered":
             film_path = _scale_film(film_path, output_size, has_meta=bool(meta))

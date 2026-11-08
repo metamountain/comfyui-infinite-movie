@@ -5,11 +5,10 @@ Settings → Prompt Style → Auto Prompts → Director → Assemble. Jeder Node
   - prompt_model: lokales Vision-Modell aus models/text_encoders, das die Shot-Prompts schreibt
     (autoprompt.py, läuft IN ComfyUI – kein LLM-Server, kein Provider). 'off' = Prompts von Hand.
   - Format: aspect (klassische Verhältnisse) + long_side; width/height daraus, auf 32 gerundet.  - Ausgabe: output_folder, film_name.
-  - GPU-Übergabe: fest (kein Widget) – entlädt vor dem
-    Render fremde LLMs auf der GPU (lokaler Router vram.DEFAULT_LLM_URL, Ollama, LM Studio) und weckt
-    den Router danach. Die Zahlen (MIN_FREE_MB, RELEASE_MIN_FREE_MB, ACQUIRE_TIMEOUT_S) sind Konstanten;
-    die abgeleiteten Werte (free_vram, wake_llm, min_free_mb, …) bleiben im Settings-Dict, damit
-    Director/Assemble unverändert get_setting(...) nutzen.
+  - GPU-Prüfung: fest (kein Widget), generisch (vram.py) – prüft vor dem Render, ob genug VRAM frei ist,
+    fasst keine fremden Programme an. Die Zahlen (MIN_FREE_MB, ACQUIRE_TIMEOUT_S) sind Konstanten;
+    die abgeleiteten Werte (free_vram, min_free_mb, …) bleiben im Settings-Dict, damit
+    Director/Assemble get_setting(...) nutzen.
 Der Prompt-Stil (instruction, max_words, camera) gehört dem Node Prompt Style.
 
 Import-Regel (kein Zirkel): settings_nodes importiert nur .vram (Leaf); .autoprompt nur LAZY.
@@ -64,15 +63,13 @@ def resolve_size(aspect, long_side) -> tuple:
     return resolve_ratio(rw, rh, long_side)
 
 
-# 74 (2026-11-04): GPU-Übergabe fest, kein Widget mehr (Nutzer: „dont like after film“) – immer VRAM frei + LLM wecken. Die Zahlen sind Konstanten;
-# die abgeleiteten Werte (free_vram, wake_llm, min_free_mb, …) bleiben im Settings-Dict, damit
+# 74 (2026-11-04): GPU-Werte fest, kein Widget (Nutzer: „dont like after film“). 2026-11-08: kein LLM-Server-Code
+# mehr (Pack ist öffentlich). Die abgeleiteten Werte (free_vram, min_free_mb, …) bleiben im Settings-Dict, damit
 # Director/Assemble unverändert get_setting(...) nutzen.
 MIN_FREE_MB = 20000
 ACQUIRE_TIMEOUT_S = 3600
-RELEASE_MIN_FREE_MB = 18000
 # GPU-Werte: im Settings-Dict, aber KEINE Widgets (feste Konstanten)
-DERIVED_GPU_KEYS = ["min_free_mb", "acquire_timeout_s", "release_min_free_mb",
-                    "free_vram", "free_ram", "wake_llm"]
+DERIVED_GPU_KEYS = ["min_free_mb", "acquire_timeout_s", "free_vram", "free_ram"]
 
 
 # Widgets des Settings-Nodes (Reihenfolge = Schema).
@@ -96,13 +93,11 @@ def settings_defaults() -> dict:
         "film_name": "",
         # kein Widget (Nutzer 2026-11-03): beide Engines rendern mit CFG 1 (LTX video/audio_cfg 1, Wan Lightning),
         # dort wird die Negativ-Bedingung nicht gerechnet. Feld bleibt leer im Dict, der Director liest es.
-        # GPU-Übergabe fest (Nutzer 2026-11-04: after_film-Widget weg): nach dem Film VRAM frei + LLM wecken.
+        # GPU fest (Nutzer 2026-11-04: after_film-Widget weg): nach dem Film ComfyUI-VRAM frei.
         "min_free_mb": MIN_FREE_MB,
         "acquire_timeout_s": ACQUIRE_TIMEOUT_S,
-        "release_min_free_mb": RELEASE_MIN_FREE_MB,
         "free_vram": True,
         "free_ram": False,
-        "wake_llm": True,
         "instruction": STORY_SYSTEM,
         "max_words": MAX_STORY_WORDS,
         "camera": "none",
@@ -159,11 +154,9 @@ class InfiniteMovieSettings(io.ComfyNode):
     def execute(cls, **kw):
         out = settings_defaults()
         out.update({k: kw[k] for k in SETTING_KEYS if k in kw})
-        out["free_vram"], out["wake_llm"] = True, True
-        out["free_ram"] = False
+        out["free_vram"], out["free_ram"] = True, False
         out["min_free_mb"] = MIN_FREE_MB
         out["acquire_timeout_s"] = ACQUIRE_TIMEOUT_S
-        out["release_min_free_mb"] = RELEASE_MIN_FREE_MB
         if out["aspect"] == ASPECT_FROM_IMAGES:
             out["width"] = out["height"] = 0   # 69: Director rechnet die Größe aus dem ersten Bild
         else:
@@ -253,21 +246,22 @@ _register_choose_folder_route()
 
 # ---------------------------------------------------------------------------
 # 65 (Nutzer 2026-11-03: „Render darf nicht losgeschickt werden!“): Vorabprüfung VOR dem Queue.
-# Das Frontend (web/infinite_movie.js wrapQueue) ruft das beim Run-Klick auf, wenn ein Director im
-# Graph aktiv ist. Entlädt ComfyUI-Modelle, den lokalen LLM-Router, Ollama, LM Studio (vram.wait_acquire) und
-# meldet ok=False mit Klartext, wenn die GPU trotzdem nicht frei wird – dann wird NICHT gequeued.
-def gpu_preflight(body: dict, queue_remaining: int = 0, acquire=None) -> dict:
+# Das Frontend (web/infinite_movie.js wrapQueue) ruft das beim Run-Klick auf, wenn ein Director im Graph aktiv ist.
+# 2026-11-08: EINE Messung (vram.gpu_check), kein Warten, kein Entladen – die Route läuft im aiohttp-Thread
+# (Entladen dort hängte den Server auf, /prompt "Fetch timeout"), und das Frontend bricht fetchApi nach 60 s ab.
+# Fremde Programme werden nie angefasst; ok=False -> Meldung, wer die GPU hält, und NICHT gequeued.
+def gpu_preflight(body: dict, queue_remaining: int = 0, check=None) -> dict:
     """Reine Funktion (testbar): {"ok": bool, "message": str}."""
     if queue_remaining > 0:
         # Ein Render läuft schon: freier Speicher sagt dann nichts; der Director prüft beim Start selbst.
         return {"ok": True, "message": "queue busy – the Director checks the GPU when its turn comes"}
-    acquire = acquire or vram.wait_acquire
+    check = check or vram.gpu_check
     min_free = body.get("min_free_mb", settings_defaults()["min_free_mb"])
     try:
-        msg = acquire(llm_url=vram.DEFAULT_LLM_URL, min_free_mb=int(min_free or 0), timeout_s=120, stall_s=45)
-        return {"ok": True, "message": msg}
-    except vram.VRAMTimeoutError as e:
-        return {"ok": False, "message": str(e)}
+        ok, avail, need, text = check(int(min_free or 0))
+        if ok:
+            return {"ok": True, "message": text}
+        return {"ok": False, "message": vram.gpu_blocked_message(avail, need)}
     except Exception as e:  # noqa: BLE001 – Prüfung kaputt: nicht blockieren, Director prüft nochmal
         return {"ok": True, "message": f"preflight failed ({type(e).__name__}: {e}) – the Director checks again"}
 
