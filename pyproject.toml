@@ -1,13 +1,17 @@
 [project]
-name = "comfyui-filmchain"
-version = "0.1.0"
-description = "FilmChain: one node that turns a sequence of images into a looping film (pairwise FLF2V segments + concat). V3 ComfyNode with graph expansion."
-requires-python = ">=3.10"
-dependencies = []
+name = "comfyui-infinite-movie"
+description = "Turn a few still images into one seamless, looping film with video models (MiniMax H3, LTX 2.5, Wan 2.2): auto prompts from the images, A/B shot review, motion-evened assembly, upscale, model download with size check."
+version = "0.2.0"
+license = { file = "LICENSE" }
+dependencies = ["opencv-python", "matplotlib", "imageio-ffmpeg"]
 
-[build-system]
-requires = ["setuptools>=61"]
-build-backend = "setuptools.build_meta"
+[project.urls]
+Repository = "https://github.com/metamountain/comfyui-infinite-movie"
+Documentation = "https://github.com/metamountain/comfyui-infinite-movie#readme"
+"Bug Tracker" = "https://github.com/metamountain/comfyui-infinite-movie/issues"
 
-[tool.setuptools]
-packages = ["comfyui_filmchain"]
+[tool.comfy]
+PublisherId = "metamountain"
+DisplayName = "Infinite Movie"
+Icon = ""
+includes = []
