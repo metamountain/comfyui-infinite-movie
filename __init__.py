@@ -50,6 +50,12 @@ try:
 except Exception as e:  # noqa: BLE001
     print(f"[InfiniteMovie] failed to import model_check: {e}")
 
+# Update-Hinweis (Route /infinite_movie/version, Registry vs. pyproject).
+try:
+    importlib.import_module(".version_check", __name__)
+except Exception as e:  # noqa: BLE001
+    print(f"[InfiniteMovie] failed to import version_check: {e}")
+
 
 def _register_upscale_universal_copy():
     """Kopie von „Upscale Crop Universal“ (metamountain/upscale-universal, Nutzer 2026-11-02: „benutze immer upscale

@@ -3484,3 +3484,26 @@ app.registerExtension({
     node.bgcolor = c[1];
   },
 });
+
+// 93 (Nutzer 2026-11-09): Update-Hinweis am Director. Server vergleicht pyproject-Version mit der neuesten
+// freigegebenen Registry-Version (version_check.py, 6-h-Cache). Nur Hinweis – aktualisiert wird über den Manager.
+let imVersionP = null;
+const imVersion = () => (imVersionP ??= api.fetchApi("/infinite_movie/version")
+  .then((r) => (r.ok ? r.json() : null)).catch(() => null));
+app.registerExtension({
+  name: "InfiniteMovie.UpdateHint",
+  nodeCreated(node) {
+    if (node.comfyClass !== "InfiniteMovieRender") return;
+    imVersion().then((v) => {
+      if (!v?.update || node.widgets?.some((w) => w.name === "im_update")) return;
+      const w = node.addWidget("button", "im_update", null, () => fcReviewToast(
+        "Update: ComfyUI-Manager → Custom Nodes Manager → search “Infinite Movie” → Update, then restart ComfyUI.", "#2a6"),
+        { serialize: false });
+      w.serialize = false;
+      w.label = `⬆ Update ${v.latest} available (installed ${v.installed})`;
+      w.color = "#2a6";
+      node.setSize([node.size[0], Math.max(node.size[1], node.computeSize()[1])]);
+      node.setDirtyCanvas?.(true, true);
+    });
+  },
+});
