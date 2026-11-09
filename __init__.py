@@ -68,8 +68,20 @@ def _register_upscale_universal_copy():
         import folder_paths
         import nodes as _comfy_nodes
 
+        # Original installiert? Ordnername hängt vom Weg ab (git: upscale-universal, Manager/Registry:
+        # comfyui-upscale-crop-universal) – darum nach der Moduldatei suchen, nicht nach dem Namen.
+        here = os.path.dirname(os.path.abspath(__file__))
         for base in folder_paths.get_folder_paths("custom_nodes"):
-            if os.path.isfile(os.path.join(base, "upscale-universal", "__init__.py")):
+            try:
+                subs = os.listdir(base)
+            except OSError:
+                continue
+            for sub in subs:
+                p = os.path.join(base, sub)
+                if os.path.normcase(os.path.realpath(p)) == os.path.normcase(os.path.realpath(here)):
+                    continue
+                if sub.endswith(".disabled") or not os.path.isfile(os.path.join(p, "upscale_crop_universal.py")):
+                    continue
                 return
         if "UpscaleCropUniversal" in _comfy_nodes.NODE_CLASS_MAPPINGS:
             return
