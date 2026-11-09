@@ -2297,14 +2297,15 @@ function fcRerenderMarked(node, rerenderFn) {
 
 // Nutzer 2026-11-03 („Choose ist ein Dreckshaufen“): Layout neu.
 // - Alle Shots in EINER Reihe, keine Scrollleiste: Spaltenbreite = Node-Breite / Shot-Zahl,
-//   Bilder fest 240×300 (4:5); die Node wird mit der Shot-Zahl breiter (2–20 Shots). Rand minimal (4 px).
+//   Bilder fest 256×256 (quadratisch, contain): Hoch- und Querformat passen ohne Beschnitt, UI bleibt gleich groß;
+//   die Node wird mit der Shot-Zahl breiter (2–20 Shots). Rand minimal (4 px). (Nutzer 2026-11-09)
 // - Je Shot: Kopf (Nummer, ✓/✗), A (und B darunter), eine Messwert-Zeile je Variante.
 //   Klick aufs Bild oder A/B-Knopf wählt; Knöpfe GRAU, wenn keine Wahl möglich ist
 //   (vor dem Run, variants = 1, während ComfyUI rendert).
 // - Statuszeile unten: Director fehlt / Warte auf Run / Rendert … / Bitte auswählen / Fertig.
 // - Großer Button NUR, wenn er etwas tut: ASSEMBLE (Wahl seit dem letzten Run geändert)
 //   oder RERENDER n (✗ markiert); nie während eines Runs.
-const FC_CHOOSE_COL = 240;           // feste Bildbreite je Shot (4:5 → 300 hoch); Node wird breiter, nie Bilder kleiner
+const FC_CHOOSE_COL = 256;           // feste quadratische Kachel je Shot (Bild contain); Node wird breiter, nie Bilder kleiner
 const FC_CHOOSE_GAP = 4;
 const FC_CHOOSE_PAD = 20;            // DOM-Widget-Rand links+rechts in der Node
 const FC_CHOOSE_HEAD_H = 20, FC_CHOOSE_STAT_H = 24, FC_CHOOSE_BTNROW_H = 34;
@@ -2630,10 +2631,10 @@ function fcChooseEntries(node) {
 
 function fcChooseSig(e) { return e.length + (e[0]?.placeholder ? "p" : "r") + (e[0]?.has_variants ? "v" : ""); }
 
-// Höhe aus der Breite: Spaltenbreite → Bildhöhe 4:5.
+// Kachel quadratisch: Höhe = Spaltenbreite (Seitenverhältnis des Films egal).
 function fcChooseLayout(node, entries) {
   const colW = FC_CHOOSE_COL;
-  const tileH = Math.round(colW * 1.25);
+  const tileH = colW;
   const v = entries[0]?.has_variants ? 2 : 1;
   // 78: Naht-Zeile reservieren, wenn irgendein Shot seam_bad hat (sonst Clipping).
   const seamH = entries.some((e) => !e.placeholder && e.seam_next) ? FC_CHOOSE_SEAM_H + FC_CHOOSE_GAP : 0;
@@ -2648,7 +2649,7 @@ function fcChooseLayout(node, entries) {
 // Gezeigt wird die gewählte Variante; Maus über Kachel A/B zeigt deren Sheet.
 function fcChooseSheetSize(entries) {
   if (!entries.some((e) => !e.placeholder && (e.a?.sheet || e.b?.sheet))) return null;
-  return [FC_CHOOSE_COL, Math.round(FC_CHOOSE_COL * 1.25)];
+  return [FC_CHOOSE_COL, FC_CHOOSE_COL];
 }
 function fcChooseUpdateSheet(node, only = -1) {
   const cells = node._fc_sheet_cells || [];
@@ -2932,7 +2933,7 @@ function fcChooseRender(node) {
             : sel || !e.has_variants ? "outline:5px solid #2ea043;outline-offset:-5px;" : "");
         t.title = v.info || "";
         const img = document.createElement("img");
-        img.style.cssText = "width:100%;height:100%;object-fit:cover;display:block;" +
+        img.style.cssText = "width:100%;height:100%;object-fit:contain;display:block;" +
           (dim ? "opacity:0.35;filter:grayscale(0.8);" : "");
         t.appendChild(img);
         if (!e.placeholder) {
@@ -2999,7 +3000,7 @@ function fcChooseRender(node) {
           `border-radius:3px;background:${bad ? "#3a1512" : "#202020"};border:1px solid ${bad ? "#b3261e" : "#333"};`;
         const thumb = (im) => {
           const t = document.createElement(im ? "img" : "div");
-          t.style.cssText = "width:62px;height:78px;object-fit:cover;border-radius:2px;background:#111;flex:none;";
+          t.style.cssText = "width:70px;height:70px;object-fit:contain;border-radius:2px;background:#111;flex:none;";
           if (im) t.src = fcChooseStableUrl(im);
           return t;
         };
