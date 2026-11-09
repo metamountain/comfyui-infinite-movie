@@ -123,10 +123,10 @@ def parse_obs(text: str) -> dict:
 
 # Nutzer 2026-11-03: nur Modelle, die TEXT ERZEUGEN können. Der LTX-Gemma-Encoder
 # (gemma4-…-ltx-…-int8-convrot) liefert beim Erzeugen nur Buchstabensalat (Test 2026-11-03), reine
-# Encoder (umt5, clip, llava-fp8) können gar nicht erzeugen; Teildateien (…-00001-of-00005) nicht ladbar.
+# Encoder (umt5, clip, llava-fp8, MiniMax-H3-Qwen3-VL ohne lm_head, auf 50 Schichten gekürzt) können gar nicht erzeugen; Teildateien (…-00001-of-00005) nicht ladbar.
 # „it“ = instruct; Grenzen ohne \b, weil Comfy-Dateinamen Unterstriche nutzen (gemma4_e4b_it_fp8_scaled).
 PROMPT_MODEL_RE = re.compile(r"(qwen3[._-]?vl|qwen3[._-]?5|gemma[-_]?[34](?:.*[^a-z0-9])?it(?:[^a-z0-9]|$))", re.I)
-PROMPT_MODEL_SKIP_RE = re.compile(r"(ltx|with[-_]proj|-of-\d+)", re.I)
+PROMPT_MODEL_SKIP_RE = re.compile(r"(ltx|minimax|with[-_]proj|-of-\d+)", re.I)
 
 
 def prompt_models(names=None) -> list[str]:

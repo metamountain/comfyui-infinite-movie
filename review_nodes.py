@@ -309,6 +309,56 @@ def _make_still(path: str, out_still: str) -> None:
     _run_ffmpeg_to(cmd, out_still)
 
 
+SHEET_GRID = 3          # 2026-11-08 (Nutzer: „sheet muss schon in chooser … 3x3 als standard“)
+SHEET_TILE = (240, 300)  # je Kachel 4:5 -> Sheet 720×900 (großes Feld unten im Chooser, bis 640 px breit)
+
+
+def sheet_picks(n: int, grid: int = SHEET_GRID) -> list[int]:
+    """grid×grid gleichmäßig verteilte Frame-Indizes (erstes + letztes Frame immer dabei, keine Doppelten)."""
+    want = min(grid * grid, max(n, 0))
+    if want <= 0:
+        return []
+    if want == 1:
+        return [0]
+    out = []
+    for i in range(want):
+        k = round(i * (n - 1) / (want - 1))
+        if k not in out:
+            out.append(k)
+    return out
+
+
+def _make_sheet(path: str, out_sheet: str, grid: int = SHEET_GRID) -> None:
+    """Kontaktabzug grid×grid (Standard 3×3) über den ganzen Shot als WebP – zeigt im Chooser den Verlauf des
+    Übergangs auf einen Blick, ohne abzuspielen."""
+    n = _count_frames(path)
+    picks = sheet_picks(n, grid)
+    if not picks:
+        raise RuntimeError(f"no frames in {path}")
+    w, h = SHEET_TILE
+    sel = "+".join(f"eq(n\\,{k})" for k in picks)
+    vf = (f"select={sel},scale={w}:{h}:force_original_aspect_ratio=increase,crop={w}:{h},"
+          f"tile={grid}x{grid}:padding=2:color=0x121212")
+    cmd = [_ffmpeg(), "-y", "-i", path, "-vf", vf, "-fps_mode", "passthrough",
+           "-frames:v", "1", "-c:v", "libwebp", "-quality", "75", out_sheet]
+    _run_ffmpeg_to(cmd, out_sheet)
+
+
+def _make_last(path: str, out_last: str) -> None:
+    """Letztes Frame (160 px) als WebP – für die Naht-Ansicht im Chooser (letztes Bild Shot k | erstes Bild
+    Shot k+1). Gegenstück zu _make_still (erstes Frame)."""
+    n = _count_frames(path)
+    if n < 1:
+        raise RuntimeError(f"no frames in {path}")
+    cmd = [_ffmpeg(), "-y", "-i", path, "-vf", f"select=eq(n\\,{n - 1}),scale=160:-2", "-fps_mode", "passthrough",
+           "-frames:v", "1", "-c:v", "libwebp", "-quality", "60", out_last]
+    _run_ffmpeg_to(cmd, out_last)
+
+
+# Zusatzbilder je Variante: Cache-Schlüssel -> (Erzeuger, Dateiendung, Eintrag im ui)
+_EXTRAS = {"sheet_file": (_make_sheet, "_sheet.webp", "sheet"), "last_file": (_make_last, "_last.webp", "last")}
+
+
 def _variant_entry(path: str, choose_dir: str, subfolder: str, variant_key: str,
                    cache: dict, cache_key: str) -> tuple[dict, bool]:
     """Vorschau (animierte WebP) + Standbild + Pruefungen + jerk fuer eine
@@ -323,35 +373,56 @@ def _variant_entry(path: str, choose_dir: str, subfolder: str, variant_key: str,
     if cached and cached.get("sig") == sig and cached.get("preview_file") and \
             os.path.exists(os.path.join(choose_dir, cached["preview_file"])) and \
             cached.get("still_file") and os.path.exists(os.path.join(choose_dir, cached["still_file"])):
+        made = False
+        for key, (fn, suffix, _ui) in _EXTRAS.items():
+            if cached.get(key) and os.path.exists(os.path.join(choose_dir, cached[key])):
+                continue
+            try:   # ältere Cache-Einträge: fehlende Zusatzbilder nachziehen
+                f = cached["still_file"].replace("_still.webp", suffix)
+                fn(path, os.path.join(choose_dir, f))
+                cached[key] = f
+                made = True
+            except Exception:  # noqa: BLE001
+                cached[key] = None
         return {
             "preview": {"filename": cached["preview_file"], "subfolder": subfolder, "type": "temp"},
             "still": {"filename": cached["still_file"], "subfolder": subfolder, "type": "temp"},
+            **{ui: ({"filename": cached[key], "subfolder": subfolder, "type": "temp"} if cached.get(key) else None)
+               for key, (_fn, _sfx, ui) in _EXTRAS.items()},
             "flags": cached.get("flags", []),
             "level": cached.get("level", 0),
             "info": cached.get("info", ""),
             "jerk": cached.get("jerk", 0.0),
             "score": cached.get("score", 0.0),
-        }, False
+        }, made
     h = hashlib.md5(sig.encode("utf-8")).hexdigest()[:8]
     preview_file = f"{variant_key}_{h}.webp"
     still_file = f"{variant_key}_{h}_still.webp"
     out_webp = os.path.join(choose_dir, preview_file)
     out_still = os.path.join(choose_dir, still_file)
+    extra_files = {key: f"{variant_key}_{h}{sfx}" for key, (_fn, sfx, _ui) in _EXTRAS.items()}
     try:
         res = _review_segment(path, out_webp)
         _make_still(path, out_still)
+        for key, (fn, _sfx, _ui) in _EXTRAS.items():
+            try:
+                fn(path, os.path.join(choose_dir, extra_files[key]))
+            except Exception:  # noqa: BLE001  (Zugabe – Vorschau/Prüfung laufen weiter)
+                extra_files[key] = None
         jerk = _jerk_metric(path)
     except Exception as e:  # noqa: BLE001
         res = {"flags": [], "level": 0, "info": f"choose failed: {e}"}
         jerk = 0.0
     level = res["level"]
     score = level * 10 + jerk
-    cache[cache_key] = {"sig": sig, "preview_file": preview_file, "still_file": still_file,
+    cache[cache_key] = {"sig": sig, "preview_file": preview_file, "still_file": still_file, **extra_files,
                         "flags": res["flags"], "level": level, "info": res["info"],
                         "jerk": jerk, "score": score}
     return {
         "preview": {"filename": preview_file, "subfolder": subfolder, "type": "temp"},
         "still": {"filename": still_file, "subfolder": subfolder, "type": "temp"},
+        **{ui: ({"filename": extra_files[key], "subfolder": subfolder, "type": "temp"} if extra_files[key] else None)
+           for key, (_fn, _sfx, ui) in _EXTRAS.items()},
         "flags": res["flags"],
         "level": level,
         "info": res["info"],
@@ -519,10 +590,12 @@ class InfiniteMovieChooser(io.ComfyNode):
             else:
                 entries[i]["seam"] = 0.0
                 entries[i]["seam_bad"] = False
+                entries[i]["seam_next"] = None
                 continue
             seam = _seam_metric(chosen_segments[i], chosen_segments[nxt])
             entries[i]["seam"] = seam
             entries[i]["seam_bad"] = seam >= JERK_HARD
+            entries[i]["seam_next"] = nxt + 1   # Shot-Nummer des Nachbarn (Loop: 1)
         if changed:
             with open(cache_file, "w", encoding="utf-8") as f:
                 json.dump(cache, f)

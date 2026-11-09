@@ -40,6 +40,9 @@ _CHUNK_UPSCALE_NODE_LIST = _import_node_list("chunk_upscale_nodes", "CHUNK_UPSCA
 _AUDIO_NODE_LIST = _import_node_list("audio_nodes", "AUDIO_NODE_LIST")
 # 2026-11-03: Film-Anzeige am Ende der Kette (Vorschau + „Saved“-Status).
 _FILM_NODE_LIST = _import_node_list("film_nodes", "FILM_NODE_LIST")
+# 2026-11-08: Movie to GIF (GIF/WebP mit Live-Vorschau).
+_GIF_NODE_LIST = _import_node_list("gif_nodes", "GIF_NODE_LIST")
+_LOOP_NODE_LIST = _import_node_list("loop_nodes", "LOOP_NODE_LIST")
 
 
 def _register_upscale_universal_copy():
@@ -77,7 +80,8 @@ class InfiniteMovieExtension(ComfyExtension):
         # POST_NODE_LIST enthält nur noch den (neuen) Upscale.
         return (NODE_LIST + _POST_NODE_LIST + _AUTOPROMPT_NODE_LIST +
                 _RETIME_NODE_LIST + _REVIEW_NODE_LIST + _ENGINE_NODE_LIST +
-                _SETTINGS_NODE_LIST + _CHUNK_UPSCALE_NODE_LIST + _AUDIO_NODE_LIST + _FILM_NODE_LIST)
+                _SETTINGS_NODE_LIST + _CHUNK_UPSCALE_NODE_LIST + _AUDIO_NODE_LIST + _FILM_NODE_LIST +
+                _GIF_NODE_LIST + _LOOP_NODE_LIST)
 
 
 async def comfy_entrypoint():

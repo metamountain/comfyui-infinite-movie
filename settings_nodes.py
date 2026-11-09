@@ -74,7 +74,7 @@ DERIVED_GPU_KEYS = ["min_free_mb", "acquire_timeout_s", "free_vram", "free_ram"]
 
 # Widgets des Settings-Nodes (Reihenfolge = Schema).
 SETTING_KEYS = [
-    "prompt_model", "aspect", "long_side", "output_folder", "film_name",
+    "prompt_model", "aspect", "long_side", "output_folder", "film_name", "audio",
 ]
 # Prompt-Stil: Widgets von Prompt Style; im Dict immer vorhanden (Defaults).
 STYLE_KEYS = ["instruction", "max_words", "camera"]  # kein audio (Nutzer 2026-11-04: Ton im Prompt = Ballast)
@@ -91,6 +91,9 @@ def settings_defaults() -> dict:
         "height": 0,
         "output_folder": "",
         "film_name": "",
+        # 2026-11-08 (Nutzer: „normal benötige ich kein audio, bitte deaktivieren! … setting“): Ton aus = die Engine
+        # dekodiert keinen Ton (kein Audio-VAE-Laden), Segmente und Film bleiben stumm.
+        "audio": False,
         # kein Widget (Nutzer 2026-11-03): beide Engines rendern mit CFG 1 (LTX video/audio_cfg 1, Wan Lightning),
         # dort wird die Negativ-Bedingung nicht gerechnet. Feld bleibt leer im Dict, der Director liest es.
         # GPU fest (Nutzer 2026-11-04: after_film-Widget weg): nach dem Film ComfyUI-VRAM frei.
@@ -143,6 +146,9 @@ class InfiniteMovieSettings(io.ComfyNode):
                                         "(ComfyUI output/infinite_movie/<name>). Use 📂 Choose folder."),
                 io.String.Input("film_name", default="",
                                 tooltip="File name of the finished film (no extension). Empty = 'infinite_movie'."),
+                io.Boolean.Input("audio", default=False, label_on="on", label_off="off",
+                                 tooltip="Sound from engines that make it (LTX). Off (default) = the audio is not decoded "
+                                         "(saves the audio VAE load per shot) and shots and film stay silent."),
             ],
             outputs=[
                 SETTINGS.Output("settings", display_name="settings ▶ chain",

@@ -45,6 +45,22 @@ function linkedOrigins(g, node, prefix) {
   return out;
 }
 
+// 2026-11-08: Bildkette einer Quelle stromaufwärts (Load Image → Upscale Crop Universal → … → Quelle), nur über
+// IMAGE-Eingänge und ohne Kern-Nodes; Reihenfolge Wurzel zuerst.
+function imageRow(g, src, core) {
+  const row = [src];
+  let n = src;
+  for (let d = 0; d < 20; d++) {
+    const inp = (n.inputs || []).find((i) => i.type === "IMAGE" && i.link != null);
+    const l = inp && (g.links?.[inp.link] ?? g.links?.get?.(inp.link));
+    const o = l && g.getNodeById(l.origin_id);
+    if (!o || core.has(o.comfyClass) || row.includes(o)) break;
+    row.unshift(o);
+    n = o;
+  }
+  return row;
+}
+
 // Höhe des Hilfe-Blocks oben in einer Gruppe (Titelleiste + Notiz + Abstand)
 const helpH = (help) => (help ? T + help.size[1] + NGAP : 0);
 
@@ -89,7 +105,17 @@ export function fcWorkflowLayout(director, second = false) {
   // Kern-Nodes gehören NIE zur Engine, auch wenn sie gerade über einer Engine-Gruppe liegen.
   const CORE = new Set(["InfiniteMovieSettings", "InfiniteMovieStyle", "InfiniteMovieAutoPrompt", "InfiniteMovieRender",
     "InfiniteMovieChooser", "InfiniteMovieAssemble", "InfiniteMovieFilm"]);
-  const coreImages = new Set(linkedOrigins(g, director, "images."));
+  // Bildquellen (ohne Kern-Nodes wie Assemble › last_frame – die bleiben in ihrer Gruppe) samt ihrer Bildkette
+  const imgRows = linkedOrigins(g, director, "images.").filter((n) => !CORE.has(n.comfyClass))
+    .map((src) => imageRow(g, src, CORE));
+  // Ein Node, der mehrere Bilder speist (z. B. ein Load Image vor zwei Upscalern), steht nur in der ersten Zeile.
+  { const seen = new Set();
+    for (let i = 0; i < imgRows.length; i++) {
+      imgRows[i] = imgRows[i].filter((n, j, r) => j === r.length - 1 || !seen.has(n));
+      imgRows[i].forEach((n) => seen.add(n));
+    }
+    for (let i = imgRows.length - 1; i >= 0; i--) if (seen.size && imgRows.slice(0, i).some((r) => r.at(-1) === imgRows[i].at(-1))) imgRows.splice(i, 1); }
+  const coreImages = new Set(imgRows.flat());
   const allNotes = (g._nodes || []).filter(isNote);
   const engineHelp = engines.map((e) => allNotes.find((n) => isHelp(n) && helpFits(n, e)) || null);
   const inEngine = (n) => !CORE.has(n.comfyClass) && !coreImages.has(n) && !isNote(n)
@@ -98,7 +124,7 @@ export function fcWorkflowLayout(director, second = false) {
   const engineMembers = engines.map((e) => (g._nodes || []).filter((n) => inEngine(n) && inRect(n, gRect(e))));
   // 8 Upscale (optional, B3 2026-11-04): Block wie die Engine, Mitglieder VOR dem Verschieben bestimmen.
   const upGrp = groups.find((x) => !isEngineGroup(x) && /upscale/i.test(x.title || ""));
-  const upMembers = upGrp ? (g._nodes || []).filter((n) => !isNote(n) && !inEngine(n) && inRect(n, gRect(upGrp))) : [];
+  const upMembers = upGrp ? (g._nodes || []).filter((n) => !isNote(n) && !inEngine(n) && !coreImages.has(n) && inRect(n, gRect(upGrp))) : [];
   const upHelp = upGrp ? allNotes.find((n) => isHelp(n) && helpFits(n, upGrp)) || null : null;
   const upSet = new Set(upMembers);
   const nodes = (g._nodes || []).filter((n) => !inEngine(n) && !upSet.has(n));
@@ -110,7 +136,7 @@ export function fcWorkflowLayout(director, second = false) {
   // EINE Reihe, Reihenfolge = Nummern 2…7
   const row = [
     [G(/settings/i), byType("InfiniteMovieSettings")],
-    [G(/images/i), linkedOrigins(g, director, "images.")],
+    [G(/images/i), imgRows.flat()],
     [G(/prompt/i), [...byType("InfiniteMovieStyle"), ...prompts]],
     [G(/director/i), [director]],
     [G(/choose/i), byType("InfiniteMovieChooser")],
@@ -156,19 +182,38 @@ export function fcWorkflowLayout(director, second = false) {
     Y = TOP + HE + GAP;
   }
 
-  // 2…7 EINE Reihe, gleiche Höhe, Hilfe jeweils mittig oben
-  const sizes = row.map(([, ns, side], k) => colSize(ns, side, rowHelp[k]));
+  // 2…7 EINE Reihe, gleiche Höhe, Hilfe jeweils mittig oben. Images: je Bild eine Zeile (Kette nebeneinander).
+  const rowW = (r) => r.reduce((s, n) => s + n.size[0], 0) + PAD * (r.length - 1);
+  const rowH = (r) => T + Math.max(...r.map((n) => n.size[1]));
+  const sizes = row.map(([, ns, side], k) => {
+    if (k !== 1 || !imgRows.length) return colSize(ns, side, rowHelp[k]);
+    const help = rowHelp[k];
+    const w = Math.max(MINW, ...imgRows.map((r) => rowW(r) + 2 * PAD), (help ? help.size[0] : 0) + 2 * PAD);
+    const h = HEAD + helpH(help) + imgRows.reduce((s, r) => s + rowH(r), 0) + NGAP * (imgRows.length - 1) + PAD;
+    return [w, h];
+  });
   let x = X0;
   row.forEach(([grp, ns, side], k) => {
     if (!ns.length && !grp) return;
-    placeCol(ns, side, rowHelp[k], x, Y, sizes[k][0]);
+    if (k === 1 && imgRows.length) {
+      const help = rowHelp[k];
+      if (help) help.pos = [x + (sizes[k][0] - help.size[0]) / 2, Y + HEAD + T];
+      let top = Y + HEAD + helpH(help);
+      for (const r of imgRows) {
+        let nx = x + PAD;
+        for (const n of r) { n.pos = [nx, top + T]; nx += n.size[0] + PAD; }
+        top += rowH(r) + NGAP;
+      }
+    } else {
+      placeCol(ns, side, rowHelp[k], x, Y, sizes[k][0]);
+    }
     if (grp) grp.pos = [x, Y];
     x += sizes[k][0] + GAP;
   });
 
   // Prompt k exakt zwischen Bild k und Bild k+1 (Loop-Prompt n→1 einen halben Schritt unter dem letzten Bild):
   // so liest man den Übergang direkt ab (Nutzer 2026-11-03: „exakt zwischen Bildern … wichtig“).
-  const imgs = row[1][1];
+  const imgs = imgRows.map((r) => r[r.length - 1]);   // Quelle je Zeile (an ihr richten sich die Prompts aus)
   const linkedPrompts = linkedOrigins(g, director, "shot_prompts.");
   if (imgs.length >= 2 && linkedPrompts.length) {
     const mid = (n) => n.pos[1] + (n.size[1] - T) / 2;          // Mitte des Kastens inkl. Titelleiste
@@ -183,7 +228,7 @@ export function fcWorkflowLayout(director, second = false) {
     if (style) {
       const need = style.pos[1] + style.size[1] + NGAP + T;
       const shift = Math.max(0, need - Math.min(...linkedPrompts.map((p) => p.pos[1])));
-      if (shift) for (const n of [...imgs, ...linkedPrompts]) n.pos = [n.pos[0], n.pos[1] + shift];
+      if (shift) for (const n of [...imgRows.flat(), ...linkedPrompts]) n.pos = [n.pos[0], n.pos[1] + shift];
     }
   }
   // Gruppenhöhe nach dem echten Inhalt (Prompts können unter das letzte Bild reichen)

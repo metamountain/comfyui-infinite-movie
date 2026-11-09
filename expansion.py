@@ -48,11 +48,17 @@ def _segment_plan(n_images: int, loop: bool, scene_lengths: list, length: int) -
     """Ordered segment plan: scene0..scene(n-2), then loop (last image -> first) if loop.
 
     Returns (start_idx, end_idx, seg_length, kind) tuples; kind is 'scene', 'loop' or 'open'.
-    One image + loop = a single loop shot (image -> itself). One image without loop = an
-    'open' shot: start image + prompt, no end image (end_idx None). Intro/outro removed in 71.
+    One image without loop = an 'open' shot: start image + prompt, no end image (end_idx None).
+    One image + loop = two passes (user 2026-11-09): the open shot from the image, then a loop
+    shot from that shot's LAST FRAME back to the image (start_idx None = previous segment's last
+    frame). Image -> itself in one shot reads as "nothing happens"; the two-pass loop moves.
+    Intro/outro removed in 71.
     """
-    if n_images == 1 and not loop:
-        return [(0, None, scene_lengths[0] if scene_lengths else length, "open")]
+    if n_images == 1:
+        plan = [(0, None, scene_lengths[0] if scene_lengths else length, "open")]
+        if loop:
+            plan.append((None, 0, length, "loop"))
+        return plan
     plan = []
     for i in range(n_images - 1):
         seg_length = scene_lengths[i] if i < len(scene_lengths) else length
@@ -354,9 +360,12 @@ def _derive_cfg_from_graph(template: dict, out_node: dict) -> dict:
         family = "ltx"
     elif "WanFirstLastFrameToVideo" in classes:
         family = "wan"
+    elif "MiniMaxH3ImageToVideo" in classes:
+        family = "minimax"
     else:
         family = "other"
-    preset = {"ltx": "ltx25_flf2v", "wan": "wan22_flf2v_lightning"}.get(family, "other")
+    preset = {"ltx": "ltx25_flf2v", "wan": "wan22_flf2v_lightning",
+              "minimax": "minimax_h3_flf2v"}.get(family, "other")
 
     # Find the size node.
     size_class = None
@@ -365,6 +374,13 @@ def _derive_cfg_from_graph(template: dict, out_node: dict) -> dict:
         if ct in ("EmptyLTXVLatentVideo", "WanFirstLastFrameToVideo"):
             size_class = ct
             break
+    if size_class is None:
+        # Any other engine: the first node that takes width + height + length
+        # (e.g. MiniMaxH3ImageToVideo) is the size node.
+        for nid, n in sorted(template.items()):
+            if {"width", "height", "length"} <= set(n.get("inputs") or {}):
+                size_class = n.get("class_type")
+                break
 
     # length_mod: Engine Out's length_grid has PRIORITY, else the size node.
     if length_grid:
@@ -374,7 +390,7 @@ def _derive_cfg_from_graph(template: dict, out_node: dict) -> dict:
     elif size_class == "WanFirstLastFrameToVideo":
         length_mod = 4
     else:
-        length_mod = 8 if family == "ltx" else (4 if family == "wan" else 8)
+        length_mod = {"ltx": 8, "wan": 4, "minimax": 17}.get(family, 8)
 
     cfg = {
         "preset": preset,
@@ -488,9 +504,20 @@ def _find_loadimage_by_marker(graph: dict, marker: str) -> str | None:
 
 
 def _find_prompt_node(graph: dict, marker: str) -> str | None:
+    hit = _find_prompt_input(graph, marker)
+    return hit[0] if hit else None
+
+
+def _find_prompt_input(graph: dict, marker: str) -> tuple[str, str] | None:
+    """(node id, input name) holding the prompt marker. CLIPTextEncode.text first,
+    else any input whose value is the marker (e.g. MiniMaxH3ImageToVideo.prompt)."""
     for nid, n in graph.items():
         if n.get("class_type") == "CLIPTextEncode" and n.get("inputs", {}).get("text") == marker:
-            return nid
+            return nid, "text"
+    for nid, n in graph.items():
+        for key, value in (n.get("inputs") or {}).items():
+            if value == marker:
+                return nid, key
     return None
 
 
@@ -510,7 +537,8 @@ _END_PASSTHROUGH = {"LTXVPreprocess", "ImageScale", "ImageScaleBy", "ImageScaleT
                     "ImageResizeKJv2", "UpscaleCropUniversal", "ImageResize+"}
 # class -> optional end-image input (deleted -> the node runs without an end frame)
 _END_OPTIONAL = {"WanFirstLastFrameToVideo": "end_image", "WanFunInpaintToVideo": "end_image",
-                 "Wan22FunControlToVideo": "end_image"}
+                 "Wan22FunControlToVideo": "end_image",
+                 "MiniMaxH3ImageToVideo": "last_frame"}   # optional in comfy_extras/nodes_minimax_h3.py:133
 # class -> {output slot: input to pass through} (node bypassed, its guide disappears)
 _END_BYPASS = {"LTXVAddGuide": {0: "positive", 1: "negative", 2: "latent"}}
 
@@ -640,6 +668,20 @@ def _reusable_segment(path: str, key: str) -> bool:
         return False
 
 
+def _last_frame_tensor(path: str):
+    """Last frame of a finished segment mp4 as an image tensor (1, H, W, 3), 0..1."""
+    import av
+    import numpy as np
+    import torch
+    last = None
+    with av.open(path) as c:
+        for frame in c.decode(video=0):
+            last = frame
+    if last is None:
+        raise ValueError(f"InfiniteMovieRender: no frames in {path}")
+    return torch.from_numpy(np.ascontiguousarray(last.to_ndarray(format="rgb24"))).unsqueeze(0).float() / 255.0
+
+
 def _reuse_node(graph: dict, nid: str, path: str) -> str:
     """Statt Sampler-Graph nur den Pfad liefern (Core PrimitiveString, Ausgang 0 = STRING wie SegmentSave)."""
     graph[nid] = {"class_type": "PrimitiveString", "inputs": {"value": path}}
@@ -699,9 +741,9 @@ def build_segment(template: dict, cfg: dict, prefix: str,
 
     # 3. Set prompt. (73: negative wird nicht mehr gesetzt – der Negativ-Encoder
     # bleibt leer; Engine In hat keinen negative-Ausgang mehr.)
-    prompt_src = _find_prompt_node(template, cfg["prompt_marker"])
-    if prompt_src is not None:
-        seg[prefix + prompt_src]["inputs"]["text"] = prompt
+    prompt_hit = _find_prompt_input(template, cfg["prompt_marker"])
+    if prompt_hit is not None:
+        seg[prefix + prompt_hit[0]]["inputs"][prompt_hit[1]] = prompt
 
     # 4. Set seed on all sampler / noise nodes.
     for nid, n in seg.items():
@@ -737,7 +779,9 @@ def build_segment(template: dict, cfg: dict, prefix: str,
         "fps": cfg["fps"],
         "trigger": "",       # dependency link (ignored)
     }
-    if is_link(audio_link):
+    # Settings › audio aus: Ton nicht verdrahten -> Audio-Decode + Audio-VAE laufen gar nicht (nur verlinkte
+    # Nodes einer Expansion werden ausgeführt).
+    if is_link(audio_link) and cfg.get("audio", True):
         seg_save_inputs["audio"] = audio_link
     seg[save_id] = {
         "class_type": "InfiniteMovieSegmentSave",
@@ -813,7 +857,7 @@ def build_expansion_graph(unique_id: str, preset: str,
     n_images = len(images)
     # --- Per-segment graphs ---
     # Auftrag 41A: per-scene lengths (n_scenes Eintraege)
-    n_scenes = n_images - 1 if n_images > 1 else (0 if loop else 1)
+    n_scenes = n_images - 1 if n_images > 1 else 1   # 1 image: open shot (+ loop shot back if loop)
     if scene_seconds:
         from .nodes import _scene_frames
         scene_lengths = _scene_frames(scene_seconds, cfg["fps"], cfg["length_mod"], length)
@@ -828,20 +872,38 @@ def build_expansion_graph(unique_id: str, preset: str,
     save_ids: list[str] = []      # Variant A save nodes (the collector links to these)
     save_ids_b: list[str] = []    # Variant B save nodes (Auftrag 61, only when variants >= 2)
 
+    prev_key, prev_save, prev_path = None, None, None   # previous segment (variant A)
     for i, (start_idx, end_idx, seg_length, kind) in enumerate(plan):
         end_tensor = images[end_idx] if end_idx is not None else None
+        if start_idx is None:
+            # 1-image loop, pass 2: start = last frame of the previous segment. Rendered in this run ->
+            # link to its decoded frames (the segment waits for it); reused -> read it from the mp4.
+            if graph.get(prev_save, {}).get("class_type") == "InfiniteMovieSegmentSave":
+                last_id = f"{unique_id}_s{i}_prev_last"
+                graph[last_id] = {"class_type": "ImageFromBatch", "inputs": {
+                    "image": graph[prev_save]["inputs"]["frames"], "batch_index": -1, "length": 1}}
+                start_value = [last_id, 0]
+            else:
+                start_value = _last_frame_tensor(prev_path)
+        else:
+            start_value = images[start_idx]
         if kind == "loop":
             seg_prompt = prompts[-1] if prompts else ""
         else:  # scene (start_idx == scene index)
             seg_prompt = prompts[start_idx] if start_idx < len(prompts) else (prompts[-1] if prompts else "")
-        seg_seed = seed + i + 1000 * (seed_bumps or {}).get(i + 1, 0)
+        _b = seed_bumps or {}
+        seg_seed = seed + i + 1000 * (_b.get(i + 1, 0) + _b.get(f"{i + 1}a", 0))
+        # Variante B: wie bisher seg_seed + 500, aber nur ihre eigenen Bumps ("2b") – "2a" lässt B unverändert
+        seed_b = seed + i + 500 + 1000 * (_b.get(i + 1, 0) + _b.get(f"{i + 1}b", 0))
 
         # Key of everything that shapes the segment (shared by A and B except the seed):
         # InfiniteMovieSegmentSave only reuses an existing file when the key matches
         # (seed / prompt / preset / images / length). 73: negative entfällt.
         h = hashlib.md5(seg_prompt.encode("utf-8"))
         h.update(preset.encode("utf-8"))
-        for t in (images[start_idx], end_tensor):
+        if start_idx is None:
+            h.update(f"after:{prev_key}".encode("utf-8"))   # pass 2 follows pass 1's exact result
+        for t in ((images[start_idx] if start_idx is not None else None), end_tensor):
             h.update(t.cpu().numpy().tobytes() if t is not None else b"open")
         # Modell-Bezeichner (Auftrag 29): stabil (Klasse + Name-Kurzform), kein
         # id() (das aendert sich je Lauf). Ohne Bezeichner wuerde bei neu
@@ -849,6 +911,10 @@ def build_expansion_graph(unique_id: str, preset: str,
         model_tag = _model_inputs_tag(model_inputs)
         if model_tag:
             h.update(model_tag.encode("utf-8"))
+        # Settings › audio an: eigener Schlüssel (stumm gerenderte Segmente nicht als „mit Ton“ wiederverwenden);
+        # aus: Schlüssel wie bisher – vorhandene Segmente bleiben gültig, der Film wird beim Verketten stumm.
+        if cfg.get("audio"):
+            h.update(b"audio")
         base_hash = h.hexdigest()
 
         # --- Variant A (seed as before, seg_XXX.mp4) ---
@@ -859,7 +925,7 @@ def build_expansion_graph(unique_id: str, preset: str,
         else:
             seg_a, save_id_a = build_segment(
                 template, cfg, prefix_a,
-                start_tensor=images[start_idx],
+                start_tensor=start_value,
                 end_tensor=end_tensor,
                 prompt=seg_prompt,
                 seed=seg_seed,
@@ -873,20 +939,21 @@ def build_expansion_graph(unique_id: str, preset: str,
             graph[save_id_a]["inputs"]["total"] = n_segments
             graph[save_id_a]["inputs"]["key"] = key_a
         save_ids.append(save_id_a)
+        prev_key, prev_save, prev_path = key_a, save_id_a, segment_path(output_dir, i)
 
         # --- Variant B (seed A + 500, seg_XXX_b.mp4) – only when variants >= 2 ---
         if variants >= 2:
             prefix_b = f"{unique_id}_s{i}b_"
-            key_b = f"seed={seg_seed + 500};len={seg_length};{base_hash}"
+            key_b = f"seed={seed_b};len={seg_length};{base_hash}"
             if _reusable_segment(segment_path_b(output_dir, i), key_b):
                 save_id_b = _reuse_node(graph, f"{prefix_b}reuse", segment_path_b(output_dir, i))
             else:
                 seg_b, save_id_b = build_segment(
                     template, cfg, prefix_b,
-                    start_tensor=images[start_idx],
+                    start_tensor=start_value,
                     end_tensor=end_tensor,
                     prompt=seg_prompt,
-                    seed=seg_seed + 500,
+                    seed=seed_b,
                     width=width, height=height, length=seg_length,
                     model_inputs=model_inputs,
                 )

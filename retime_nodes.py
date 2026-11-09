@@ -326,6 +326,15 @@ class InfiniteMovieAssemble(io.ComfyNode):
                                          "film written to <save_folder>/<save_name>.mp4."),
                 io.Video.Output("video",
                                 tooltip="The final assembled film as VIDEO (VHS-compatible)."),
+                # 2026-11-08 (Nutzer: „last frame … to get longer videos, restart or loop“)
+                io.Image.Output("last_frame",
+                                tooltip="The last frame of the finished film as IMAGE – connect it to the Director's "
+                                        "image input to continue the film from where it ends. With loop on, the "
+                                        "film ends just before the start image, so this frame is close to it."),
+                # 2026-11-08 (Nutzer: „add first frame too … in some cases it does“)
+                io.Image.Output("first_frame",
+                                tooltip="The first frame of the finished film as IMAGE – e.g. to render a lead-in "
+                                        "that ends where the film starts, or to loop a follow-up back to the start."),
             ],
             hidden=[io.Hidden.unique_id, io.Hidden.dynprompt, io.Hidden.prompt, io.Hidden.extra_pnginfo],
         )
@@ -497,7 +506,7 @@ class InfiniteMovieAssemble(io.ComfyNode):
         # 73: copy_to gestrichen (Parameter von _concat_segments entfernt).
         film_path, check, total_frames, out_fps = _concat_segments(
             concat_paths, sf, sn, loop,
-            free_vram, free_ram, metadata=meta or None)
+            free_vram, free_ram, metadata=meta or None, audio=bool(get_setting(settings, "audio")))
         # 77: output_size – nach dem Verketten skalieren + mittig beschneiden (lanczos).
         if output_size != "as rendered":
             film_path = _scale_film(film_path, output_size, has_meta=bool(meta))
@@ -509,7 +518,36 @@ class InfiniteMovieAssemble(io.ComfyNode):
         if viz is not None:
             ui_out["im_viz"] = [viz]
         # 73: Ausgaenge nur noch video_path + video (Graph/Report als ui=).
-        return io.NodeOutput(vp, video_out, ui=ui_out)
+        return io.NodeOutput(vp, video_out, last_frame(film_path), first_frame(film_path), ui=ui_out)
+
+
+def first_frame(video_path: str) -> torch.Tensor:
+    """Erstes Frame eines Films als IMAGE [1, H, W, 3] (float 0..1)."""
+    w, h = _probe_size(video_path)
+    raw = subprocess.run([_ffmpeg(), "-v", "error", "-i", video_path, "-map", "0:v:0", "-frames:v", "1",
+                          "-f", "rawvideo", "-pix_fmt", "rgb24", "-"], capture_output=True, **_no_window()).stdout
+    size = w * h * 3
+    if len(raw) < size:
+        raise RuntimeError(f"Assemble: could not read the first frame of {video_path}")
+    frame = np.frombuffer(raw[:size], dtype=np.uint8).reshape(h, w, 3)
+    return torch.from_numpy(frame.astype(np.float32) / 255.0).unsqueeze(0)
+
+
+def last_frame(video_path: str) -> torch.Tensor:
+    """Letztes Frame eines Films als IMAGE [1, H, W, 3] (float 0..1). Liest nur die letzten 2 s (-sseof),
+    nimmt das letzte vollständige Frame aus dem rawvideo-Strom."""
+    w, h = _probe_size(video_path)
+    raw = subprocess.run([_ffmpeg(), "-v", "error", "-sseof", "-2", "-i", video_path, "-map", "0:v:0",
+                          "-f", "rawvideo", "-pix_fmt", "rgb24", "-"], capture_output=True, **_no_window()).stdout
+    size = w * h * 3
+    if len(raw) < size:   # Film kürzer/fehlerhaft: ganz lesen
+        raw = subprocess.run([_ffmpeg(), "-v", "error", "-i", video_path, "-map", "0:v:0", "-f", "rawvideo",
+                              "-pix_fmt", "rgb24", "-"], capture_output=True, **_no_window()).stdout
+    if len(raw) < size:
+        raise RuntimeError(f"Assemble: could not read the last frame of {video_path}")
+    n = len(raw) // size
+    frame = np.frombuffer(raw[(n - 1) * size:n * size], dtype=np.uint8).reshape(h, w, 3)
+    return torch.from_numpy(frame.astype(np.float32) / 255.0).unsqueeze(0)
 
 
 def _register_route():

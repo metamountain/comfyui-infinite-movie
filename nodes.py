@@ -65,8 +65,7 @@ SHOTS = io.Custom("SHOTS")
 # ---------------------------------------------------------------------------
 
 _FFMPEG_CANDIDATES = [
-    r"D:\ComfyUI_windows_portable\python_embeded\Lib\site-packages\imageio_ffmpeg\binaries\ffmpeg-win-x86_64-v7.1.exe",
-    "ffmpeg",
+    "ffmpeg",   # PATH; sonst imageio_ffmpeg (keine maschinenspezifischen Pfade, Pack ist öffentlich)
 ]
 
 
@@ -474,11 +473,17 @@ def _segment_is_complete(mp4_path: str, expected_frames: int) -> bool:
 
 
 def _parse_reseed(text: str) -> dict:
-    """'2' / '2,4' / '2,2' -> {segment number: bumps}. Each mention adds one bump."""
+    """'2' / '2,4' / '2,2' -> {segment number: bumps}. Each mention adds one bump.
+    2026-11-08 (Nutzer: nur die abgewählte Variante neu rendern): '2a' / '2b' -> {"2a": bumps} / {"2b": bumps}
+    = nur Variante A bzw. B dieses Shots bekommt einen neuen Seed, die andere bleibt (Datei wird wiederverwendet)."""
     bumps: dict = {}
     for tok in re.split(r"[,;\s]+", text or ""):
-        if tok.strip().isdigit() and int(tok) > 0:
+        tok = tok.strip().lower()
+        if tok.isdigit() and int(tok) > 0:
             bumps[int(tok)] = bumps.get(int(tok), 0) + 1
+        elif len(tok) > 1 and tok[-1] in "ab" and tok[:-1].isdigit() and int(tok[:-1]) > 0:
+            key = f"{int(tok[:-1])}{tok[-1]}"
+            bumps[key] = bumps.get(key, 0) + 1
     return bumps
 
 
@@ -869,6 +874,7 @@ class InfiniteMovieRender(io.ComfyNode):
         from .expansion import engine_to_template
         _dynprompt = getattr(cls.hidden, "dynprompt", None)
         template, cfg = engine_to_template(_dynprompt, unique_id)
+        cfg = dict(cfg, audio=bool(get_setting(settings, "audio")))   # Settings › audio (Standard aus)
         preset = cfg.get("preset", "ltx25_flf2v")
 
         # Memory display: "before" reading (visible while the job runs).
@@ -898,8 +904,8 @@ class InfiniteMovieRender(io.ComfyNode):
 
         # 1. Collect + preprocess images.
         raw_images = _collect_images(images or [])
-        # 1 image: loop on = shot image -> itself; loop off = open shot (start image +
-        # prompt, no end image). See expansion._segment_plan (Nutzer 2026-11-04).
+        # 1 image: open shot (start image + prompt, no end image); loop on adds a second shot
+        # from that shot's last frame back to the image. See expansion._segment_plan (2026-11-09).
         # 69: Größe aus dem ersten Eingangsbild (Settings › aspect = "from images");
         # raw_images sind H×W×C (np.uint8) -> shape[:2] = (h, w).
         if get_setting(settings, "aspect") == ASPECT_FROM_IMAGES:
@@ -915,7 +921,7 @@ class InfiniteMovieRender(io.ComfyNode):
 
         # 2. Build per-transition prompts.
         n_images = len(image_tensors)
-        n_segments = n_images if loop else max(n_images - 1, 1)
+        n_segments = (2 if loop else 1) if n_images == 1 else (n_images if loop else n_images - 1)
         # Wired per-image prompts (shot_prompts.prompt0..) win over the text field.
         wired = _wired_prompts(shot_prompts)
         seg_prompts = _build_prompts(json.dumps(wired) if wired else "", None, n_segments)
@@ -938,7 +944,7 @@ class InfiniteMovieRender(io.ComfyNode):
         # 57a: Gesamt-Segmentanzahl (Szenen + Loop); vor dem Skip-Check berechnet, der sie braucht.
         # 71: Intro/Outro entfernt – nur noch Szenen + optionales Loop-Segment.
         from .expansion import segment_path, segment_path_b
-        n_scenes = n_images - 1 if n_images > 1 else (0 if loop else 1)  # 1 image, loop off = open shot
+        n_scenes = n_images - 1 if n_images > 1 else 1  # 1 image: open shot (+ loop shot back if loop)
         total_segments = n_scenes + (1 if loop else 0)
         _skip_render = False
         # 76 (Nutzer 2026-11-03: „not rendering when I press Run … old images“): vorhandene Segmente nur
@@ -1509,7 +1515,7 @@ class InfiniteMovieFramesCollect(io.ComfyNode):
 # ---------------------------------------------------------------------------
 
 def _concat_segments(seg_paths, save_folder, save_name, loop,
-                     free_vram, free_ram, metadata=None):
+                     free_vram, free_ram, metadata=None, audio=True):
     """Shared concat logic (Auftrag 32): concatenate segment mp4s into one film.
 
     Args:
@@ -1543,7 +1549,8 @@ def _concat_segments(seg_paths, save_folder, save_name, loop,
     fps = _video_fps(seg_paths[0])
     # 76: Audio nur mitnehmen, wenn ALLE Segmente einen Audio-Stream haben.
     # Sonst stumm (kein Versatz, kein Halbstumm).
-    all_have_audio = all(_has_audio_stream(p) for p in seg_paths)
+    # Settings › audio aus: immer stumm (auch wenn ältere Segmente noch Ton haben).
+    all_have_audio = bool(audio) and all(_has_audio_stream(p) for p in seg_paths)
     filter_parts = []
     for i in range(n_seg):
         n = counts[i]

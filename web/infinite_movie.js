@@ -20,6 +20,23 @@ function slotKey(name) {
 // behalten ihren Text; Ent-muten stellt alles wieder her.
 const fcActive = (n) => (n?.mode ?? 0) === 0;
 
+// 2026-11-08 (Nutzer: „input images not working if wired via preview image or upscale universal“): Bildquelle der
+// Kette ist JEDER Node, der über einen IMAGE-Ausgang verbunden ist (Load Image, Upscale Crop Universal,
+// Assemble › last_frame …), nicht nur LoadImage. Reihenfolge nach der Wurzel der Bildkette (erster Node ohne
+// IMAGE-Eingang, meist das Load Image) – so bleibt die alte Ordnung „Load Image id aufsteigend“ erhalten.
+const fcImgLink = (g, l) => !!l && (l.type === "IMAGE"
+  || g.getNodeById(l.origin_id)?.outputs?.[l.origin_slot]?.type === "IMAGE");
+function fcImgRoot(g, n, depth = 0) {
+  const inp = (n?.inputs || []).find((i) => i.type === "IMAGE" && i.link != null);
+  if (!inp || depth > 20) return n;
+  const l = getLink(g, inp.link);
+  const o = l && g.getNodeById(l.origin_id);
+  return o ? fcImgRoot(g, o, depth + 1) : n;
+}
+const fcImgOrder = (g) => (a, b) => (fcImgRoot(g, a).id - fcImgRoot(g, b).id) || (a.id - b.id);
+// Bildquelle aktiv = sie selbst und die Wurzel ihrer Bildkette nicht gemutet/gebypasst
+const fcImgActive = (g, n) => fcActive(n) && fcActive(fcImgRoot(g, n));
+
 function getLink(graph, id) {
   const links = graph?.links;
   if (!links) return null;
@@ -184,7 +201,7 @@ function fcClearFilms({ choose = false } = {}) {
     if (n.comfyClass === "InfiniteMovieFilm") { n._fc_film_info = null; fcFilmRender(n); }
     else if (n.comfyClass === "InfiniteMovieAssemble") { n.imgs = undefined; n.images = undefined; n.setDirtyCanvas?.(true, true); }
     else if (n.comfyClass === "InfiniteMovieChooser") {
-      if (choose) n._fc_choose_entries = [];
+      if (choose) { n._fc_choose_entries = []; n._fc_redo_pending = null; }
       n._fc_choose_ran = null;
       fcChooseRender(n);
     }
@@ -889,8 +906,9 @@ function reconcileChain(chain) {
       if (!key || inp.link == null) continue;
       const l = getLink(g, inp.link);
       const src = l ? g.getNodeById(l.origin_id) : null;
-      const want = key[1] === 0 ? "LoadImage" : "InfiniteMovieAutoPrompt";
-      if (!src || src.comfyClass !== want || !fcActive(src)) toDisconnect.push(inp.name);
+      const ok = key[1] === 0 ? (src && fcImgLink(g, l) && fcImgActive(g, src))
+        : (src && src.comfyClass === "InfiniteMovieAutoPrompt" && fcActive(src));
+      if (!ok) toDisconnect.push(inp.name);
     }
     for (const name of toDisconnect) _fcDisconnectByName(chain, name);
     // --- 1b) Auto-Prompts an gemuteten Bildern mitmuten, sonst wieder einschalten ---
@@ -899,8 +917,8 @@ function reconcileChain(chain) {
       const srcs = ["image_from", "image_to"]
         .map((nm) => getLink(g, ap.inputs?.find((x) => x.name === nm)?.link))
         .map((l) => (l ? g.getNodeById(l.origin_id) : null))
-        .filter((n) => n?.comfyClass === "LoadImage");
-      const off = srcs.some((n) => !fcActive(n));
+        .filter(Boolean);
+      const off = srcs.some((n) => !fcImgActive(g, n));
       ap.properties = ap.properties || {};
       if (off && fcActive(ap)) { ap.mode = 2; ap.properties.im_auto_muted = true; }
       else if (!off && ap.properties.im_auto_muted) { ap.mode = 0; delete ap.properties.im_auto_muted; }
@@ -909,24 +927,35 @@ function reconcileChain(chain) {
         ap.mode = 0; delete ap.properties.im_loop_off;
       }
     }
-    // --- 2) Chain-Bilder bestimmen (id aufsteigend) ---
+    // --- 2) Chain-Bilder bestimmen (Wurzel der Bildkette aufsteigend) ---
     const chainIds = new Set();
+    const outSlot = new Map();   // Quelle -> verbundener IMAGE-Ausgang (Assemble › last_frame = 2)
+    const addSrc = (l) => {
+      if (!fcImgLink(g, l)) return;
+      chainIds.add(l.origin_id);
+      if (!outSlot.has(l.origin_id)) outSlot.set(l.origin_id, l.origin_slot);
+    };
     for (const inp of chain.inputs || []) {
       if (!inp.name?.startsWith(IMG) || inp.link == null) continue;
-      const l = getLink(g, inp.link);
-      if (l) chainIds.add(l.origin_id);
+      addSrc(getLink(g, inp.link));
     }
+    // Auto-Prompt-Quellen nur, wenn ihre Bildkette nicht schon am Director hängt (Load Image → Upscale → Director:
+    // die APs zeigen noch aufs Load Image – das ist dann KEIN zweites Bild, die APs werden unten umverdrahtet).
+    const dirRoots = new Set([...chainIds].map((id) => fcImgRoot(g, g.getNodeById(id))?.id));
     for (const n of g._nodes || []) {
       if (n.comfyClass !== "InfiniteMovieAutoPrompt") continue;
       for (const inName of ["image_from", "image_to"]) {
         const l = getLink(g, n.inputs?.find((x) => x.name === inName)?.link);
-        if (l) chainIds.add(l.origin_id);
+        const o = l && g.getNodeById(l.origin_id);
+        if (o && !chainIds.has(o.id) && dirRoots.has(fcImgRoot(g, o)?.id)) continue;
+        addSrc(l);
       }
     }
     const chainNodes = [...chainIds]
       .map((id) => g.getNodeById(id))
-      .filter((n) => n?.comfyClass === "LoadImage" && fcActive(n))
-      .sort((a, b) => a.id - b.id);
+      .filter((n) => n && fcImgActive(g, n))
+      .sort(fcImgOrder(g));
+    const slotOf = (n) => outSlot.get(n.id) ?? Math.max(0, (n.outputs || []).findIndex((o) => o.type === "IMAGE"));
     const N = chainNodes.length;
     const imgTpl = (chain.inputs || []).find((i) => i.name?.startsWith(IMG));
     const ensureSlot = (name, tpl) => {
@@ -947,7 +976,7 @@ function reconcileChain(chain) {
         const cur = getLink(g, chain.inputs[idx].link);
         if (cur && cur.origin_id === chainNodes[i].id) continue;
         if (chain.inputs[idx].link != null) chain.disconnectInput(idx);
-        chainNodes[i].connect(0, chain, idx);
+        chainNodes[i].connect(slotOf(chainNodes[i]), chain, idx);
       }
       for (const inp of [...(chain.inputs || [])]) {
         const k = slotKey(inp.name);
@@ -956,8 +985,8 @@ function reconcileChain(chain) {
       // --- 4) Prompt-Slots + AutoPrompt-Paare ---
       const loop = !!chain.widgets?.find((w) => w.name === "loop")?.value;
       // 71: intro/outro entfernt – T = (N-1) scenes + loop
-      // 1 Bild ohne Loop = offener Shot (nodes.py n_segments = max(n-1, 1)) -> 1 Prompt ohne Endbild
-      const T = N === 1 && !loop ? 1 : (N - 1) + (loop ? 1 : 0);
+      // 1 Bild: offener Shot (Prompt ohne Endbild); mit Loop + Rück-Shot letztes Bild -> Bild (nodes.py n_segments)
+      const T = N === 1 ? (loop ? 2 : 1) : (N - 1) + (loop ? 1 : 0);
       const prTpl = (chain.inputs || []).find((i) => i.name?.startsWith(PR));
       const aps = () => (g._nodes || []).filter((n) => n.comfyClass === "InfiniteMovieAutoPrompt");
       const srcOf = (ap, inName) => {
@@ -972,7 +1001,7 @@ function reconcileChain(chain) {
           if (idx < 0) continue;
           if (!node) { if (ap.inputs[idx].link != null) ap.disconnectInput(idx); continue; } // offener Shot
           if (ap.inputs[idx].link != null) ap.disconnectInput(idx);
-          node.connect(0, ap, idx);
+          node.connect(slotOf(node), ap, idx);
         }
         const oi = outIdxOf(ap);
         if (oi >= 0 && slotIdx >= 0) {
@@ -983,7 +1012,7 @@ function reconcileChain(chain) {
       // Map slot index p → (fromImgIdx, toImgIdx)
       // 71: intro/outro entfernt – nur Szenen + loop
       const pairFor = (p) => {
-        if (N === 1 && !loop) return [0, -1];        // offener Shot: kein Endbild
+        if (N === 1 && p === 0) return [0, -1];      // offener Shot: kein Endbild (1 Bild, auch mit Loop)
         if (loop && p === T - 1) return [N - 1, 0]; // loop: last → first
         return [p, p + 1];                          // scenes
       };
@@ -1093,19 +1122,22 @@ function removeStaleModeAPs(chain) {
   for (const inp of chain.inputs || []) {
     if (!inp.name?.startsWith(IMG) || inp.link == null) continue;
     const l = getLink(g, inp.link);
-    if (l) chainIds.add(l.origin_id);
+    if (fcImgLink(g, l)) chainIds.add(l.origin_id);
   }
+  const dirRoots = new Set([...chainIds].map((id) => fcImgRoot(g, g.getNodeById(id))?.id));
   for (const n of g._nodes || []) {
     if (n.comfyClass !== "InfiniteMovieAutoPrompt") continue;
     for (const inName of ["image_from", "image_to"]) {
       const l = getLink(g, n.inputs?.find((x) => x.name === inName)?.link);
-      if (l) chainIds.add(l.origin_id);
+      const o = l && g.getNodeById(l.origin_id);
+      if (o && !chainIds.has(o.id) && dirRoots.has(fcImgRoot(g, o)?.id)) continue;
+      if (fcImgLink(g, l)) chainIds.add(l.origin_id);
     }
   }
   const chainNodes = [...chainIds]
     .map((id) => g.getNodeById(id))
-    .filter((n) => n?.comfyClass === "LoadImage" && fcActive(n))
-    .sort((a, b) => a.id - b.id);
+    .filter((n) => n && fcImgActive(g, n))
+    .sort(fcImgOrder(g));
   const N = chainNodes.length;
   if (N < 2) return;
   const firstImg = chainNodes[0].id;
@@ -1224,7 +1256,8 @@ app.registerExtension({
     setInterval(() => {
       const gr = app.graph;
       if (!gr?._nodes) return;
-      const sig = gr._nodes.filter((n) => n.comfyClass === "LoadImage").map((n) => n.id + ":" + (n.mode ?? 0)).join(",");
+      const sig = gr._nodes.filter((n) => (n.outputs || []).some((o) => o.type === "IMAGE"))
+        .map((n) => n.id + ":" + (n.mode ?? 0)).join(",");
       if (sig === fcModeSig) return;
       const first = fcModeSig === "";
       fcModeSig = sig;
@@ -1245,7 +1278,7 @@ app.registerExtension({
       const orig = g.onNodeRemoved;
       g.onNodeRemoved = function (node, ...rest) {
         const r = orig?.apply(this, [node, ...rest]);
-        if (node && (node.comfyClass === "InfiniteMovieAutoPrompt" || node.comfyClass === "LoadImage")) {
+        if (node && (node.comfyClass === "InfiniteMovieAutoPrompt" || (node.outputs || []).some((o) => o.type === "IMAGE"))) {
           for (const n of this._nodes || []) {
             if (n.comfyClass === "InfiniteMovieRender") {
               clearTimeout(n._fcRecT);
@@ -1420,7 +1453,7 @@ function imvSheetPicks(n, grid) {
 
 function imvEnsure(node) {
   if (node._imv) return node._imv;
-  const st = { tab: "Graph", seg: 0, k: 0, grid: 6, trail: 16, onion: false, timer: null, graph: null, liveTimeline: null };
+  const st = { tab: "Graph", seg: 0, k: 0, grid: 3, trail: 16, onion: false, timer: null, graph: null, liveTimeline: null };
   node._imv = st;
   const el = document.createElement("div");
   el.style.cssText = "display:flex;flex-direction:column;gap:4px;font:11px sans-serif;color:#D0D0D0;width:100%;";
@@ -1514,7 +1547,7 @@ function imvDraw(node) {
   st.segRow.style.visibility = needSeg ? "visible" : "hidden";
   if (needSeg && st.segRow.childElementCount !== shots.length) {
     st.segRow.replaceChildren(...shots.map((sh, i) => imvBtn(`seg ${sh.seg}`, () => {
-      st.seg = i; st.k = 0; imvStop(st); imvDraw(node);
+      st.seg = i; st.k = 0; imvStop(st); imvDraw(node); fcChooseFocus(sh.seg);
     })));
   }
   [...st.segRow.children].forEach((b, i) => { b.style.background = i === st.seg ? "#1f6feb" : "#333"; });
@@ -2033,8 +2066,24 @@ function fcReviewToast(msg, color) {
 // Schreibt die markierten Nummern in das `reseed`-Widget des Directors und
 // queue-t den Prompt. Beide Varianten (A/B) bekommen damit neue Seeds.
 // rerenderFn: Node-spezifischer Re-Render (Kacheln/Button aktualisieren).
+// 2026-11-08 (Nutzer: „picked one image to rerender but both turned black … should only new black out“):
+// was RERENDER neu rendert – ganzer Shot (✗ REDO) = "3", nur eine abgewählte Variante = "3a"/"3b"
+// (die andere bleibt stehen, ihr Segment wird wiederverwendet).
+function fcChooseRedoTokens(node) {
+  const marked = (node.properties?.marked || []).slice().sort((a, b) => a - b);
+  const out = marked.map(String);
+  const rej = node.properties?.rejected || {};
+  for (const n of Object.keys(rej).map(Number).sort((a, b) => a - b)) {
+    if (marked.includes(n)) continue;
+    const r = rej[n] || [];
+    if (r.length === 1) out.push(`${n}${r[0]}`);
+    else if (r.length > 1) out.push(String(n));
+  }
+  return out;
+}
+
 function fcRerenderMarked(node, rerenderFn) {
-  const marked = (node.properties.marked || []).slice().sort((a, b) => a - b);
+  const marked = fcChooseRedoTokens(node);
   if (!marked.length) return;
   // 57c: Director über `shots` ODER `segments` finden, auch durch Reroute/Zwischen-Nodes
   // (Link rückwärts verfolgen bis comfyClass === "InfiniteMovieRender").
@@ -2066,7 +2115,18 @@ function fcRerenderMarked(node, rerenderFn) {
   if (reseedIdx < 0) { fcReviewToast("no reseed widget on the render node", "#d93025"); return; }
   const old = renderNode.widgets[reseedIdx].value || "";
   const parts = old ? old.split(/[,;\s]+/).filter(Boolean) : [];
-  const newParts = parts.concat(marked.map(String));
+  const newParts = parts.concat(marked);
+  // Was neu kommt (für die Anzeige während des Renders): nur diese Kacheln „re-rendering…“, der Rest bleibt.
+  node._fc_redo_pending = {};
+  // Nutzer 2026-11-08: „nach rerender immer noch rejected aktiviert – eher nicht“: neu gerenderte Shots wieder
+  // auf AUTO (keine erzwungene Wahl der alten Variante), Abwahl/Markierung weg.
+  const ch = fcChooseGetChoices(node);
+  for (const t of marked) {
+    const n = parseInt(t, 10), v = t.replace(/^\d+/, "");
+    node._fc_redo_pending[n] = v ? [v] : ["a", "b"];
+    if (n >= 1 && n <= ch.length) ch[n - 1] = "auto";
+  }
+  fcChooseSetChoices(node, ch);
   renderNode.widgets[reseedIdx].value = newParts.join(",");
   // Markierungen zuruecksetzen.
   node.properties.marked = [];
@@ -2079,7 +2139,7 @@ function fcRerenderMarked(node, rerenderFn) {
     // Seeds fest: nur die markierten Shots (reseed) rendern neu, der Rest kommt aus dem Cache. Ziel = Choose.
     fcQueueFixedSeeds([String(node.id)]);
   }
-  fcReviewToast(`Re-rendering segments ${marked.join(", ")}`);
+  fcReviewToast(`Re-rendering ${marked.map((t) => `shot ${t.toUpperCase()}`).join(", ")}`);
 }
 
 // 75: InfiniteMovie.Review extension removed (node deleted).
@@ -2124,6 +2184,30 @@ function fcChooseQuality(v, e) {
   return q;
 }
 const FC_CHOOSE_STATUS_H = 26, FC_CHOOSE_BIG_H = 44;
+const FC_CHOOSE_SEAM_H = 84;   // 2026-11-08: Naht-Zeile (letztes Bild dieses Shots | erstes Bild des nächsten)
+
+// 2026-11-08 (Nutzer: Chooser + Assemble koppeln): Shot im Assemble-Viewer zeigen (Klick auf den Shot-Kopf
+// im Chooser) bzw. im Chooser hervorheben (seg-Knopf im Assemble-Viewer). number = Shot-Nummer (1-basiert).
+function fcAsmFocus(number) {
+  for (const a of app.graph?._nodes || []) {
+    if (a.comfyClass !== "InfiniteMovieAssemble" || !a._imv) continue;
+    const shots = a.properties?.im_viz?.shots || [];
+    const i = shots.findIndex((sh) => sh.seg === number);
+    if (i < 0) continue;
+    const st = a._imv;
+    st.seg = i; st.k = 0; imvStop(st);
+    if (st.tab === "Graph" || st.tab === "Timeline") st.tab = "Sheet";
+    imvDraw(a);
+  }
+}
+function fcChooseFocus(number) {
+  for (const c of fcChooseAll()) {
+    c._fc_choose_focus = number;
+    c._fc_choose_el?.querySelectorAll(".fc-choose-head").forEach((h, i) => {
+      h.style.color = i + 1 === number ? "#58a6ff" : "#fff";
+    });
+  }
+}
 
 // Laufzustand von ComfyUI (für Status + Ausgrauen), global aus den api-Ereignissen.
 const fcRun = { running: false, node: "", value: 0, max: 0 };
@@ -2389,8 +2473,8 @@ function fcChoosePlan(node) {
   const nImg = (d.inputs || []).filter((i) => i.name?.startsWith("images.") && i.link != null).length;
   if (nImg < 1) return { n: 0, variants: false, director: d, nImg };
   const wv = (name) => d.widgets?.find((w) => w.name === name)?.value;
-  const loop = !!wv("loop");  // 1 image: loop = shot image -> itself, else open shot (no end image)
-  let n = loop ? nImg : Math.max(nImg - 1, 1);
+  const loop = !!wv("loop");  // 1 image: open shot, + loop shot (last frame -> image) when loop is on
+  let n = nImg === 1 ? (loop ? 2 : 1) : (loop ? nImg : nImg - 1);
   return { n, variants: String(wv("variants")) === "2", director: d, nImg };
 }
 
@@ -2414,11 +2498,38 @@ function fcChooseLayout(node, entries) {
   const tileH = Math.round(colW * 1.25);
   const v = entries[0]?.has_variants ? 2 : 1;
   // 78: Naht-Zeile reservieren, wenn irgendein Shot seam_bad hat (sonst Clipping).
-  const seamH = entries.some((e) => !e.placeholder && e.seam_bad) ? FC_CHOOSE_STAT_H + FC_CHOOSE_GAP : 0;
+  const seamH = entries.some((e) => !e.placeholder && e.seam_next) ? FC_CHOOSE_SEAM_H + FC_CHOOSE_GAP : 0;
   const colH = FC_CHOOSE_HEAD_H + v * (tileH + FC_CHOOSE_GAP + FC_CHOOSE_STAT_H) + seamH + (entries[0]?.placeholder ? 0 : FC_CHOOSE_BTNROW_H + FC_CHOOSE_GAP);
-  const domH = (entries.length ? colH : 0) + FC_CHOOSE_GAP + FC_CHOOSE_STATUS_H + FC_CHOOSE_GAP + FC_CHOOSE_BIG_H + 8;
-  return { colW, tileH, domH };
+  const sheet = fcChooseSheetSize(entries);
+  const domH = (entries.length ? colH : 0) + FC_CHOOSE_GAP + FC_CHOOSE_STATUS_H + FC_CHOOSE_GAP + FC_CHOOSE_BIG_H + 8
+    + (sheet ? FC_CHOOSE_GAP + sheet[1] : 0);
+  return { colW, tileH, domH, sheet };
 }
+// 2026-11-08 (Nutzer: „dont like 3x3 in same window … put them to bottom“, dann „2x 3x3 unten nebeneinander, also
+// unter jedes Bild“): unten im Chooser eine Reihe 3×3-Sheets, je Shot genau unter seiner Spalte (gleiche Breite).
+// Gezeigt wird die gewählte Variante; Maus über Kachel A/B zeigt deren Sheet.
+function fcChooseSheetSize(entries) {
+  if (!entries.some((e) => !e.placeholder && (e.a?.sheet || e.b?.sheet))) return null;
+  return [FC_CHOOSE_COL, Math.round(FC_CHOOSE_COL * 1.25)];
+}
+function fcChooseUpdateSheet(node, only = -1) {
+  const cells = node._fc_sheet_cells || [];
+  const entries = node._fc_choose_entries || [];
+  const choices = fcChooseGetChoices(node);
+  cells.forEach((cell, i) => {
+    if (only >= 0 && i !== only) return;
+    const e = entries[i];
+    if (!e || !cell) return;
+    const eff = (choices[i] === "a" || choices[i] === "b") ? choices[i] : (e.auto || "a");
+    const k = (node._fc_sheet_hover?.[0] === i && e[node._fc_sheet_hover[1]]) ? node._fc_sheet_hover[1] : eff;
+    const im = e[k]?.sheet;
+    const src = im ? fcChooseStableUrl(im) : "";
+    if (src && cell.img.getAttribute("src") !== src) cell.img.setAttribute("src", src);
+    cell.img.style.visibility = src ? "visible" : "hidden";
+    cell.lbl.textContent = src ? `Shot ${e.number}${e.has_variants ? " · " + k.toUpperCase() : ""} · 3×3` : "no sheet yet – Run";
+  });
+}
+
 function fcChooseWidth(n) { return Math.max(420, FC_CHOOSE_PAD + n * FC_CHOOSE_COL + (n - 1) * FC_CHOOSE_GAP); }
 
 function fcChooseStableUrl(im) {
@@ -2527,7 +2638,8 @@ function fcChooseUpdateSteps(node) {
 
 function fcChooseStateIdle(node, entries, plan, marked) {
   if (entries[0]?.placeholder) return { text: `Waiting for Run: ${entries.length} shot(s)${plan.variants ? " × 2 variants" : ""} will appear here.`, tone: "idle", btn: null };
-  if (marked.length) return { text: `${marked.length} shot(s) marked ✗ – re-render them with new seeds.`, tone: "act", btn: "rerender" };
+  const redo = fcChooseRedoTokens(node);
+  if (redo.length) return { text: `${redo.map((t) => t.toUpperCase()).join(", ")} marked ✗ – RERENDER renders only these with new seeds.`, tone: "act", btn: "rerender" };
   if (node._fc_choose_ran == null) return { text: entries[0]?.has_variants ? "Shots ready – pick A or B per shot, then ASSEMBLE builds the film."
     : "Shots ready – ASSEMBLE builds the film.", tone: "act", btn: "assemble" };
   const changed = (node._fc_choose_ran || "") !== fcChooseEffective(node).join(",");
@@ -2560,7 +2672,7 @@ function fcChooseStatus(node) {
       b.textContent = "ASSEMBLE ▶"; b.style.background = "#2ea043"; b.style.borderColor = "#2ea043";
       b.title = "Rebuild the film from the chosen variants (Director + Choose come from cache, only Assemble runs).";
     } else if (st.btn === "rerender") {
-      const m = (node.properties.marked || []).length;
+      const m = fcChooseRedoTokens(node).length;
       b.textContent = `RERENDER ${m} ↻`; b.style.background = "#d93025"; b.style.borderColor = "#d93025";
       b.title = "Re-render the marked shots (new seeds), then choose again.";
     }
@@ -2631,7 +2743,17 @@ function fcChooseRender(node) {
 
       const head = document.createElement("div");
       head.style.cssText = `display:flex;align-items:center;height:${FC_CHOOSE_HEAD_H}px;font:bold 13px sans-serif;color:#fff;`;
+      head.className = "fc-choose-head";
       head.textContent = `Shot ${e.number}`;
+      if (node._fc_choose_focus === e.number) head.style.color = "#58a6ff";
+      if (!e.placeholder) {
+        head.style.cursor = "pointer";
+        head.title = "Show this shot in Assemble's viewer (Sheet / Frames / Particles)";
+        head.addEventListener("click", (ev) => {
+          if (ev.target !== head) return;
+          ev.stopPropagation(); fcChooseFocus(e.number); fcAsmFocus(e.number);
+        });
+      }
       col.appendChild(head);
       // 74 (Nutzer 2026-11-03: „deutlich, wo hop oder top“): KEEP/REDO groß unter den Bildern, Klick aufs Bild.
       const isMarked = !e.placeholder && marked.includes(e.number);
@@ -2657,13 +2779,15 @@ function fcChooseRender(node) {
       const isAuto = !e.placeholder && choices[i] !== "a" && choices[i] !== "b";
       const canPick = !e.placeholder && !!e.has_variants;
       const letters = e.has_variants ? ["a", "b"] : ["a"];
-      let seamLine = null;   // 78: Naht-Zeile, einmal je Shot (aus dem ersten fcChooseQuality)
       for (const k of letters) {
         const v = e[k] || {};
         const sel = e.has_variants && eff === k;
-        const dim = !e.placeholder && (isMarked || (e.has_variants && !sel));
+        const pending = !e.placeholder && !!node._fc_redo_pending?.[e.number]?.includes(k);
+        const dim = !e.placeholder && (pending || isMarked || (e.has_variants && !sel));
         const t = document.createElement("div");
         t.className = `fc-tile-${k}`;
+        t.addEventListener("mouseenter", () => { node._fc_sheet_hover = [i, k]; fcChooseUpdateSheet(node, i); });
+        t.addEventListener("mouseleave", () => { node._fc_sheet_hover = null; fcChooseUpdateSheet(node, i); });
         t.style.cssText = `position:relative;width:${colW}px;height:${tileH}px;background:#1a1a1a;border-radius:3px;` +
           `overflow:hidden;box-sizing:border-box;cursor:${e.placeholder ? "default" : "pointer"};` +
           (e.placeholder ? "border:1px dashed #555;" : isMarked ? "outline:5px solid #d93025;outline-offset:-5px;"
@@ -2677,10 +2801,10 @@ function fcChooseRender(node) {
           const lab = document.createElement("div");
           const on = sel || !e.has_variants;
           const no = isMarked || rejected.includes(k);
-          lab.textContent = isMarked ? "✗ REDO" : no ? `✗ ${k.toUpperCase()}`
+          lab.textContent = pending ? `↻ ${e.has_variants ? k.toUpperCase() + " " : ""}new render…` : isMarked ? "✗ REDO" : no ? `✗ ${k.toUpperCase()}`
             : e.has_variants ? (sel ? `✓ ${k.toUpperCase()}${isAuto && e.auto_strong ? " · AUTO" : ""}` : k.toUpperCase()) : "✓";
           lab.style.cssText = "position:absolute;top:8px;left:8px;padding:3px 10px;border-radius:12px;font:bold 16px sans-serif;" +
-            `color:#fff;background:${no ? "#d93025" : on ? "#2ea043" : "rgba(0,0,0,0.6)"};`;
+            `color:#fff;background:${pending ? "#1f6feb" : no ? "#d93025" : on ? "#2ea043" : "rgba(0,0,0,0.6)"};`;
           t.appendChild(lab);
         }
         if (isMarked) {
@@ -2715,20 +2839,39 @@ function fcChooseRender(node) {
         const st = document.createElement("div");
         // 75 (Nutzer 2026-11-03: „Merkmale größer, dass man es erkennen kann“): Befund in Klartext + Farbe
         const q = fcChooseQuality(v, e);
-        if (k === "a") seamLine = q.seam || null;
         st.style.cssText = `height:${FC_CHOOSE_STAT_H}px;font:bold 13px/${FC_CHOOSE_STAT_H}px sans-serif;white-space:nowrap;` +
           `overflow:hidden;text-overflow:ellipsis;padding:0 4px;border-radius:3px;color:${q.color};background:${q.bg};`;
-        st.textContent = v.score === undefined ? (e.placeholder ? (fcRun.running ? "waiting for render…" : "") : "") : q.text;
+        st.textContent = pending ? (fcRun.running ? "waiting for render…" : "queued for re-render")
+          : v.score === undefined ? (e.placeholder ? (fcRun.running ? "waiting for render…" : "") : "") : q.text;
+        if (pending) { st.style.color = "#4fc3f7"; st.style.background = "transparent"; }
         st.title = (e.auto_reason || "") + (v.info ? "\n" + v.info : "");
         col.appendChild(st);
       }
-      // 78: Naht-Zeile zu naechstem Shot (rot, nur wenn seam_bad), einmal je Shot.
-      if (seamLine) {
-        const sl = document.createElement("div");
-        sl.style.cssText = `height:${FC_CHOOSE_STAT_H}px;font:bold 13px/${FC_CHOOSE_STAT_H}px sans-serif;white-space:nowrap;` +
-          `overflow:hidden;text-overflow:ellipsis;padding:0 4px;border-radius:3px;color:${seamLine.color};background:${seamLine.bg};`;
-        sl.textContent = seamLine.text;
-        col.appendChild(sl);
+      // 2026-11-08: Naht zum nächsten Shot sichtbar machen – letztes Bild der gewählten Variante dieses Shots
+      // neben dem ersten Bild der gewählten Variante des nächsten (Loop: Shot 1). Folgt der Wahl A/B sofort;
+      // der Messwert stammt aus dem letzten Run (rot ab JERK_HARD, wie früher die Zeile 78).
+      if (!e.placeholder && e.seam_next) {
+        const ni = e.seam_next - 1, ne = entries[ni];
+        const pick = (en, idx) => (choices[idx] === "a" || choices[idx] === "b") ? choices[idx] : (en?.auto || "a");
+        const lastIm = (e[pick(e, i)] || e.a)?.last;
+        const firstIm = ne ? ((ne[pick(ne, ni)] || ne.a)?.still) : null;
+        const bad = !!e.seam_bad;
+        const sr = document.createElement("div");
+        sr.style.cssText = `height:${FC_CHOOSE_SEAM_H}px;display:flex;align-items:center;gap:6px;padding:2px;box-sizing:border-box;` +
+          `border-radius:3px;background:${bad ? "#3a1512" : "#202020"};border:1px solid ${bad ? "#b3261e" : "#333"};`;
+        const thumb = (im) => {
+          const t = document.createElement(im ? "img" : "div");
+          t.style.cssText = "width:62px;height:78px;object-fit:cover;border-radius:2px;background:#111;flex:none;";
+          if (im) t.src = fcChooseStableUrl(im);
+          return t;
+        };
+        const mid = document.createElement("div");
+        mid.style.cssText = `flex:1;min-width:0;text-align:center;font:bold 12px sans-serif;color:${bad ? "#ff8a80" : "#8b949e"};line-height:1.35;`;
+        mid.innerHTML = `seam → Shot ${e.seam_next}<br><span style="font-size:15px">${bad ? "⚠" : "✓"} ${(+e.seam || 0).toFixed(1)}</span>`;
+        sr.title = "Last frame of this shot | first frame of the next shot – the cut the film makes here. " +
+          "Value from the last run (red = hard jump).";
+        sr.appendChild(thumb(lastIm)); sr.appendChild(mid); sr.appendChild(thumb(firstIm));
+        col.appendChild(sr);
       }
       if (!e.placeholder) {
         // Button-Zeile: ✓ KEEP / ✗ REDO (groß) + „✎ prompt" (80: Prompt dieses Übergangs editieren)
@@ -2796,7 +2939,11 @@ function fcChooseRender(node) {
       const all = app.graph?._nodes || [];
       const on = (t) => all.filter((n) => n.comfyClass === t && (n.mode ?? 0) === 0).map((n) => String(n.id));
       const targets = on("InfiniteMovieFilm").length ? on("InfiniteMovieFilm") : on("InfiniteMovieAssemble");
-      if (window.__fc_review_test_skip_queue) console.log("[InfiniteMovie] test: skipped queuePrompt (ASSEMBLE)");
+      // 2026-11-08 (Nutzer: „last frame klappt nicht“): Ausgabe-Nodes HINTER Assemble (Preview Image an
+      // last_frame, Movie to GIF, Save …) gehören mit in den Teil-Lauf – sonst laufen sie nie. Director/Choose
+      // ausgenommen: ein zweiter Director an last_frame rendert erst mit Run.
+      for (const id of fcDownstreamOutputs(on("InfiniteMovieAssemble"))) if (!targets.includes(id)) targets.push(id);
+      if (window.__fc_review_test_skip_queue) console.log("[InfiniteMovie] test: skipped queuePrompt (ASSEMBLE)", JSON.stringify(targets));
       else Promise.resolve(fcQueueFixedSeeds(targets)).catch((err) => {
         node._fc_asm_t0 = null; fcChooseStatus(node);
         fcReviewToast("ASSEMBLE could not be queued – see console", "#d93025");
@@ -2810,6 +2957,27 @@ function fcChooseRender(node) {
   el.appendChild(btn);
   node._fc_choose_btn = btn;
   el.appendChild(status);   // 2026-11-05 (Nutzer): Status/Fortschritt ganz unten
+  // 3×3-Sheets ganz unten, je Shot unter seiner Spalte
+  const sz = fcChooseLayout(node, entries).sheet;
+  node._fc_sheet_cells = [];
+  if (sz) {
+    const srow = document.createElement("div");
+    srow.style.cssText = `display:flex;gap:${FC_CHOOSE_GAP}px;overflow:hidden;`;
+    entries.forEach(() => {
+      const cell = document.createElement("div");
+      cell.style.cssText = `position:relative;width:${sz[0]}px;height:${sz[1]}px;flex:0 0 ${sz[0]}px;background:#121212;border-radius:3px;overflow:hidden;`;
+      const img = document.createElement("img");
+      img.style.cssText = "width:100%;height:100%;object-fit:contain;display:block;";
+      const lbl = document.createElement("div");
+      lbl.style.cssText = "position:absolute;left:4px;bottom:4px;padding:1px 6px;font:bold 11px sans-serif;color:#ddd;" +
+        "background:rgba(0,0,0,0.6);border-radius:3px;pointer-events:none;";
+      cell.appendChild(img); cell.appendChild(lbl);
+      srow.appendChild(cell);
+      node._fc_sheet_cells.push({ img, lbl });
+    });
+    el.appendChild(srow);
+    fcChooseUpdateSheet(node);
+  }
 
   fcChooseStatus(node);
   fcChooseApplyActive(node);
@@ -2836,6 +3004,7 @@ app.registerExtension({
       origExecuted?.apply(this, arguments);
       this._fc_choose_entries = (message && message.infinite_movie_choose) || [];
       this._fc_choose_active = -1;
+      this._fc_redo_pending = null;   // neue Varianten sind da
       // Live-Lauf: Film noch nicht gebaut (setzt erst Film/Assemble). Wiederhergestellt beim Laden der Seite
       // (kein Lauf aktiv): der Film dazu existiert schon -> nicht wieder grün „ASSEMBLE“.
       this._fc_choose_ran = fcRun.running ? null : fcChooseEffective(this).join(",");
@@ -2966,7 +3135,7 @@ app.registerExtension({
       const seconds = Number(val("seconds")) || 2.0;
       const loop = !!val("loop");
       const nImg = (node.inputs || []).filter((i) => i.name?.startsWith(IMG) && i.link != null).length;
-      const nShots = nImg < 1 ? 0 : (loop ? nImg : Math.max(nImg - 1, 1));   // 1 Bild ohne Loop = offener Shot
+      const nShots = nImg < 1 ? 0 : nImg === 1 ? (loop ? 2 : 1) : (loop ? nImg : nImg - 1);   // 1 Bild: offener Shot (+ Rück-Shot)
       if (nShots < 1) { estWidget.value = "Film: needs at least 1 image"; node.setDirtyCanvas?.(true, true); return; }
       const per = String(val("shot_seconds") || "").split(",").map((x) => parseFloat(x) || 0);
       let total = 0;
@@ -3099,6 +3268,30 @@ function fcFilmRender(node) {
   if (Math.abs(node.size[0] - need[0]) > 1 || Math.abs(node.size[1] - need[1]) > 1) node.setSize(need);
   node.setDirtyCanvas(true, true);
 }
+// Aktive Ausgabe-Nodes (output_node) hinter den Start-Nodes, ohne Director/Choose (die rendern nur mit Run).
+function fcDownstreamOutputs(startIds) {
+  const g = app.graph;
+  if (!g) return [];
+  const linkOf = (id) => g.links?.[id] ?? g.links?.get?.(id);
+  const seen = new Set(startIds.map(String)), queue = [...seen], out = [];
+  while (queue.length) {
+    const n = g.getNodeById(queue.shift());
+    for (const o of n?.outputs || []) for (const lid of o.links || []) {
+      const t = linkOf(lid)?.target_id;
+      if (t == null || seen.has(String(t))) continue;
+      seen.add(String(t));
+      const tn = g.getNodeById(t);
+      if (!tn || (tn.mode ?? 0) !== 0) continue;
+      if (tn.comfyClass === "InfiniteMovieRender" || tn.comfyClass === "InfiniteMovieChooser") continue;
+      queue.push(String(t));
+      if (tn.constructor?.nodeData?.output_node) out.push(String(t));
+    }
+  }
+  return out;
+}
+
+window.fcDownstreamOutputs = fcDownstreamOutputs;   // für Browser-Tests
+
 function fcFilmRefreshAll() { for (const n of (app.graph?._nodes || [])) if (n.comfyClass === "InfiniteMovieFilm") fcFilmRender(n); }
 api.addEventListener("status", fcFilmRefreshAll);
 api.addEventListener("executing", () => setTimeout(fcFilmRefreshAll, 0));   // laufenden Node nachführen
