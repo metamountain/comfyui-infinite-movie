@@ -96,8 +96,8 @@ def draw_graph(curves: list, picks: list, fps: float, strength: float = None, re
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt
 
-    # 4:5 wie der Assemble-Viewer (480×600, Nutzer 2026-11-09: alle Analyzer gleich groß)
-    fig = plt.figure(figsize=(7.2, 9), dpi=100)
+    # quadratisch wie der Assemble-Viewer (480×480, Nutzer 2026-11-09: alle Analyzer gleich groß)
+    fig = plt.figure(figsize=(8, 8), dpi=100)
     gs = fig.add_gridspec(3, 1, height_ratios=[3, 3, 2])
     ax0, ax1, ax2 = fig.add_subplot(gs[0]), fig.add_subplot(gs[1]), fig.add_subplot(gs[2])
     fig.patch.set_facecolor("#1e1e1e")
@@ -715,8 +715,8 @@ def _viz_timeline(curves: list, picks: list, n_out: list, keep: float, viz_dir: 
         k = (n - 1) / max(full - 1, 1)
         labels.append(f"seg {i + 1} · {len(c)} -> {n} frames · keep {k:.2f}{' auto' if keep <= 0 else ''}")
     name = f"timeline{tag}.png"
-    # 4:5 wie der Assemble-Viewer (480×600, Nutzer 2026-11-09: alle Analyzer gleich groß)
-    Image.fromarray(motion_viz.timeline_heatmap(curves, picks, labels, width=512, height=640)).save(
+    # quadratisch wie der Assemble-Viewer (480×480, Nutzer 2026-11-09: alle Analyzer gleich groß)
+    Image.fromarray(motion_viz.timeline_heatmap(curves, picks, labels, width=512, height=512)).save(
         os.path.join(viz_dir, name))
     return name
 

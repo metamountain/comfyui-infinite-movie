@@ -310,7 +310,7 @@ def _make_still(path: str, out_still: str) -> None:
 
 
 SHEET_GRID = 3          # 2026-11-08 (Nutzer: „sheet muss schon in chooser … 3x3 als standard“)
-SHEET_TILE = (240, 300)  # je Kachel 4:5 -> Sheet 720×900 (großes Feld unten im Chooser, bis 640 px breit)
+SHEET_TILE = (240, 240)  # je Kachel quadratisch, Bild eingepasst (Hoch/Quer, Nutzer 2026-11-09) -> Sheet 720×720
 
 
 def sheet_picks(n: int, grid: int = SHEET_GRID) -> list[int]:
@@ -337,7 +337,7 @@ def _make_sheet(path: str, out_sheet: str, grid: int = SHEET_GRID) -> None:
         raise RuntimeError(f"no frames in {path}")
     w, h = SHEET_TILE
     sel = "+".join(f"eq(n\\,{k})" for k in picks)
-    vf = (f"select={sel},scale={w}:{h}:force_original_aspect_ratio=increase,crop={w}:{h},"
+    vf = (f"select={sel},scale={w}:{h}:force_original_aspect_ratio=decrease,pad={w}:{h}:(ow-iw)/2:(oh-ih)/2:color=0x121212,"
           f"tile={grid}x{grid}:padding=2:color=0x121212")
     cmd = [_ffmpeg(), "-y", "-i", path, "-vf", vf, "-fps_mode", "passthrough",
            "-frames:v", "1", "-c:v", "libwebp", "-quality", "75", out_sheet]

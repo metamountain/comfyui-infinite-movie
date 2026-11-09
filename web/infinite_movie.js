@@ -1557,8 +1557,9 @@ function imvShot(node) {
 }
 
 // 2026-11-09 (Nutzer: „Assemble window auf 3×3 … alle Analyzer auf eine Größe“): feste Fläche = 3×3 Load-Image-Kacheln
-// (160×200, 4:5) -> 480×600; jeder Tab füllt genau diese Fläche. Director bekommt dieselbe Breite (IMV_NODE_W).
-const IMV_W = 480, IMV_H = 600, IMV_NODE_W = IMV_W + 24;
+// (160×160) -> 480×480, quadratisch (Nutzer 2026-11-09: Hoch- und Querformat passen, Bilder contain);
+// jeder Tab füllt genau diese Fläche. Director bekommt dieselbe Breite (IMV_NODE_W).
+const IMV_W = 480, IMV_H = 480, IMV_NODE_W = IMV_W + 24;
 function imvFixWidth(node) {
   if (!node?.size || Math.abs(node.size[0] - IMV_NODE_W) < 1) return;
   node.setSize([IMV_NODE_W, Math.max(node.size[1], node.computeSize()[1])]);
@@ -1654,7 +1655,7 @@ function imvEnsure(node) {
   info.style.cssText = "height:14px;line-height:14px;flex:none;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;";
   el.appendChild(tabRow); el.appendChild(segRow); el.appendChild(canvas); el.appendChild(ctlRow); el.appendChild(info);
   Object.assign(st, { el, segRow, canvas, ctlRow, slider, play, onionLbl, gridLbl, trailLbl, trailIn: trail, info });
-  // feste Höhe: Fläche 480×600 + 4 Zeilen (22+22+22+14) + 4 Abstände -> springt nicht beim Tab-Wechsel
+  // feste Höhe: Fläche 480×480 + 4 Zeilen (22+22+22+14) + 4 Abstände -> springt nicht beim Tab-Wechsel
   node.addDOMWidget("im_viz", "div", el, {
     serialize: false,
     getMinHeight: () => IMV_H + 96,
@@ -1830,7 +1831,7 @@ function imvDraw(node) {
     st.gridLbl.textContent = `${g}×${g}`;
     const picks = imvSheetPicks(sh.frames.length, g);
     st._sheet = { grid: g, picks };
-    // Kacheln im Seitenverhältnis der Fläche (4:5): 3×3 = 160×200 wie Load Image
+    // Kacheln im Seitenverhältnis der Fläche (quadratisch): 3×3 = 160×160, Bilder contain
     const T = W / g, TH = H / g, gap = 2, bar = 3;
     ctx.font = `${Math.max(9, Math.round(T / 9))}px sans-serif`;
     ctx.textBaseline = "top";
