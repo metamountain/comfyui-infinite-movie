@@ -57,6 +57,9 @@ direct link. Without the LoRA: bypass it and use 20–25 steps.
 Optional: `minimax_h3_ref2va_pruned_int8_convrot.safetensors` (same repo, `diffusion_models`, 21.0 GB) – reference-image
 model (the image steers subject and look instead of being pinned as a frame), for *MiniMax H3 Reference to Video*.
 
+**Infinite Movie · Last Frame**: the last frame of a film (`video`, priority 1), an image batch (`images`) or a file
+(`video_path`) – e.g. the start image of the next shot. Videos are read frame by frame, never loaded whole.
+
 The H3 text encoder is not a prompt writer: Settings › `prompt_model` hides it (and LTX's encoder) – use a Qwen3-VL model there.
 The example workflows use **Anything Everywhere** ([cg-use-everywhere](https://github.com/chrisgoringe/cg-use-everywhere))
 and **Set/Get** ([KJNodes](https://github.com/kijai/ComfyUI-KJNodes)) to keep the engine groups compact.

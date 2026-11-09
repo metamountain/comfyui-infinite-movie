@@ -185,4 +185,59 @@ class InfiniteMovieH3LoopDecode(io.ComfyNode):
         return io.NodeOutput(imgs, out_audio)
 
 
-LOOP_NODE_LIST = [InfiniteMovieH3Loop, InfiniteMovieH3LoopDecode]
+def last_frame_of(src) -> torch.Tensor:
+    """Last frame of a video file (path or BytesIO), streamed frame by frame -> (1, H, W, 3) float 0..1."""
+    import av
+    import numpy as np
+    if hasattr(src, "seek"):
+        src.seek(0)
+    last = None
+    with av.open(src) as c:
+        for frame in c.decode(video=0):
+            last = frame
+    if last is None:
+        raise ValueError("Last Frame: the video has no frames")
+    return torch.from_numpy(np.ascontiguousarray(last.to_ndarray(format="rgb24"))).unsqueeze(0).float() / 255.0
+
+
+class InfiniteMovieLastFrame(io.ComfyNode):
+    @classmethod
+    def define_schema(cls):
+        return io.Schema(
+            node_id="InfiniteMovieLastFrame",
+            display_name="Infinite Movie · Last Frame",
+            category="Infinite Movie/tools",
+            description="The last frame of a film or an image batch – e.g. the start image for the next shot "
+                        "(loop in two passes: shot 1 runs free, its last frame -> shot 2 back to the first image). "
+                        "Priority: video > images > video_path. Videos are read frame by frame, never loaded whole.",
+            inputs=[
+                io.Video.Input("video", optional=True, tooltip="Film (priority 1)."),
+                io.Image.Input("images", optional=True, tooltip="Image batch / decoded frames (priority 2)."),
+                io.String.Input("video_path", optional=True, default="",
+                                tooltip="Path to a video file (priority 3)."),
+            ],
+            outputs=[io.Image.Output(display_name="last_frame")],
+        )
+
+    @classmethod
+    def execute(cls, video=None, images=None, video_path="") -> io.NodeOutput:
+        if video is not None:
+            try:
+                src = video.get_stream_source()
+            except Exception:  # noqa: BLE001 – video built from tensors has no file
+                src = None
+            if src is not None:
+                return io.NodeOutput(last_frame_of(src))
+            return io.NodeOutput(video.get_components().images[-1:].float())
+        if images is not None:
+            return io.NodeOutput(images[-1:])
+        p = (video_path or "").strip().strip('"')
+        if p:
+            import os
+            if not os.path.isfile(p):
+                raise ValueError(f"Last Frame: file not found: {p}")
+            return io.NodeOutput(last_frame_of(p))
+        raise ValueError("Last Frame: connect video, images or video_path.")
+
+
+LOOP_NODE_LIST = [InfiniteMovieH3Loop, InfiniteMovieH3LoopDecode, InfiniteMovieLastFrame]
