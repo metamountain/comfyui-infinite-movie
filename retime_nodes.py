@@ -206,21 +206,39 @@ def _picks_for(curves: list, fps: float, strength: float, rendered_seconds, keep
     return picks, n_out_list, "\n".join(lines)
 
 
-def _scale_film(film_path: str, output_size: str, has_meta: bool) -> str:
-    """77: Scale + center-crop a film to the target size (lanczos), preserving metadata.
+# 2026-11-09 (Nutzer: „output size assemble … brain dead“): das Format kommt aus dem Render (Settings `aspect`),
+# Assemble legt nur die Größe fest = kürzeste Seite. Nie auf ein anderes Seitenverhältnis beschneiden.
+OUTPUT_SIZES = {"as rendered": 0, "1080 (short side)": 1080, "1440 (short side)": 1440, "2160 · 4K (short side)": 2160}
+_SNAP_TOL = 0.02   # Render liegt wegen 32er-Rundung knapp neben dem Preset (9:16 L=1360 -> 768×1360)
 
-    output_size: one of "Instagram 4:5 1080×1350", "Reel 9:16 1080×1920", "2× rendered".
-    Returns the path to the scaled film (replaces the original in place).
-    """
-    if "1080" in output_size and "1350" in output_size:
-        target_w, target_h = 1080, 1350
-    elif "1080" in output_size and "1920" in output_size:
-        target_w, target_h = 1080, 1920
-    elif output_size == "2× rendered":
-        w, h = _probe_size(film_path)
-        target_w, target_h = w * 2, h * 2
+
+def _output_target(w: int, h: int, output_size: str) -> tuple:
+    """(target_w, target_h) for the film: short side = N, aspect of the render. If the render is within 2 % of a
+    classic ratio (settings_nodes.ASPECTS), the exact ratio is used (4:5 -> 1080×1350, 9:16 -> 1080×1920),
+    so the crop is at most 2 %. Returns (w, h) unchanged for 'as rendered' / unknown."""
+    n = OUTPUT_SIZES.get(output_size, 0)
+    if not n or w <= 0 or h <= 0:
+        return w, h
+    from .settings_nodes import ASPECTS
+    ratio = w / h
+    for rw, rh in ASPECTS.values():
+        if abs(ratio / (rw / rh) - 1) <= _SNAP_TOL:
+            ratio = rw / rh
+            break
+    if ratio <= 1:   # portrait / square: width is the short side
+        tw, th = n, n / ratio
     else:
-        return film_path  # "as rendered" or unknown – no change
+        tw, th = n * ratio, n
+    return int(round(tw / 2)) * 2, int(round(th / 2)) * 2
+
+
+def _scale_film(film_path: str, output_size: str, has_meta: bool) -> str:
+    """Scale the film to OUTPUT_SIZES[output_size] (short side, aspect of the render, lanczos), preserving
+    metadata. Replaces the original in place."""
+    w, h = _probe_size(film_path)
+    target_w, target_h = _output_target(w, h, output_size)
+    if (target_w, target_h) == (w, h):
+        return film_path  # "as rendered" or already that size
     vf = (f"scale={target_w}:{target_h}:force_original_aspect_ratio=increase:flags=lanczos,"
           f"crop={target_w}:{target_h}")
     has_audio = _has_audio_stream(film_path)
@@ -302,14 +320,11 @@ class InfiniteMovieAssemble(io.ComfyNode):
                 io.Boolean.Input("loop", default=True,
                                  tooltip="true = also drop the last frame of the last segment (seamless loop); "
                                          "false = keep it (the film ends on the last image)."),
-                # 77: output_size – Ausgabegroesse nach dem Verketten (scale + center-crop, lanczos).
-                io.Combo.Input("output_size",
-                               options=["as rendered", "Instagram 4:5 1080×1350", "Reel 9:16 1080×1920", "2× rendered"],
-                               default="as rendered",
-                               tooltip="Output size after assembling. 'as rendered' = no change. "
-                                       "'Instagram 4:5 1080×1350' = scale+crop to 1080×1350. "
-                                       "'Reel 9:16 1080×1920' = scale+crop to 1080×1920. "
-                                       "'2× rendered' = double the rendered size."),
+                # output_size: nur die Größe (kürzeste Seite), Format kommt aus dem Render (Settings aspect).
+                io.Combo.Input("output_size", options=list(OUTPUT_SIZES), default="1080 (short side)",
+                               tooltip="Film size after assembling: the short side, the aspect stays as rendered "
+                                       "(set it in Settings). 1080 = Instagram 1080×1350 (4:5), Reel 1080×1920 "
+                                       "(9:16), YouTube 1920×1080 (16:9). 'as rendered' = no scaling."),
                 # 73: copy_to gestrichen (kein Copy-Ziel mehr; Film bleibt im Ausgabe-Ordner).
                 # 57d: settings (SETTINGS) am ENDE, damit sich die Slot-Indizes der
                 # verdrahteten Eingaenge (shots/segments/save_folder/save_name) nicht verschieben.
