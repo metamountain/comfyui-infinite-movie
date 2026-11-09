@@ -44,6 +44,12 @@ _FILM_NODE_LIST = _import_node_list("film_nodes", "FILM_NODE_LIST")
 _GIF_NODE_LIST = _import_node_list("gif_nodes", "GIF_NODE_LIST")
 _LOOP_NODE_LIST = _import_node_list("loop_nodes", "LOOP_NODE_LIST")
 
+# 91: model check (routes only, no nodes – nothing to add to the node list).
+try:
+    importlib.import_module(".model_check", __name__)
+except Exception as e:  # noqa: BLE001
+    print(f"[InfiniteMovie] failed to import model_check: {e}")
+
 
 def _register_upscale_universal_copy():
     """Kopie von „Upscale Crop Universal“ (metamountain/upscale-universal, Nutzer 2026-11-02: „benutze immer upscale

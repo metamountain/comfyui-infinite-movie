@@ -1,0 +1,888 @@
+{
+  "id": "e7f2398c-55fd-429c-b113-a5150fb6119b",
+  "revision": 0,
+  "last_node_id": 13,
+  "last_link_id": 21,
+  "nodes": [
+    {
+      "id": 1,
+      "type": "UNETLoader",
+      "pos": [
+        20,
+        94
+      ],
+      "size": [
+        320,
+        82
+      ],
+      "flags": {},
+      "order": 24,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "MODEL",
+          "type": "MODEL",
+          "links": [
+            1
+          ]
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "UNETLoader",
+        "models": [
+          {
+            "name": "minimax_h3_fl2va_pruned_int8_convrot.safetensors",
+            "url": "https://huggingface.co/Comfy-Org/MiniMax-H3/resolve/main/diffusion_models/minimax_h3_fl2va_pruned_int8_convrot.safetensors",
+            "directory": "diffusion_models"
+          }
+        ]
+      },
+      "widgets_values": [
+        "minimax_h3_fl2va_pruned_int8_convrot.safetensors",
+        "default"
+      ],
+      "widgets_values_named": {
+        "unet_name": "minimax_h3_fl2va_pruned_int8_convrot.safetensors",
+        "weight_dtype": "default"
+      },
+      "color": "#223",
+      "bgcolor": "#335"
+    },
+    {
+      "id": 2,
+      "type": "LoraLoaderModelOnly",
+      "pos": [
+        20,
+        224
+      ],
+      "size": [
+        320,
+        82
+      ],
+      "flags": {},
+      "order": 55,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "model",
+          "type": "MODEL",
+          "link": 1
+        }
+      ],
+      "outputs": [
+        {
+          "name": "MODEL",
+          "type": "MODEL",
+          "links": [
+            18
+          ]
+        }
+      ],
+      "title": "Turbo LoRA 8 steps",
+      "properties": {
+        "Node name for S&R": "LoraLoaderModelOnly",
+        "models": [
+          {
+            "name": "minimax_h3_fl2v_turbo_8step_v1.1_768p_comfyui_bf16.safetensors",
+            "url": "https://huggingface.co/lightx2v/Minimax-h3-Turbo/resolve/main/minimax_h3_fl2v_turbo_8step_v1.1_768p_comfyui_bf16.safetensors",
+            "directory": "loras"
+          }
+        ]
+      },
+      "widgets_values": [
+        "minimax_h3_fl2v_turbo_8step_v1.1_768p_comfyui_bf16.safetensors",
+        1
+      ],
+      "widgets_values_named": {
+        "lora_name": "minimax_h3_fl2v_turbo_8step_v1.1_768p_comfyui_bf16.safetensors",
+        "strength_model": 1
+      },
+      "color": "#223",
+      "bgcolor": "#335"
+    },
+    {
+      "id": 3,
+      "type": "CLIPLoader",
+      "pos": [
+        20,
+        354
+      ],
+      "size": [
+        320,
+        106
+      ],
+      "flags": {},
+      "order": 25,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "CLIP",
+          "type": "CLIP",
+          "links": [
+            19
+          ]
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "CLIPLoader",
+        "models": [
+          {
+            "name": "qwen3vl_32b_minimax_h3_nvfp4_awq.safetensors",
+            "url": "https://huggingface.co/Comfy-Org/MiniMax-H3/resolve/main/text_encoders/qwen3vl_32b_minimax_h3_nvfp4_awq.safetensors",
+            "directory": "text_encoders"
+          }
+        ]
+      },
+      "widgets_values": [
+        "qwen3vl_32b_minimax_h3_nvfp4_awq.safetensors",
+        "minimax",
+        "default"
+      ],
+      "widgets_values_named": {
+        "clip_name": "qwen3vl_32b_minimax_h3_nvfp4_awq.safetensors",
+        "type": "minimax",
+        "device": "default"
+      },
+      "color": "#223",
+      "bgcolor": "#335"
+    },
+    {
+      "id": 4,
+      "type": "VAELoader",
+      "pos": [
+        20,
+        504
+      ],
+      "size": [
+        320,
+        58
+      ],
+      "flags": {},
+      "order": 26,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "VAE",
+          "type": "VAE",
+          "links": [
+            20,
+            21
+          ]
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "VAELoader",
+        "models": [
+          {
+            "name": "minimax_h3_video_vae_int8_convrot.safetensors",
+            "url": "https://huggingface.co/Comfy-Org/MiniMax-H3/resolve/main/vae/minimax_h3_video_vae_int8_convrot.safetensors",
+            "directory": "vae"
+          }
+        ]
+      },
+      "widgets_values": [
+        "minimax_h3_video_vae_int8_convrot.safetensors"
+      ],
+      "widgets_values_named": {
+        "vae_name": "minimax_h3_video_vae_int8_convrot.safetensors"
+      },
+      "color": "#223",
+      "bgcolor": "#335"
+    },
+    {
+      "id": 5,
+      "type": "VAELoader",
+      "pos": [
+        20,
+        604
+      ],
+      "size": [
+        320,
+        58
+      ],
+      "flags": {},
+      "order": 27,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "VAE",
+          "type": "VAE",
+          "links": [
+            2
+          ]
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "VAELoader",
+        "models": [
+          {
+            "name": "minimax_h3_audio_vae_fp32.safetensors",
+            "url": "https://huggingface.co/Comfy-Org/MiniMax-H3/resolve/main/vae/minimax_h3_audio_vae_fp32.safetensors",
+            "directory": "vae"
+          }
+        ]
+      },
+      "widgets_values": [
+        "minimax_h3_audio_vae_fp32.safetensors"
+      ],
+      "widgets_values_named": {
+        "vae_name": "minimax_h3_audio_vae_fp32.safetensors"
+      },
+      "color": "#223",
+      "bgcolor": "#335"
+    },
+    {
+      "id": 6,
+      "type": "InfiniteMovieEngineIn",
+      "pos": [
+        20,
+        714
+      ],
+      "size": [
+        323.167578125,
+        166
+      ],
+      "flags": {},
+      "order": 28,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "start_image",
+          "type": "IMAGE",
+          "links": [
+            7
+          ]
+        },
+        {
+          "name": "end_image",
+          "type": "IMAGE",
+          "links": [
+            8
+          ]
+        },
+        {
+          "name": "prompt",
+          "type": "STRING",
+          "links": [
+            3
+          ]
+        },
+        {
+          "name": "seed",
+          "type": "INT",
+          "links": [
+            15
+          ]
+        },
+        {
+          "name": "width",
+          "type": "INT",
+          "links": [
+            4
+          ]
+        },
+        {
+          "name": "height",
+          "type": "INT",
+          "links": [
+            5
+          ]
+        },
+        {
+          "name": "length",
+          "type": "INT",
+          "links": [
+            6
+          ]
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "InfiniteMovieEngineIn"
+      },
+      "color": "#233",
+      "bgcolor": "#355"
+    },
+    {
+      "id": 7,
+      "type": "MiniMaxH3ImageToVideo",
+      "pos": [
+        400,
+        94
+      ],
+      "size": [
+        330,
+        220
+      ],
+      "flags": {},
+      "order": 58,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "clip",
+          "type": "CLIP",
+          "link": 19
+        },
+        {
+          "name": "vae",
+          "type": "VAE",
+          "link": 20
+        },
+        {
+          "name": "first_frame",
+          "shape": 7,
+          "type": "IMAGE",
+          "link": 7
+        },
+        {
+          "name": "last_frame",
+          "shape": 7,
+          "type": "IMAGE",
+          "link": 8
+        },
+        {
+          "name": "prompt",
+          "type": "STRING",
+          "widget": {
+            "name": "prompt"
+          },
+          "link": 3
+        },
+        {
+          "name": "width",
+          "type": "INT",
+          "widget": {
+            "name": "width"
+          },
+          "link": 4
+        },
+        {
+          "name": "height",
+          "type": "INT",
+          "widget": {
+            "name": "height"
+          },
+          "link": 5
+        },
+        {
+          "name": "length",
+          "type": "INT",
+          "widget": {
+            "name": "length"
+          },
+          "link": 6
+        }
+      ],
+      "outputs": [
+        {
+          "name": "positive",
+          "type": "CONDITIONING",
+          "links": [
+            11,
+            12
+          ]
+        },
+        {
+          "name": "LATENT",
+          "type": "LATENT",
+          "links": [
+            14
+          ]
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "MiniMaxH3ImageToVideo"
+      },
+      "widgets_values": [
+        "",
+        768,
+        960,
+        121
+      ],
+      "widgets_values_named": {
+        "prompt": "",
+        "width": 768,
+        "height": 960,
+        "length": 121
+      },
+      "color": "#232",
+      "bgcolor": "#353"
+    },
+    {
+      "id": 8,
+      "type": "VAEDecode",
+      "pos": [
+        1160,
+        94
+      ],
+      "size": [
+        230,
+        46
+      ],
+      "flags": {},
+      "order": 74,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "samples",
+          "type": "LATENT",
+          "link": 16
+        },
+        {
+          "name": "vae",
+          "type": "VAE",
+          "link": 21
+        }
+      ],
+      "outputs": [
+        {
+          "name": "IMAGE",
+          "type": "IMAGE",
+          "links": [
+            9
+          ]
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "VAEDecode"
+      }
+    },
+    {
+      "id": 9,
+      "type": "VAEDecodeAudio",
+      "pos": [
+        1160,
+        214
+      ],
+      "size": [
+        230,
+        46
+      ],
+      "flags": {},
+      "order": 75,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "samples",
+          "type": "LATENT",
+          "link": 17
+        },
+        {
+          "name": "vae",
+          "type": "VAE",
+          "link": 2
+        }
+      ],
+      "outputs": [
+        {
+          "name": "AUDIO",
+          "type": "AUDIO",
+          "links": [
+            10
+          ]
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "VAEDecodeAudio"
+      }
+    },
+    {
+      "id": 10,
+      "type": "InfiniteMovieEngineOut",
+      "pos": [
+        1540,
+        94
+      ],
+      "size": [
+        320,
+        122
+      ],
+      "flags": {},
+      "order": 78,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "images",
+          "shape": 7,
+          "type": "IMAGE",
+          "link": 9
+        },
+        {
+          "name": "video",
+          "shape": 7,
+          "type": "VIDEO",
+          "link": null
+        },
+        {
+          "name": "audio",
+          "shape": 7,
+          "type": "AUDIO",
+          "link": 10
+        }
+      ],
+      "outputs": [
+        {
+          "name": "engine",
+          "type": "STRING",
+          "links": []
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "InfiniteMovieEngineOut"
+      },
+      "widgets_values": [
+        24,
+        17
+      ],
+      "widgets_values_named": {
+        "fps": 24,
+        "length_grid": 17
+      },
+      "color": "#233",
+      "bgcolor": "#355"
+    },
+    {
+      "id": 11,
+      "type": "MarkdownNote",
+      "pos": [
+        1920,
+        94
+      ],
+      "size": [
+        560,
+        380
+      ],
+      "flags": {},
+      "order": 29,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [],
+      "properties": {
+        "Node name for S&R": "MarkdownNote"
+      },
+      "widgets_values": [
+        "## 1 · Engine: MiniMax H3\nRenders one shot (start image → end image) per call from the Director. MiniMax H3 first/last-frame, int8, **8-step turbo LoRA v1.1** (768p), video + sound.\n- **Infinite Movie · Engine Start** (from Director): `start_image`, `end_image`, `prompt`, `seed`, `width`, `height`, `length`.\n- **UNETLoader + Turbo LoRA 8 steps**: H3 model + LoRA (strength 1). Without the LoRA: bypass it, 20–25 steps.\n- **CLIPLoader** (type `minimax`): Qwen3-VL 32B text encoder. **VAELoader** ×2: video + audio VAE.\n- **MiniMax H3 Image To Video**: first/last frame, prompt, size and length from Engine Start (last frame optional).\n- **KSampler**: 8 steps, cfg 1, res_multistep, simple; seed from Engine Start. Negative = empty (ConditioningZeroOut), ignored at cfg 1.\n- **Infinite Movie · Engine Result** (to Director): frames + sound, 24 fps, `length_grid` 17 (H3 snaps to 17k+5 frames).\n- Sound is only kept when Settings › `audio` is on.\n- Other engines: `Infinite Movie - Engine LTX 2.5` / `Infinite Movie - Engine Wan 2.2`. Only ONE engine group may be active; mute the other (select group, Ctrl+M)."
+      ],
+      "widgets_values_named": {
+        "text": "## 1 · Engine: MiniMax H3\nRenders one shot (start image → end image) per call from the Director. MiniMax H3 first/last-frame, int8, **8-step turbo LoRA v1.1** (768p), video + sound.\n- **Infinite Movie · Engine Start** (from Director): `start_image`, `end_image`, `prompt`, `seed`, `width`, `height`, `length`.\n- **UNETLoader + Turbo LoRA 8 steps**: H3 model + LoRA (strength 1). Without the LoRA: bypass it, 20–25 steps.\n- **CLIPLoader** (type `minimax`): Qwen3-VL 32B text encoder. **VAELoader** ×2: video + audio VAE.\n- **MiniMax H3 Image To Video**: first/last frame, prompt, size and length from Engine Start (last frame optional).\n- **KSampler**: 8 steps, cfg 1, res_multistep, simple; seed from Engine Start. Negative = empty (ConditioningZeroOut), ignored at cfg 1.\n- **Infinite Movie · Engine Result** (to Director): frames + sound, 24 fps, `length_grid` 17 (H3 snaps to 17k+5 frames).\n- Sound is only kept when Settings › `audio` is on.\n- Other engines: `Infinite Movie - Engine LTX 2.5` / `Infinite Movie - Engine Wan 2.2`. Only ONE engine group may be active; mute the other (select group, Ctrl+M)."
+      },
+      "color": "#432",
+      "bgcolor": "#653",
+      "title": "Help: 1 · Engine: MiniMax H3"
+    },
+    {
+      "id": 12,
+      "type": "ConditioningZeroOut",
+      "pos": [
+        780,
+        94
+      ],
+      "size": [
+        204.134765625,
+        26
+      ],
+      "flags": {},
+      "order": 68,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "conditioning",
+          "type": "CONDITIONING",
+          "link": 11
+        }
+      ],
+      "outputs": [
+        {
+          "name": "CONDITIONING",
+          "type": "CONDITIONING",
+          "links": [
+            13
+          ]
+        }
+      ],
+      "title": "Negative (empty, cfg 1)",
+      "properties": {
+        "Node name for S&R": "ConditioningZeroOut"
+      },
+      "color": "#322",
+      "bgcolor": "#533"
+    },
+    {
+      "id": 13,
+      "type": "KSampler",
+      "pos": [
+        780,
+        214
+      ],
+      "size": [
+        270,
+        262
+      ],
+      "flags": {},
+      "order": 71,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "model",
+          "type": "MODEL",
+          "link": 18
+        },
+        {
+          "name": "positive",
+          "type": "CONDITIONING",
+          "link": 12
+        },
+        {
+          "name": "negative",
+          "type": "CONDITIONING",
+          "link": 13
+        },
+        {
+          "name": "latent_image",
+          "type": "LATENT",
+          "link": 14
+        },
+        {
+          "name": "seed",
+          "type": "INT",
+          "widget": {
+            "name": "seed"
+          },
+          "link": 15
+        }
+      ],
+      "outputs": [
+        {
+          "name": "LATENT",
+          "type": "LATENT",
+          "links": [
+            16,
+            17
+          ]
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "KSampler"
+      },
+      "widgets_values": [
+        0,
+        "fixed",
+        8,
+        1,
+        "res_multistep",
+        "simple",
+        1
+      ],
+      "widgets_values_named": {
+        "seed": 0,
+        "control_after_generate": "fixed",
+        "steps": 8,
+        "cfg": 1,
+        "sampler_name": "res_multistep",
+        "scheduler": "simple",
+        "denoise": 1
+      }
+    }
+  ],
+  "links": [
+    [
+      1,
+      1,
+      0,
+      2,
+      0,
+      "MODEL"
+    ],
+    [
+      2,
+      5,
+      0,
+      9,
+      1,
+      "VAE"
+    ],
+    [
+      3,
+      6,
+      2,
+      7,
+      4,
+      "STRING"
+    ],
+    [
+      4,
+      6,
+      4,
+      7,
+      5,
+      "INT"
+    ],
+    [
+      5,
+      6,
+      5,
+      7,
+      6,
+      "INT"
+    ],
+    [
+      6,
+      6,
+      6,
+      7,
+      7,
+      "INT"
+    ],
+    [
+      7,
+      6,
+      0,
+      7,
+      2,
+      "IMAGE"
+    ],
+    [
+      8,
+      6,
+      1,
+      7,
+      3,
+      "IMAGE"
+    ],
+    [
+      9,
+      8,
+      0,
+      10,
+      0,
+      "IMAGE"
+    ],
+    [
+      10,
+      9,
+      0,
+      10,
+      2,
+      "AUDIO"
+    ],
+    [
+      11,
+      7,
+      0,
+      12,
+      0,
+      "CONDITIONING"
+    ],
+    [
+      12,
+      7,
+      0,
+      13,
+      1,
+      "CONDITIONING"
+    ],
+    [
+      13,
+      12,
+      0,
+      13,
+      2,
+      "CONDITIONING"
+    ],
+    [
+      14,
+      7,
+      1,
+      13,
+      3,
+      "LATENT"
+    ],
+    [
+      15,
+      6,
+      3,
+      13,
+      4,
+      "INT"
+    ],
+    [
+      16,
+      13,
+      0,
+      8,
+      0,
+      "LATENT"
+    ],
+    [
+      17,
+      13,
+      0,
+      9,
+      0,
+      "LATENT"
+    ],
+    [
+      18,
+      2,
+      0,
+      13,
+      0,
+      "MODEL"
+    ],
+    [
+      19,
+      3,
+      0,
+      7,
+      0,
+      "CLIP"
+    ],
+    [
+      20,
+      4,
+      0,
+      7,
+      1,
+      "VAE"
+    ],
+    [
+      21,
+      4,
+      0,
+      8,
+      1,
+      "VAE"
+    ]
+  ],
+  "groups": [
+    {
+      "id": 62,
+      "title": "1 · Engine: MiniMax H3",
+      "bounding": [
+        0,
+        0,
+        2500,
+        900
+      ],
+      "color": "#5a4a8a",
+      "flags": {}
+    }
+  ],
+  "config": {},
+  "extra": {
+    "ue_links": [],
+    "ds": {
+      "scale": 0.7,
+      "offset": [
+        50,
+        170
+      ]
+    },
+    "links_added_by_ue": []
+  },
+  "version": 0.4
+}

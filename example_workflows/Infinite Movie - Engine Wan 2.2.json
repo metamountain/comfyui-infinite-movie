@@ -1,5 +1,5 @@
 {
-  "id": "11de75b2-579e-4a82-9e7c-c98a0590e77e",
+  "id": "639bbf05-305d-4995-872f-02b2901e82bc",
   "revision": 0,
   "last_node_id": 68,
   "last_link_id": 2110,
@@ -54,7 +54,14 @@
           "widget_ue_connectable": {},
           "version": "7.8",
           "input_ue_unconnectable": {}
-        }
+        },
+        "models": [
+          {
+            "name": "wan2.2_i2v_high_noise_14B_fp8_scaled.safetensors",
+            "url": "https://huggingface.co/Comfy-Org/Wan-2.2/resolve/main/split_files/diffusion_models/wan2.2_i2v_high_noise_14B_fp8_scaled.safetensors",
+            "directory": "diffusion_models"
+          }
+        ]
       },
       "widgets_values": [
         "wan2.2_i2v_high_noise_14B_fp8_scaled.safetensors",
@@ -63,7 +70,9 @@
       "widgets_values_named": {
         "unet_name": "wan2.2_i2v_high_noise_14B_fp8_scaled.safetensors",
         "weight_dtype": "default"
-      }
+      },
+      "color": "#223",
+      "bgcolor": "#335"
     },
     {
       "id": 35,
@@ -107,14 +116,23 @@
           "widget_ue_connectable": {},
           "version": "7.8",
           "input_ue_unconnectable": {}
-        }
+        },
+        "models": [
+          {
+            "name": "wan_2.1_vae.safetensors",
+            "url": "https://huggingface.co/Comfy-Org/Wan-2.2/resolve/main/split_files/vae/wan_2.1_vae.safetensors",
+            "directory": "vae"
+          }
+        ]
       },
       "widgets_values": [
         "wan_2.1_vae.safetensors"
       ],
       "widgets_values_named": {
         "vae_name": "wan_2.1_vae.safetensors"
-      }
+      },
+      "color": "#223",
+      "bgcolor": "#335"
     },
     {
       "id": 36,
@@ -166,7 +184,14 @@
           "widget_ue_connectable": {},
           "version": "7.8",
           "input_ue_unconnectable": {}
-        }
+        },
+        "models": [
+          {
+            "name": "wan2.2_i2v_low_noise_14B_fp8_scaled.safetensors",
+            "url": "https://huggingface.co/Comfy-Org/Wan-2.2/resolve/main/split_files/diffusion_models/wan2.2_i2v_low_noise_14B_fp8_scaled.safetensors",
+            "directory": "diffusion_models"
+          }
+        ]
       },
       "widgets_values": [
         "wan2.2_i2v_low_noise_14B_fp8_scaled.safetensors",
@@ -175,7 +200,9 @@
       "widgets_values_named": {
         "unet_name": "wan2.2_i2v_low_noise_14B_fp8_scaled.safetensors",
         "weight_dtype": "default"
-      }
+      },
+      "color": "#223",
+      "bgcolor": "#335"
     },
     {
       "id": 37,
@@ -238,7 +265,14 @@
           "widget_ue_connectable": {},
           "version": "7.8",
           "input_ue_unconnectable": {}
-        }
+        },
+        "models": [
+          {
+            "name": "umt5_xxl_fp8_e4m3fn_scaled.safetensors",
+            "url": "https://huggingface.co/Comfy-Org/Wan-2.2/resolve/main/split_files/text_encoders/umt5_xxl_fp8_e4m3fn_scaled.safetensors",
+            "directory": "text_encoders"
+          }
+        ]
       },
       "widgets_values": [
         "umt5_xxl_fp8_e4m3fn_scaled.safetensors",
@@ -249,7 +283,9 @@
         "clip_name": "umt5_xxl_fp8_e4m3fn_scaled.safetensors",
         "type": "wan",
         "device": "default"
-      }
+      },
+      "color": "#223",
+      "bgcolor": "#335"
     },
     {
       "id": 38,
@@ -340,7 +376,9 @@
           "input_ue_unconnectable": {}
         }
       },
-      "widgets_values": null
+      "widgets_values": null,
+      "color": "#233",
+      "bgcolor": "#355"
     },
     {
       "id": 39,
@@ -398,16 +436,25 @@
           "widget_ue_connectable": {},
           "version": "7.8",
           "input_ue_unconnectable": {}
-        }
+        },
+        "models": [
+          {
+            "name": "wan2.2_i2v_lightx2v_4steps_lora_v1_high_noise.safetensors",
+            "url": "https://huggingface.co/Comfy-Org/Wan-2.2/resolve/main/split_files/loras/wan2.2_i2v_lightx2v_4steps_lora_v1_high_noise.safetensors",
+            "directory": "loras"
+          }
+        ]
       },
       "widgets_values": [
-        "Wan\\wan2.2_i2v_lightx2v_4steps_lora_v1_high_noise.safetensors",
+        "wan2.2_i2v_lightx2v_4steps_lora_v1_high_noise.safetensors",
         1
       ],
       "widgets_values_named": {
         "lora_name": "Wan\\wan2.2_i2v_lightx2v_4steps_lora_v1_high_noise.safetensors",
         "strength_model": 1
-      }
+      },
+      "color": "#223",
+      "bgcolor": "#335"
     },
     {
       "id": 40,
@@ -465,16 +512,25 @@
           "widget_ue_connectable": {},
           "version": "7.8",
           "input_ue_unconnectable": {}
-        }
+        },
+        "models": [
+          {
+            "name": "wan2.2_i2v_lightx2v_4steps_lora_v1_low_noise.safetensors",
+            "url": "https://huggingface.co/Comfy-Org/Wan-2.2/resolve/main/split_files/loras/wan2.2_i2v_lightx2v_4steps_lora_v1_low_noise.safetensors",
+            "directory": "loras"
+          }
+        ]
       },
       "widgets_values": [
-        "Wan\\wan2.2_i2v_lightx2v_4steps_lora_v1_low_noise.safetensors",
+        "wan2.2_i2v_lightx2v_4steps_lora_v1_low_noise.safetensors",
         1
       ],
       "widgets_values_named": {
         "lora_name": "Wan\\wan2.2_i2v_lightx2v_4steps_lora_v1_low_noise.safetensors",
         "strength_model": 1
-      }
+      },
+      "color": "#223",
+      "bgcolor": "#335"
     },
     {
       "id": 41,
@@ -532,7 +588,9 @@
       ],
       "widgets_values_named": {
         "text": ""
-      }
+      },
+      "color": "#232",
+      "bgcolor": "#353"
     },
     {
       "id": 42,
@@ -590,7 +648,9 @@
       ],
       "widgets_values_named": {
         "text": ""
-      }
+      },
+      "color": "#322",
+      "bgcolor": "#533"
     },
     {
       "id": 43,
@@ -1313,7 +1373,9 @@
       "widgets_values_named": {
         "fps": 16,
         "length_grid": 4
-      }
+      },
+      "color": "#233",
+      "bgcolor": "#355"
     },
     {
       "id": 67,
@@ -1340,13 +1402,13 @@
         }
       },
       "widgets_values": [
-        "## ENGINE: Wan 2.2\nVideo generation engine (Wan 2.2 i2v, 14B, fp8, two-pass high/low noise).\n- **Infinite Movie · Engine Start** (from Director): receives `start_image`, `end_image`, `prompt`, `negative`, `seed`, `width`, `height`, `length`.\n- **UNETLoader** (×2): high-noise and low-noise 14B models.\n- **LoraLoaderModelOnly** (×2): LightX2V 4-step LoRAs for fast sampling.\n- **WanFirstLastFrameToVideo**: builds conditioning from start/end frames.\n- **KSamplerAdvanced** (×2): two-pass sampling (high-noise → low-noise).\n- **VAEDecode**: decodes the latent to pixels.\n- **Infinite Movie · Engine Result** (to Director): outputs the rendered frames.\n- Keep ONE engine group active; mute the other (Ctrl+M)."
+        "## ENGINE: Wan 2.2\nVideo generation engine (Wan 2.2 i2v, 14B, fp8, two-pass high/low noise).\n- **Infinite Movie · Engine Start** (from Director): `start_image`, `end_image`, `prompt`, `seed`, `width`, `height`, `length`.\n- **UNETLoader** (×2): high-noise and low-noise 14B models.\n- **LoraLoaderModelOnly** (×2): LightX2V 4-step LoRAs for fast sampling.\n- **WanFirstLastFrameToVideo**: builds conditioning from start/end frames.\n- **KSamplerAdvanced** (×2): two-pass sampling (high-noise → low-noise).\n- **VAEDecode**: decodes the latent to pixels.\n- **Infinite Movie · Engine Result** (to Director): outputs the rendered frames.\n- Copy this group into Infinite Movie (Ctrl+C / Ctrl+V) and mute the MiniMax group (Ctrl+M) – only ONE engine group may be active."
       ],
       "widgets_values_named": {
-        "text": "## ENGINE: Wan 2.2\nVideo generation engine (Wan 2.2 i2v, 14B, fp8, two-pass high/low noise).\n- **Infinite Movie · Engine Start** (from Director): receives `start_image`, `end_image`, `prompt`, `negative`, `seed`, `width`, `height`, `length`.\n- **UNETLoader** (×2): high-noise and low-noise 14B models.\n- **LoraLoaderModelOnly** (×2): LightX2V 4-step LoRAs for fast sampling.\n- **WanFirstLastFrameToVideo**: builds conditioning from start/end frames.\n- **KSamplerAdvanced** (×2): two-pass sampling (high-noise → low-noise).\n- **VAEDecode**: decodes the latent to pixels.\n- **Infinite Movie · Engine Result** (to Director): outputs the rendered frames.\n- Keep ONE engine group active; mute the other (Ctrl+M)."
+        "text": "## ENGINE: Wan 2.2\nVideo generation engine (Wan 2.2 i2v, 14B, fp8, two-pass high/low noise).\n- **Infinite Movie · Engine Start** (from Director): `start_image`, `end_image`, `prompt`, `seed`, `width`, `height`, `length`.\n- **UNETLoader** (×2): high-noise and low-noise 14B models.\n- **LoraLoaderModelOnly** (×2): LightX2V 4-step LoRAs for fast sampling.\n- **WanFirstLastFrameToVideo**: builds conditioning from start/end frames.\n- **KSamplerAdvanced** (×2): two-pass sampling (high-noise → low-noise).\n- **VAEDecode**: decodes the latent to pixels.\n- **Infinite Movie · Engine Result** (to Director): outputs the rendered frames.\n- Copy this group into Infinite Movie (Ctrl+C / Ctrl+V) and mute the MiniMax group (Ctrl+M) – only ONE engine group may be active."
       },
-      "color": "#3a2a2a",
-      "bgcolor": "#4a3a3a"
+      "color": "#432",
+      "bgcolor": "#653"
     }
   ],
   "links": [

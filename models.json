@@ -1,0 +1,141 @@
+{
+  "_comment": "Model files used by the example workflows. size = bytes (Hugging Face API, 2026-11-09). gated = accept the license on Hugging Face and use a token first.",
+  "models": [
+    {
+      "name": "minimax_h3_fl2va_pruned_int8_convrot.safetensors",
+      "url": "https://huggingface.co/Comfy-Org/MiniMax-H3/resolve/main/diffusion_models/minimax_h3_fl2va_pruned_int8_convrot.safetensors",
+      "directory": "diffusion_models",
+      "size": 20970000000,
+      "engine": "MiniMax H3",
+      "gated": false
+    },
+    {
+      "name": "minimax_h3_fl2v_turbo_8step_v1.1_768p_comfyui_bf16.safetensors",
+      "url": "https://huggingface.co/lightx2v/Minimax-h3-Turbo/resolve/main/minimax_h3_fl2v_turbo_8step_v1.1_768p_comfyui_bf16.safetensors",
+      "directory": "loras",
+      "size": 1960000000,
+      "engine": "MiniMax H3",
+      "gated": false
+    },
+    {
+      "name": "qwen3vl_32b_minimax_h3_nvfp4_awq.safetensors",
+      "url": "https://huggingface.co/Comfy-Org/MiniMax-H3/resolve/main/text_encoders/qwen3vl_32b_minimax_h3_nvfp4_awq.safetensors",
+      "directory": "text_encoders",
+      "size": 15690000000,
+      "engine": "MiniMax H3",
+      "gated": false
+    },
+    {
+      "name": "minimax_h3_video_vae_int8_convrot.safetensors",
+      "url": "https://huggingface.co/Comfy-Org/MiniMax-H3/resolve/main/vae/minimax_h3_video_vae_int8_convrot.safetensors",
+      "directory": "vae",
+      "size": 2810000000,
+      "engine": "MiniMax H3",
+      "gated": false
+    },
+    {
+      "name": "minimax_h3_audio_vae_fp32.safetensors",
+      "url": "https://huggingface.co/Comfy-Org/MiniMax-H3/resolve/main/vae/minimax_h3_audio_vae_fp32.safetensors",
+      "directory": "vae",
+      "size": 610000000,
+      "engine": "MiniMax H3",
+      "gated": false
+    },
+    {
+      "name": "ltx-2.5-22b-distilled-transformer-comfy-int8-convrot.safetensors",
+      "url": "https://huggingface.co/Lightricks/LTX-2.5/resolve/main/diffusion_models/ltx-2.5-22b-distilled-transformer-comfy-int8-convrot.safetensors",
+      "directory": "diffusion_models",
+      "size": 21500000000,
+      "engine": "LTX 2.5",
+      "gated": true
+    },
+    {
+      "name": "gemma4-12b-with-proj-ltx-2.5-comfy-int8-convrot.safetensors",
+      "url": "https://huggingface.co/Lightricks/LTX-2.5/resolve/main/text_encoders/gemma4-12b-with-proj-ltx-2.5-comfy-int8-convrot.safetensors",
+      "directory": "text_encoders",
+      "size": 15370000000,
+      "engine": "LTX 2.5",
+      "gated": true
+    },
+    {
+      "name": "ltx-2.5-video-vae-bf16.safetensors",
+      "url": "https://huggingface.co/Lightricks/LTX-2.5/resolve/main/vae/ltx-2.5-video-vae-bf16.safetensors",
+      "directory": "vae",
+      "size": 1470000000,
+      "engine": "LTX 2.5",
+      "gated": true
+    },
+    {
+      "name": "ltx-2.5-audio-vae-bf16.safetensors",
+      "url": "https://huggingface.co/Lightricks/LTX-2.5/resolve/main/vae/ltx-2.5-audio-vae-bf16.safetensors",
+      "directory": "vae",
+      "size": 360000000,
+      "engine": "LTX 2.5",
+      "gated": true
+    },
+    {
+      "name": "wan2.2_i2v_high_noise_14B_fp8_scaled.safetensors",
+      "url": "https://huggingface.co/Comfy-Org/Wan-2.2/resolve/main/split_files/diffusion_models/wan2.2_i2v_high_noise_14B_fp8_scaled.safetensors",
+      "directory": "diffusion_models",
+      "size": 14290000000,
+      "engine": "Wan 2.2",
+      "gated": false
+    },
+    {
+      "name": "wan2.2_i2v_low_noise_14B_fp8_scaled.safetensors",
+      "url": "https://huggingface.co/Comfy-Org/Wan-2.2/resolve/main/split_files/diffusion_models/wan2.2_i2v_low_noise_14B_fp8_scaled.safetensors",
+      "directory": "diffusion_models",
+      "size": 14290000000,
+      "engine": "Wan 2.2",
+      "gated": false
+    },
+    {
+      "name": "wan2.2_i2v_lightx2v_4steps_lora_v1_high_noise.safetensors",
+      "url": "https://huggingface.co/Comfy-Org/Wan-2.2/resolve/main/split_files/loras/wan2.2_i2v_lightx2v_4steps_lora_v1_high_noise.safetensors",
+      "directory": "loras",
+      "size": 1230000000,
+      "engine": "Wan 2.2",
+      "gated": false
+    },
+    {
+      "name": "wan2.2_i2v_lightx2v_4steps_lora_v1_low_noise.safetensors",
+      "url": "https://huggingface.co/Comfy-Org/Wan-2.2/resolve/main/split_files/loras/wan2.2_i2v_lightx2v_4steps_lora_v1_low_noise.safetensors",
+      "directory": "loras",
+      "size": 1230000000,
+      "engine": "Wan 2.2",
+      "gated": false
+    },
+    {
+      "name": "umt5_xxl_fp8_e4m3fn_scaled.safetensors",
+      "url": "https://huggingface.co/Comfy-Org/Wan-2.2/resolve/main/split_files/text_encoders/umt5_xxl_fp8_e4m3fn_scaled.safetensors",
+      "directory": "text_encoders",
+      "size": 6740000000,
+      "engine": "Wan 2.2",
+      "gated": false
+    },
+    {
+      "name": "wan_2.1_vae.safetensors",
+      "url": "https://huggingface.co/Comfy-Org/Wan-2.2/resolve/main/split_files/vae/wan_2.1_vae.safetensors",
+      "directory": "vae",
+      "size": 250000000,
+      "engine": "Wan 2.2",
+      "gated": false
+    },
+    {
+      "name": "qwen3vl_4b_bf16.safetensors",
+      "url": "https://huggingface.co/Comfy-Org/Qwen3-VL/resolve/main/text_encoders/qwen3vl_4b_bf16.safetensors",
+      "directory": "text_encoders",
+      "size": 8880000000,
+      "engine": "Prompt writer",
+      "gated": false
+    },
+    {
+      "name": "2xLiveActionV1_SPAN_490000.pth",
+      "url": "https://raw.githubusercontent.com/jcj83429/upscaling/f73a3a02874360ec6ced18f8bdd8e43b5d7bba57/2xLiveActionV1_SPAN/2xLiveActionV1_SPAN_490000.pth",
+      "directory": "upscale_models",
+      "size": 8947821,
+      "engine": "Upscale",
+      "gated": false
+    }
+  ]
+}

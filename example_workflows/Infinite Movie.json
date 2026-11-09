@@ -1,15 +1,15 @@
 {
   "id": "11de75b2-579e-4a82-9e7c-c98a0590e77e",
   "revision": 0,
-  "last_node_id": 84,
-  "last_link_id": 2138,
+  "last_node_id": 97,
+  "last_link_id": 2159,
   "nodes": [
     {
       "id": 1,
       "type": "LoadImage",
       "pos": [
         1875,
-        -401
+        49
       ],
       "size": [
         283,
@@ -53,7 +53,7 @@
           "localized_name": "MASK",
           "name": "MASK",
           "type": "MASK",
-          "links": null
+          "links": []
         }
       ],
       "properties": {
@@ -78,7 +78,7 @@
       "type": "LoadImage",
       "pos": [
         1875,
-        -17
+        433
       ],
       "size": [
         283,
@@ -122,7 +122,7 @@
           "localized_name": "MASK",
           "name": "MASK",
           "type": "MASK",
-          "links": null
+          "links": []
         }
       ],
       "properties": {
@@ -138,7 +138,7 @@
         "image"
       ],
       "widgets_values_named": {
-        "image": "w2_winter.png",
+        "image": "w4_nebel.png",
         "upload": "image"
       }
     },
@@ -147,7 +147,7 @@
       "type": "LoadImage",
       "pos": [
         1875,
-        367
+        817
       ],
       "size": [
         283,
@@ -191,7 +191,7 @@
           "localized_name": "MASK",
           "name": "MASK",
           "type": "MASK",
-          "links": null
+          "links": []
         }
       ],
       "properties": {
@@ -216,14 +216,14 @@
       "type": "InfiniteMovieRender",
       "pos": [
         3095,
-        -528
+        -78
       ],
       "size": [
-        400,
-        1146
+        504,
+        450
       ],
       "flags": {},
-      "order": 41,
+      "order": 36,
       "mode": 0,
       "inputs": [
         {
@@ -272,6 +272,14 @@
           "link": 2117
         },
         {
+          "label": "image 5",
+          "localized_name": "image4",
+          "name": "images.image4",
+          "shape": 7,
+          "type": "IMAGE",
+          "link": null
+        },
+        {
           "label": "prompt 1 → 2",
           "localized_name": "prompt0",
           "name": "shot_prompts.prompt0",
@@ -293,14 +301,6 @@
           "shape": 7,
           "type": "STRING",
           "link": 2105
-        },
-        {
-          "label": "prompt 4 → 1",
-          "localized_name": "prompt3",
-          "name": "shot_prompts.prompt3",
-          "shape": 7,
-          "type": "STRING",
-          "link": 2118
         },
         {
           "localized_name": "loop",
@@ -337,6 +337,41 @@
             "name": "reseed"
           },
           "link": null
+        },
+        {
+          "localized_name": "variants",
+          "name": "variants",
+          "type": "COMBO",
+          "widget": {
+            "name": "variants"
+          },
+          "link": null
+        },
+        {
+          "localized_name": "shot_seconds",
+          "name": "shot_seconds",
+          "shape": 7,
+          "type": "STRING",
+          "widget": {
+            "name": "shot_seconds"
+          },
+          "link": null
+        },
+        {
+          "label": "prompt 4 → 1",
+          "localized_name": "prompt3",
+          "name": "shot_prompts.prompt3",
+          "shape": 7,
+          "type": "STRING",
+          "link": 2118
+        },
+        {
+          "label": "prompt 5 → 1",
+          "localized_name": "prompt4",
+          "name": "shot_prompts.prompt4",
+          "shape": 7,
+          "type": "STRING",
+          "link": null
         }
       ],
       "outputs": [
@@ -344,10 +379,10 @@
           "localized_name": "shots ▶ Assemble",
           "name": "shots ▶ Assemble",
           "type": "SHOTS",
+          "slot_index": 0,
           "links": [
             2108
-          ],
-          "slot_index": 0
+          ]
         },
         {
           "localized_name": "settings ▶ chain",
@@ -373,21 +408,17 @@
         42,
         "randomize",
         "",
-        "1"
+        "1",
+        ""
       ],
       "widgets_values_named": {
         "loop": true,
-        "intro_seconds": 0,
-        "intro_prompt": "",
-        "outro_seconds": 0,
-        "outro_prompt": "",
         "seconds": 2,
         "seed": 42,
         "control_after_generate": "randomize",
-        "name": "infinite_movie",
         "reseed": "",
-        "mode": "segments",
-        "variants": "1"
+        "variants": "1",
+        "shot_seconds": ""
       }
     },
     {
@@ -395,14 +426,14 @@
       "type": "InfiniteMovieAutoPrompt",
       "pos": [
         2375,
-        -128
+        322
       ],
       "size": [
         600,
-        314
+        152
       ],
       "flags": {},
-      "order": 18,
+      "order": 27,
       "mode": 0,
       "inputs": [
         {
@@ -415,19 +446,20 @@
         {
           "localized_name": "image_from",
           "name": "image_from",
+          "shape": 7,
           "type": "IMAGE",
           "link": 58
         },
         {
           "localized_name": "image_to",
           "name": "image_to",
+          "shape": 7,
           "type": "IMAGE",
           "link": 59
         },
         {
           "localized_name": "prompt",
           "name": "prompt",
-          "shape": 7,
           "type": "STRING",
           "widget": {
             "name": "prompt"
@@ -435,10 +467,21 @@
           "link": null
         },
         {
+          "localized_name": "keywords",
           "name": "keywords",
           "type": "STRING",
           "widget": {
             "name": "keywords"
+          },
+          "link": null
+        },
+        {
+          "localized_name": "regen",
+          "name": "regen",
+          "shape": 7,
+          "type": "STRING",
+          "widget": {
+            "name": "regen"
           },
           "link": null
         }
@@ -448,10 +491,10 @@
           "localized_name": "prompt",
           "name": "prompt",
           "type": "STRING",
+          "slot_index": 0,
           "links": [
             60
-          ],
-          "slot_index": 0
+          ]
         },
         {
           "localized_name": "settings ▶ chain",
@@ -474,25 +517,30 @@
       },
       "widgets_values": [
         "Thick fog rolls in from the forest and drifts across the meadow, slowly veiling the trees and softening the rock-shaped house until the background fades to pale grey. The mist keeps drifting, nothing hangs still.",
+        "",
         ""
       ],
       "widgets_values_named": {
-        "prompt": "The meadow freezes as snow begins to fall, covering the grass and the rock-shaped house under a cold, overcast winter sky. The snowflakes keep falling, none hang still. Sound: Falling snow, cold winter wind."
-      }
+        "prompt": "Thick fog rolls in from the forest and drifts across the meadow, slowly veiling the trees and softening the rock-shaped house until the background fades to pale grey. The mist keeps drifting, nothing hangs still.",
+        "keywords": "",
+        "regen": ""
+      },
+      "color": "#232",
+      "bgcolor": "#353"
     },
     {
       "id": 6,
       "type": "InfiniteMovieAutoPrompt",
       "pos": [
         2375,
-        256
+        706
       ],
       "size": [
         600,
-        314
+        152
       ],
       "flags": {},
-      "order": 30,
+      "order": 29,
       "mode": 0,
       "inputs": [
         {
@@ -505,19 +553,20 @@
         {
           "localized_name": "image_from",
           "name": "image_from",
+          "shape": 7,
           "type": "IMAGE",
           "link": 61
         },
         {
           "localized_name": "image_to",
           "name": "image_to",
+          "shape": 7,
           "type": "IMAGE",
           "link": 62
         },
         {
           "localized_name": "prompt",
           "name": "prompt",
-          "shape": 7,
           "type": "STRING",
           "widget": {
             "name": "prompt"
@@ -525,10 +574,21 @@
           "link": null
         },
         {
+          "localized_name": "keywords",
           "name": "keywords",
           "type": "STRING",
           "widget": {
             "name": "keywords"
+          },
+          "link": null
+        },
+        {
+          "localized_name": "regen",
+          "name": "regen",
+          "shape": 7,
+          "type": "STRING",
+          "widget": {
+            "name": "regen"
           },
           "link": null
         }
@@ -538,10 +598,10 @@
           "localized_name": "prompt",
           "name": "prompt",
           "type": "STRING",
+          "slot_index": 0,
           "links": [
             63
-          ],
-          "slot_index": 0
+          ]
         },
         {
           "localized_name": "settings ▶ chain",
@@ -564,25 +624,30 @@
       },
       "widgets_values": [
         "The fog darkens as heavy storm clouds roll in and rain begins to pour, streaking down over the rock-shaped house and soaking the grass. The raindrops keep falling, none hang still.",
+        "",
         ""
       ],
       "widgets_values_named": {
-        "prompt": "Snow transitions to heavy rain as dark clouds gather, the ground shifts to wet grass, and the static house remains still. The raindrops keep falling, none hang still. Sound: steady rain, distant thunder."
-      }
+        "prompt": "The fog darkens as heavy storm clouds roll in and rain begins to pour, streaking down over the rock-shaped house and soaking the grass. The raindrops keep falling, none hang still.",
+        "keywords": "",
+        "regen": ""
+      },
+      "color": "#232",
+      "bgcolor": "#353"
     },
     {
       "id": 8,
       "type": "InfiniteMovieAssemble",
       "pos": [
-        4763,
-        -528
+        4827,
+        -78
       ],
       "size": [
-        400,
-        290
+        504,
+        914
       ],
       "flags": {},
-      "order": 45,
+      "order": 38,
       "mode": 0,
       "inputs": [
         {
@@ -632,20 +697,20 @@
           "link": null
         },
         {
-          "localized_name": "seconds_out",
-          "name": "seconds_out",
+          "localized_name": "keep",
+          "name": "keep",
           "type": "FLOAT",
           "widget": {
-            "name": "seconds_out"
+            "name": "keep"
           },
           "link": null
         },
         {
-          "localized_name": "retime",
-          "name": "retime",
+          "localized_name": "even_motion",
+          "name": "even_motion",
           "type": "BOOLEAN",
           "widget": {
-            "name": "retime"
+            "name": "even_motion"
           },
           "link": null
         },
@@ -655,6 +720,15 @@
           "type": "BOOLEAN",
           "widget": {
             "name": "loop"
+          },
+          "link": null
+        },
+        {
+          "localized_name": "output_size",
+          "name": "output_size",
+          "type": "COMBO",
+          "widget": {
+            "name": "output_size"
           },
           "link": null
         },
@@ -687,6 +761,24 @@
             "name": "interpolate"
           },
           "link": null
+        },
+        {
+          "localized_name": "upload",
+          "name": "upload",
+          "type": "IMAGEUPLOAD",
+          "widget": {
+            "name": "upload"
+          },
+          "link": null
+        },
+        {
+          "localized_name": "retime",
+          "name": "retime",
+          "type": "BOOLEAN",
+          "widget": {
+            "name": "retime"
+          },
+          "link": null
         }
       ],
       "outputs": [
@@ -694,19 +786,31 @@
           "localized_name": "video_path",
           "name": "video_path",
           "type": "STRING",
+          "slot_index": 0,
           "links": [
             2110,
             2136,
             2138
-          ],
-          "slot_index": 0
+          ]
         },
         {
           "localized_name": "video",
           "name": "video",
           "type": "VIDEO",
-          "links": null,
-          "slot_index": 1
+          "slot_index": 1,
+          "links": []
+        },
+        {
+          "localized_name": "last_frame",
+          "name": "last_frame",
+          "type": "IMAGE",
+          "links": null
+        },
+        {
+          "localized_name": "first_frame",
+          "name": "first_frame",
+          "type": "IMAGE",
+          "links": null
         }
       ],
       "properties": {
@@ -720,26 +824,28 @@
       "widgets_values": [
         "(none)",
         0.8,
-        1.0,
+        1,
         true,
         true,
         "as rendered",
         "",
         24,
         "RIFE x2",
-        "image"
+        "image",
+        ""
       ],
       "widgets_values_named": {
         "file": "(none)",
         "strength": 0.8,
-        "seconds_out": 1,
-        "retime": true,
+        "keep": 1,
+        "even_motion": true,
         "loop": true,
+        "output_size": "as rendered",
         "video_path": "",
         "fps": 24,
-        "interpolate": "off",
-        "copy_to": "",
-        "upload": "image"
+        "interpolate": "RIFE x2",
+        "upload": "image",
+        "im_viz": ""
       }
     },
     {
@@ -747,7 +853,7 @@
       "type": "InfiniteMovieSettings",
       "pos": [
         1375,
-        -528
+        -78
       ],
       "size": [
         340,
@@ -758,6 +864,7 @@
       "mode": 0,
       "inputs": [
         {
+          "localized_name": "prompt_model",
           "name": "prompt_model",
           "type": "COMBO",
           "widget": {
@@ -784,6 +891,7 @@
           "link": null
         },
         {
+          "localized_name": "output_folder",
           "name": "output_folder",
           "type": "STRING",
           "widget": {
@@ -792,10 +900,20 @@
           "link": null
         },
         {
+          "localized_name": "film_name",
           "name": "film_name",
           "type": "STRING",
           "widget": {
             "name": "film_name"
+          },
+          "link": null
+        },
+        {
+          "localized_name": "audio",
+          "name": "audio",
+          "type": "BOOLEAN",
+          "widget": {
+            "name": "audio"
           },
           "link": null
         }
@@ -817,1704 +935,30 @@
           "widget_ue_connectable": {},
           "version": "7.8",
           "input_ue_unconnectable": {}
-        }
+        },
+        "models": [
+          {
+            "name": "qwen3vl_4b_bf16.safetensors",
+            "url": "https://huggingface.co/Comfy-Org/Qwen3-VL/resolve/main/text_encoders/qwen3vl_4b_bf16.safetensors",
+            "directory": "text_encoders"
+          }
+        ]
       },
       "widgets_values": [
         "qwen3vl_4b_bf16.safetensors",
         "4:5 · portrait (Instagram)",
         960,
         "",
-        "infinite_movie"
-      ]
-    },
-    {
-      "id": 10,
-      "type": "UNETLoader",
-      "pos": [
-        1375,
-        -2268
-      ],
-      "size": [
-        320,
-        120
-      ],
-      "flags": {},
-      "order": 4,
-      "mode": 0,
-      "inputs": [
-        {
-          "localized_name": "unet_name",
-          "name": "unet_name",
-          "type": "COMBO",
-          "widget": {
-            "name": "unet_name"
-          },
-          "link": null
-        },
-        {
-          "localized_name": "weight_dtype",
-          "name": "weight_dtype",
-          "type": "COMBO",
-          "widget": {
-            "name": "weight_dtype"
-          },
-          "link": null
-        }
-      ],
-      "outputs": [
-        {
-          "localized_name": "MODEL",
-          "name": "MODEL",
-          "type": "MODEL",
-          "links": [
-            1094
-          ]
-        }
-      ],
-      "properties": {
-        "Node name for S&R": "UNETLoader",
-        "ue_properties": {
-          "widget_ue_connectable": {},
-          "version": "7.8",
-          "input_ue_unconnectable": {}
-        }
-      },
-      "widgets_values": [
-        "LTX\\ltx-2.5-22b-distilled-transformer-comfy-int8-convrot.safetensors",
-        "default"
+        "infinite_movie",
+        false
       ],
       "widgets_values_named": {
-        "unet_name": "LTX\\ltx-2.5-22b-distilled-transformer-comfy-int8-convrot.safetensors",
-        "weight_dtype": "default"
-      }
-    },
-    {
-      "id": 11,
-      "type": "SamplerEulerAncestral",
-      "pos": [
-        1375,
-        -2088
-      ],
-      "size": [
-        320,
-        120
-      ],
-      "flags": {},
-      "order": 5,
-      "mode": 0,
-      "inputs": [
-        {
-          "localized_name": "eta",
-          "name": "eta",
-          "type": "FLOAT",
-          "widget": {
-            "name": "eta"
-          },
-          "link": null
-        },
-        {
-          "localized_name": "s_noise",
-          "name": "s_noise",
-          "type": "FLOAT",
-          "widget": {
-            "name": "s_noise"
-          },
-          "link": null
-        }
-      ],
-      "outputs": [
-        {
-          "localized_name": "SAMPLER",
-          "name": "SAMPLER",
-          "type": "SAMPLER",
-          "links": [
-            1099
-          ]
-        }
-      ],
-      "properties": {
-        "Node name for S&R": "SamplerEulerAncestral",
-        "ue_properties": {
-          "widget_ue_connectable": {},
-          "version": "7.8",
-          "input_ue_unconnectable": {}
-        }
-      },
-      "widgets_values": [
-        0,
-        1
-      ],
-      "widgets_values_named": {
-        "eta": 0,
-        "s_noise": 1
-      }
-    },
-    {
-      "id": 12,
-      "type": "VAELoader",
-      "pos": [
-        1375,
-        -1908
-      ],
-      "size": [
-        320,
-        120
-      ],
-      "flags": {},
-      "order": 6,
-      "mode": 0,
-      "inputs": [
-        {
-          "localized_name": "vae_name",
-          "name": "vae_name",
-          "type": "COMBO",
-          "widget": {
-            "name": "vae_name"
-          },
-          "link": null
-        }
-      ],
-      "outputs": [
-        {
-          "localized_name": "VAE",
-          "name": "VAE",
-          "type": "VAE",
-          "links": [
-            1084,
-            1089,
-            1107
-          ]
-        }
-      ],
-      "properties": {
-        "Node name for S&R": "VAELoader",
-        "ue_properties": {
-          "widget_ue_connectable": {},
-          "version": "7.8",
-          "input_ue_unconnectable": {}
-        }
-      },
-      "widgets_values": [
-        "LTX\\ltx-2.5-video-vae-bf16.safetensors"
-      ],
-      "widgets_values_named": {
-        "vae_name": "LTX\\ltx-2.5-video-vae-bf16.safetensors"
-      }
-    },
-    {
-      "id": 13,
-      "type": "ManualSigmas",
-      "pos": [
-        1375,
-        -1728
-      ],
-      "size": [
-        320,
-        120
-      ],
-      "flags": {},
-      "order": 7,
-      "mode": 0,
-      "inputs": [
-        {
-          "localized_name": "sigmas",
-          "name": "sigmas",
-          "type": "STRING",
-          "widget": {
-            "name": "sigmas"
-          },
-          "link": null
-        }
-      ],
-      "outputs": [
-        {
-          "localized_name": "SIGMAS",
-          "name": "SIGMAS",
-          "type": "SIGMAS",
-          "links": [
-            1100
-          ]
-        }
-      ],
-      "properties": {
-        "Node name for S&R": "ManualSigmas",
-        "ue_properties": {
-          "widget_ue_connectable": {},
-          "version": "7.8",
-          "input_ue_unconnectable": {}
-        }
-      },
-      "widgets_values": [
-        "1.0, 0.99375, 0.9875, 0.98125, 0.975, 0.909375, 0.725, 0.421875, 0.0"
-      ],
-      "widgets_values_named": {
-        "sigmas": "1.0, 0.99375, 0.9875, 0.98125, 0.975, 0.909375, 0.725, 0.421875, 0.0"
-      }
-    },
-    {
-      "id": 14,
-      "type": "VAELoader",
-      "pos": [
-        1375,
-        -1548
-      ],
-      "size": [
-        320,
-        120
-      ],
-      "flags": {},
-      "order": 8,
-      "mode": 0,
-      "inputs": [
-        {
-          "localized_name": "vae_name",
-          "name": "vae_name",
-          "type": "COMBO",
-          "widget": {
-            "name": "vae_name"
-          },
-          "link": null
-        }
-      ],
-      "outputs": [
-        {
-          "localized_name": "VAE",
-          "name": "VAE",
-          "type": "VAE",
-          "links": [
-            1074,
-            2120
-          ]
-        }
-      ],
-      "properties": {
-        "Node name for S&R": "VAELoader",
-        "ue_properties": {
-          "widget_ue_connectable": {},
-          "version": "7.8",
-          "input_ue_unconnectable": {}
-        }
-      },
-      "widgets_values": [
-        "LTX\\ltx-2.5-audio-vae-bf16.safetensors"
-      ],
-      "widgets_values_named": {
-        "vae_name": "LTX\\ltx-2.5-audio-vae-bf16.safetensors"
-      }
-    },
-    {
-      "id": 15,
-      "type": "CLIPLoader",
-      "pos": [
-        1375,
-        -1368
-      ],
-      "size": [
-        320,
-        120
-      ],
-      "flags": {},
-      "order": 9,
-      "mode": 0,
-      "inputs": [
-        {
-          "localized_name": "clip_name",
-          "name": "clip_name",
-          "type": "COMBO",
-          "widget": {
-            "name": "clip_name"
-          },
-          "link": null
-        },
-        {
-          "localized_name": "type",
-          "name": "type",
-          "type": "COMBO",
-          "widget": {
-            "name": "type"
-          },
-          "link": null
-        },
-        {
-          "localized_name": "device",
-          "name": "device",
-          "shape": 7,
-          "type": "COMBO",
-          "widget": {
-            "name": "device"
-          },
-          "link": null
-        }
-      ],
-      "outputs": [
-        {
-          "localized_name": "CLIP",
-          "name": "CLIP",
-          "type": "CLIP",
-          "links": [
-            1077,
-            1079
-          ]
-        }
-      ],
-      "properties": {
-        "Node name for S&R": "CLIPLoader",
-        "ue_properties": {
-          "widget_ue_connectable": {},
-          "version": "7.8",
-          "input_ue_unconnectable": {}
-        }
-      },
-      "widgets_values": [
-        "gemma4-12b-with-proj-ltx-2.5-comfy-int8-convrot.safetensors",
-        "ltxv",
-        "default"
-      ],
-      "widgets_values_named": {
-        "clip_name": "gemma4-12b-with-proj-ltx-2.5-comfy-int8-convrot.safetensors",
-        "type": "ltxv",
-        "device": "default"
-      }
-    },
-    {
-      "id": 16,
-      "type": "InfiniteMovieEngineIn",
-      "pos": [
-        1375,
-        -1188
-      ],
-      "size": [
-        323,
-        166
-      ],
-      "flags": {},
-      "order": 10,
-      "mode": 0,
-      "inputs": [],
-      "outputs": [
-        {
-          "localized_name": "start_image",
-          "name": "start_image",
-          "type": "IMAGE",
-          "links": [
-            1068
-          ],
-          "slot_index": 0
-        },
-        {
-          "localized_name": "end_image",
-          "name": "end_image",
-          "type": "IMAGE",
-          "links": [
-            1069
-          ],
-          "slot_index": 1
-        },
-        {
-          "localized_name": "prompt",
-          "name": "prompt",
-          "type": "STRING",
-          "links": [
-            1076
-          ],
-          "slot_index": 2
-        },
-        {
-          "localized_name": "seed",
-          "name": "seed",
-          "type": "INT",
-          "links": [
-            1075
-          ],
-          "slot_index": 3
-        },
-        {
-          "localized_name": "width",
-          "name": "width",
-          "type": "INT",
-          "links": [
-            1070
-          ],
-          "slot_index": 4
-        },
-        {
-          "localized_name": "height",
-          "name": "height",
-          "type": "INT",
-          "links": [
-            1071
-          ],
-          "slot_index": 5
-        },
-        {
-          "localized_name": "length",
-          "name": "length",
-          "type": "INT",
-          "links": [
-            1072,
-            1073
-          ],
-          "slot_index": 6
-        }
-      ],
-      "properties": {
-        "Node name for S&R": "InfiniteMovieEngineIn",
-        "ue_properties": {
-          "widget_ue_connectable": {},
-          "version": "7.8",
-          "input_ue_unconnectable": {}
-        }
-      },
-      "widgets_values": null
-    },
-    {
-      "id": 17,
-      "type": "LTXVPreprocess",
-      "pos": [
-        1755,
-        -2268
-      ],
-      "size": [
-        320,
-        120
-      ],
-      "flags": {},
-      "order": 19,
-      "mode": 0,
-      "inputs": [
-        {
-          "localized_name": "image",
-          "name": "image",
-          "type": "IMAGE",
-          "link": 1068
-        },
-        {
-          "localized_name": "img_compression",
-          "name": "img_compression",
-          "type": "INT",
-          "widget": {
-            "name": "img_compression"
-          },
-          "link": null
-        }
-      ],
-      "outputs": [
-        {
-          "localized_name": "output_image",
-          "name": "output_image",
-          "type": "IMAGE",
-          "links": [
-            1086
-          ]
-        }
-      ],
-      "properties": {
-        "Node name for S&R": "LTXVPreprocess",
-        "ue_properties": {
-          "widget_ue_connectable": {},
-          "version": "7.8",
-          "input_ue_unconnectable": {}
-        }
-      },
-      "widgets_values": [
-        18
-      ],
-      "widgets_values_named": {
-        "img_compression": 18
-      }
-    },
-    {
-      "id": 18,
-      "type": "LTXVPreprocess",
-      "pos": [
-        1755,
-        -2088
-      ],
-      "size": [
-        320,
-        120
-      ],
-      "flags": {},
-      "order": 20,
-      "mode": 0,
-      "inputs": [
-        {
-          "localized_name": "image",
-          "name": "image",
-          "type": "IMAGE",
-          "link": 1069
-        },
-        {
-          "localized_name": "img_compression",
-          "name": "img_compression",
-          "type": "INT",
-          "widget": {
-            "name": "img_compression"
-          },
-          "link": null
-        }
-      ],
-      "outputs": [
-        {
-          "localized_name": "output_image",
-          "name": "output_image",
-          "type": "IMAGE",
-          "links": [
-            1091
-          ]
-        }
-      ],
-      "properties": {
-        "Node name for S&R": "LTXVPreprocess",
-        "ue_properties": {
-          "widget_ue_connectable": {},
-          "version": "7.8",
-          "input_ue_unconnectable": {}
-        }
-      },
-      "widgets_values": [
-        18
-      ],
-      "widgets_values_named": {
-        "img_compression": 18
-      }
-    },
-    {
-      "id": 19,
-      "type": "EmptyLTXVLatentVideo",
-      "pos": [
-        1755,
-        -1908
-      ],
-      "size": [
-        320,
-        130
-      ],
-      "flags": {},
-      "order": 24,
-      "mode": 0,
-      "inputs": [
-        {
-          "localized_name": "width",
-          "name": "width",
-          "type": "INT",
-          "widget": {
-            "name": "width"
-          },
-          "link": 1070
-        },
-        {
-          "localized_name": "height",
-          "name": "height",
-          "type": "INT",
-          "widget": {
-            "name": "height"
-          },
-          "link": 1071
-        },
-        {
-          "localized_name": "length",
-          "name": "length",
-          "type": "INT",
-          "widget": {
-            "name": "length"
-          },
-          "link": 1072
-        },
-        {
-          "localized_name": "batch_size",
-          "name": "batch_size",
-          "type": "INT",
-          "widget": {
-            "name": "batch_size"
-          },
-          "link": null
-        }
-      ],
-      "outputs": [
-        {
-          "localized_name": "LATENT",
-          "name": "LATENT",
-          "type": "LATENT",
-          "links": [
-            1085
-          ]
-        }
-      ],
-      "properties": {
-        "Node name for S&R": "EmptyLTXVLatentVideo",
-        "ue_properties": {
-          "widget_ue_connectable": {
-            "width": true,
-            "height": true,
-            "length": true
-          },
-          "version": "7.8",
-          "input_ue_unconnectable": {}
-        }
-      },
-      "widgets_values": [
-        1,
-        512,
-        97,
-        1
-      ],
-      "widgets_values_named": {
-        "width": 1,
-        "height": 512,
-        "length": 97,
-        "batch_size": 1
-      }
-    },
-    {
-      "id": 20,
-      "type": "LTXVEmptyLatentAudio",
-      "pos": [
-        1755,
-        -1728
-      ],
-      "size": [
-        320,
-        120
-      ],
-      "flags": {},
-      "order": 25,
-      "mode": 0,
-      "inputs": [
-        {
-          "localized_name": "Audio VAE",
-          "name": "audio_vae",
-          "type": "VAE",
-          "link": 1074
-        },
-        {
-          "localized_name": "frames_number",
-          "name": "frames_number",
-          "type": "INT",
-          "widget": {
-            "name": "frames_number"
-          },
-          "link": 1073
-        },
-        {
-          "localized_name": "frame_rate",
-          "name": "frame_rate",
-          "type": "FLOAT,INT",
-          "widget": {
-            "name": "frame_rate"
-          },
-          "link": null
-        },
-        {
-          "localized_name": "batch_size",
-          "name": "batch_size",
-          "type": "INT",
-          "widget": {
-            "name": "batch_size"
-          },
-          "link": null
-        }
-      ],
-      "outputs": [
-        {
-          "localized_name": "Latent",
-          "name": "Latent",
-          "type": "LATENT",
-          "links": [
-            1093
-          ]
-        }
-      ],
-      "properties": {
-        "Node name for S&R": "LTXVEmptyLatentAudio",
-        "ue_properties": {
-          "widget_ue_connectable": {
-            "frames_number": true
-          },
-          "version": "7.8",
-          "input_ue_unconnectable": {}
-        }
-      },
-      "widgets_values": [
-        24,
-        1,
-        1
-      ],
-      "widgets_values_named": {
-        "frames_number": 24,
-        "frame_rate": 1,
-        "batch_size": 1
-      }
-    },
-    {
-      "id": 21,
-      "type": "RandomNoise",
-      "pos": [
-        1755,
-        -1548
-      ],
-      "size": [
-        320,
-        120
-      ],
-      "flags": {},
-      "order": 23,
-      "mode": 0,
-      "inputs": [
-        {
-          "localized_name": "noise_seed",
-          "name": "noise_seed",
-          "type": "INT",
-          "widget": {
-            "name": "noise_seed"
-          },
-          "link": 1075
-        }
-      ],
-      "outputs": [
-        {
-          "localized_name": "NOISE",
-          "name": "NOISE",
-          "type": "NOISE",
-          "links": [
-            1097
-          ]
-        }
-      ],
-      "properties": {
-        "Node name for S&R": "RandomNoise",
-        "ue_properties": {
-          "widget_ue_connectable": {
-            "noise_seed": true
-          },
-          "version": "7.8",
-          "input_ue_unconnectable": {}
-        }
-      },
-      "widgets_values": [
-        0,
-        "randomize"
-      ],
-      "widgets_values_named": {
-        "noise_seed": 0,
-        "control_after_generate": "randomize"
-      }
-    },
-    {
-      "id": 22,
-      "type": "CLIPTextEncode",
-      "pos": [
-        1755,
-        -1368
-      ],
-      "size": [
-        320,
-        120
-      ],
-      "flags": {},
-      "order": 21,
-      "mode": 0,
-      "inputs": [
-        {
-          "localized_name": "clip",
-          "name": "clip",
-          "type": "CLIP",
-          "link": 1077
-        },
-        {
-          "localized_name": "text",
-          "name": "text",
-          "type": "STRING",
-          "widget": {
-            "name": "text"
-          },
-          "link": 1076
-        }
-      ],
-      "outputs": [
-        {
-          "localized_name": "CONDITIONING",
-          "name": "CONDITIONING",
-          "type": "CONDITIONING",
-          "links": [
-            1080
-          ]
-        }
-      ],
-      "properties": {
-        "Node name for S&R": "CLIPTextEncode",
-        "ue_properties": {
-          "widget_ue_connectable": {
-            "text": true
-          },
-          "version": "7.8",
-          "input_ue_unconnectable": {}
-        }
-      },
-      "widgets_values": [
-        ""
-      ],
-      "widgets_values_named": {
-        "text": ""
-      }
-    },
-    {
-      "id": 23,
-      "type": "CLIPTextEncode",
-      "pos": [
-        1755,
-        -1188
-      ],
-      "size": [
-        320,
-        120
-      ],
-      "flags": {},
-      "order": 22,
-      "mode": 0,
-      "inputs": [
-        {
-          "localized_name": "clip",
-          "name": "clip",
-          "type": "CLIP",
-          "link": 1079
-        },
-        {
-          "localized_name": "text",
-          "name": "text",
-          "type": "STRING",
-          "widget": {
-            "name": "text"
-          },
-          "link": null
-        }
-      ],
-      "outputs": [
-        {
-          "localized_name": "CONDITIONING",
-          "name": "CONDITIONING",
-          "type": "CONDITIONING",
-          "links": [
-            1081
-          ]
-        }
-      ],
-      "properties": {
-        "Node name for S&R": "CLIPTextEncode",
-        "ue_properties": {
-          "widget_ue_connectable": {
-            "text": true
-          },
-          "version": "7.8",
-          "input_ue_unconnectable": {}
-        }
-      },
-      "widgets_values": [
-        ""
-      ],
-      "widgets_values_named": {
-        "text": ""
-      }
-    },
-    {
-      "id": 24,
-      "type": "LTXVConditioning",
-      "pos": [
-        2135,
-        -2268
-      ],
-      "size": [
-        320,
-        120
-      ],
-      "flags": {},
-      "order": 31,
-      "mode": 0,
-      "inputs": [
-        {
-          "localized_name": "positive",
-          "name": "positive",
-          "type": "CONDITIONING",
-          "link": 1080
-        },
-        {
-          "localized_name": "negative",
-          "name": "negative",
-          "type": "CONDITIONING",
-          "link": 1081
-        },
-        {
-          "localized_name": "frame_rate",
-          "name": "frame_rate",
-          "type": "FLOAT",
-          "widget": {
-            "name": "frame_rate"
-          },
-          "link": null
-        }
-      ],
-      "outputs": [
-        {
-          "localized_name": "positive",
-          "name": "positive",
-          "type": "CONDITIONING",
-          "links": [
-            1082
-          ]
-        },
-        {
-          "localized_name": "negative",
-          "name": "negative",
-          "type": "CONDITIONING",
-          "links": [
-            1083
-          ]
-        }
-      ],
-      "properties": {
-        "Node name for S&R": "LTXVConditioning",
-        "ue_properties": {
-          "widget_ue_connectable": {},
-          "version": "7.8",
-          "input_ue_unconnectable": {}
-        }
-      },
-      "widgets_values": [
-        24
-      ],
-      "widgets_values_named": {
-        "frame_rate": 24
-      }
-    },
-    {
-      "id": 25,
-      "type": "LTXVAddGuide",
-      "pos": [
-        2515,
-        -2268
-      ],
-      "size": [
-        320,
-        202
-      ],
-      "flags": {},
-      "order": 36,
-      "mode": 0,
-      "inputs": [
-        {
-          "localized_name": "positive",
-          "name": "positive",
-          "type": "CONDITIONING",
-          "link": 1082
-        },
-        {
-          "localized_name": "negative",
-          "name": "negative",
-          "type": "CONDITIONING",
-          "link": 1083
-        },
-        {
-          "localized_name": "vae",
-          "name": "vae",
-          "type": "VAE",
-          "link": 1084
-        },
-        {
-          "localized_name": "latent",
-          "name": "latent",
-          "type": "LATENT",
-          "link": 1085
-        },
-        {
-          "localized_name": "image",
-          "name": "image",
-          "type": "IMAGE",
-          "link": 1086
-        },
-        {
-          "localized_name": "attention_mask",
-          "name": "attention_mask",
-          "shape": 7,
-          "type": "MASK",
-          "link": null
-        },
-        {
-          "localized_name": "iclora_parameters",
-          "name": "iclora_parameters",
-          "shape": 7,
-          "type": "IC_LORA_PARAMETERS",
-          "link": null
-        },
-        {
-          "localized_name": "frame_idx",
-          "name": "frame_idx",
-          "type": "INT",
-          "widget": {
-            "name": "frame_idx"
-          },
-          "link": null
-        },
-        {
-          "localized_name": "strength",
-          "name": "strength",
-          "type": "FLOAT",
-          "widget": {
-            "name": "strength"
-          },
-          "link": null
-        }
-      ],
-      "outputs": [
-        {
-          "localized_name": "positive",
-          "name": "positive",
-          "type": "CONDITIONING",
-          "links": [
-            1087
-          ]
-        },
-        {
-          "localized_name": "negative",
-          "name": "negative",
-          "type": "CONDITIONING",
-          "links": [
-            1088
-          ]
-        },
-        {
-          "localized_name": "latent",
-          "name": "latent",
-          "type": "LATENT",
-          "links": [
-            1090
-          ]
-        }
-      ],
-      "properties": {
-        "Node name for S&R": "LTXVAddGuide",
-        "ue_properties": {
-          "widget_ue_connectable": {},
-          "version": "7.8",
-          "input_ue_unconnectable": {}
-        }
-      },
-      "widgets_values": [
-        0,
-        1
-      ],
-      "widgets_values_named": {
-        "frame_idx": 0,
-        "strength": 1
-      }
-    },
-    {
-      "id": 26,
-      "type": "LTXVAddGuide",
-      "pos": [
-        2895,
-        -2268
-      ],
-      "size": [
-        320,
-        202
-      ],
-      "flags": {},
-      "order": 39,
-      "mode": 0,
-      "inputs": [
-        {
-          "localized_name": "positive",
-          "name": "positive",
-          "type": "CONDITIONING",
-          "link": 1087
-        },
-        {
-          "localized_name": "negative",
-          "name": "negative",
-          "type": "CONDITIONING",
-          "link": 1088
-        },
-        {
-          "localized_name": "vae",
-          "name": "vae",
-          "type": "VAE",
-          "link": 1089
-        },
-        {
-          "localized_name": "latent",
-          "name": "latent",
-          "type": "LATENT",
-          "link": 1090
-        },
-        {
-          "localized_name": "image",
-          "name": "image",
-          "type": "IMAGE",
-          "link": 1091
-        },
-        {
-          "localized_name": "attention_mask",
-          "name": "attention_mask",
-          "shape": 7,
-          "type": "MASK",
-          "link": null
-        },
-        {
-          "localized_name": "iclora_parameters",
-          "name": "iclora_parameters",
-          "shape": 7,
-          "type": "IC_LORA_PARAMETERS",
-          "link": null
-        },
-        {
-          "localized_name": "frame_idx",
-          "name": "frame_idx",
-          "type": "INT",
-          "widget": {
-            "name": "frame_idx"
-          },
-          "link": null
-        },
-        {
-          "localized_name": "strength",
-          "name": "strength",
-          "type": "FLOAT",
-          "widget": {
-            "name": "strength"
-          },
-          "link": null
-        }
-      ],
-      "outputs": [
-        {
-          "localized_name": "positive",
-          "name": "positive",
-          "type": "CONDITIONING",
-          "links": [
-            1095,
-            1103
-          ]
-        },
-        {
-          "localized_name": "negative",
-          "name": "negative",
-          "type": "CONDITIONING",
-          "links": [
-            1096,
-            1104
-          ]
-        },
-        {
-          "localized_name": "latent",
-          "name": "latent",
-          "type": "LATENT",
-          "links": [
-            1092
-          ]
-        }
-      ],
-      "properties": {
-        "Node name for S&R": "LTXVAddGuide",
-        "ue_properties": {
-          "widget_ue_connectable": {},
-          "version": "7.8",
-          "input_ue_unconnectable": {}
-        }
-      },
-      "widgets_values": [
-        -1,
-        1
-      ],
-      "widgets_values_named": {
-        "frame_idx": -1,
-        "strength": 1
-      }
-    },
-    {
-      "id": 27,
-      "type": "LTXVConcatAVLatent",
-      "pos": [
-        3275,
-        -2268
-      ],
-      "size": [
-        320,
-        120
-      ],
-      "flags": {},
-      "order": 43,
-      "mode": 0,
-      "inputs": [
-        {
-          "localized_name": "video_latent",
-          "name": "video_latent",
-          "type": "LATENT",
-          "link": 1092
-        },
-        {
-          "localized_name": "audio_latent",
-          "name": "audio_latent",
-          "type": "LATENT",
-          "link": 1093
-        }
-      ],
-      "outputs": [
-        {
-          "localized_name": "latent",
-          "name": "latent",
-          "type": "LATENT",
-          "links": [
-            1101
-          ]
-        }
-      ],
-      "properties": {
-        "Node name for S&R": "LTXVConcatAVLatent",
-        "ue_properties": {
-          "widget_ue_connectable": {},
-          "version": "7.8",
-          "input_ue_unconnectable": {}
-        }
-      }
-    },
-    {
-      "id": 28,
-      "type": "LTXVDualCFGGuider",
-      "pos": [
-        3275,
-        -2088
-      ],
-      "size": [
-        320,
-        122
-      ],
-      "flags": {},
-      "order": 42,
-      "mode": 0,
-      "inputs": [
-        {
-          "localized_name": "model",
-          "name": "model",
-          "type": "MODEL",
-          "link": 1094
-        },
-        {
-          "localized_name": "positive",
-          "name": "positive",
-          "type": "CONDITIONING",
-          "link": 1095
-        },
-        {
-          "localized_name": "negative",
-          "name": "negative",
-          "type": "CONDITIONING",
-          "link": 1096
-        },
-        {
-          "localized_name": "video_cfg",
-          "name": "video_cfg",
-          "type": "FLOAT",
-          "widget": {
-            "name": "video_cfg"
-          },
-          "link": null
-        },
-        {
-          "localized_name": "audio_cfg",
-          "name": "audio_cfg",
-          "type": "FLOAT",
-          "widget": {
-            "name": "audio_cfg"
-          },
-          "link": null
-        }
-      ],
-      "outputs": [
-        {
-          "localized_name": "GUIDER",
-          "name": "GUIDER",
-          "type": "GUIDER",
-          "links": [
-            1098
-          ]
-        }
-      ],
-      "properties": {
-        "Node name for S&R": "LTXVDualCFGGuider",
-        "ue_properties": {
-          "widget_ue_connectable": {},
-          "version": "7.8",
-          "input_ue_unconnectable": {}
-        }
-      },
-      "widgets_values": [
-        1,
-        1
-      ],
-      "widgets_values_named": {
-        "video_cfg": 1,
-        "audio_cfg": 1
-      }
-    },
-    {
-      "id": 29,
-      "type": "SamplerCustomAdvanced",
-      "pos": [
-        3655,
-        -2268
-      ],
-      "size": [
-        320,
-        120
-      ],
-      "flags": {},
-      "order": 46,
-      "mode": 0,
-      "inputs": [
-        {
-          "localized_name": "noise",
-          "name": "noise",
-          "type": "NOISE",
-          "link": 1097
-        },
-        {
-          "localized_name": "guider",
-          "name": "guider",
-          "type": "GUIDER",
-          "link": 1098
-        },
-        {
-          "localized_name": "sampler",
-          "name": "sampler",
-          "type": "SAMPLER",
-          "link": 1099
-        },
-        {
-          "localized_name": "sigmas",
-          "name": "sigmas",
-          "type": "SIGMAS",
-          "link": 1100
-        },
-        {
-          "localized_name": "latent_image",
-          "name": "latent_image",
-          "type": "LATENT",
-          "link": 1101
-        }
-      ],
-      "outputs": [
-        {
-          "localized_name": "output",
-          "name": "output",
-          "type": "LATENT",
-          "links": []
-        },
-        {
-          "localized_name": "denoised_output",
-          "name": "denoised_output",
-          "type": "LATENT",
-          "links": [
-            1102
-          ]
-        }
-      ],
-      "properties": {
-        "Node name for S&R": "SamplerCustomAdvanced",
-        "ue_properties": {
-          "widget_ue_connectable": {},
-          "version": "7.8",
-          "input_ue_unconnectable": {}
-        }
-      }
-    },
-    {
-      "id": 30,
-      "type": "LTXVSeparateAVLatent",
-      "pos": [
-        4035,
-        -2268
-      ],
-      "size": [
-        320,
-        120
-      ],
-      "flags": {},
-      "order": 48,
-      "mode": 0,
-      "inputs": [
-        {
-          "localized_name": "av_latent",
-          "name": "av_latent",
-          "type": "LATENT",
-          "link": 1102
-        }
-      ],
-      "outputs": [
-        {
-          "localized_name": "video_latent",
-          "name": "video_latent",
-          "type": "LATENT",
-          "links": [
-            1105
-          ]
-        },
-        {
-          "localized_name": "audio_latent",
-          "name": "audio_latent",
-          "type": "LATENT",
-          "links": [
-            2119
-          ]
-        }
-      ],
-      "properties": {
-        "Node name for S&R": "LTXVSeparateAVLatent",
-        "ue_properties": {
-          "widget_ue_connectable": {},
-          "version": "7.8",
-          "input_ue_unconnectable": {}
-        }
-      }
-    },
-    {
-      "id": 31,
-      "type": "LTXVCropGuides",
-      "pos": [
-        4415,
-        -2268
-      ],
-      "size": [
-        320,
-        120
-      ],
-      "flags": {},
-      "order": 49,
-      "mode": 0,
-      "inputs": [
-        {
-          "localized_name": "positive",
-          "name": "positive",
-          "type": "CONDITIONING",
-          "link": 1103
-        },
-        {
-          "localized_name": "negative",
-          "name": "negative",
-          "type": "CONDITIONING",
-          "link": 1104
-        },
-        {
-          "localized_name": "latent",
-          "name": "latent",
-          "type": "LATENT",
-          "link": 1105
-        }
-      ],
-      "outputs": [
-        {
-          "localized_name": "positive",
-          "name": "positive",
-          "type": "CONDITIONING",
-          "links": []
-        },
-        {
-          "localized_name": "negative",
-          "name": "negative",
-          "type": "CONDITIONING",
-          "links": []
-        },
-        {
-          "localized_name": "latent",
-          "name": "latent",
-          "type": "LATENT",
-          "links": [
-            1106
-          ]
-        }
-      ],
-      "properties": {
-        "Node name for S&R": "LTXVCropGuides",
-        "ue_properties": {
-          "widget_ue_connectable": {},
-          "version": "7.8",
-          "input_ue_unconnectable": {}
-        }
-      }
-    },
-    {
-      "id": 32,
-      "type": "VAEDecodeTiled",
-      "pos": [
-        4795,
-        -2268
-      ],
-      "size": [
-        320,
-        150
-      ],
-      "flags": {},
-      "order": 50,
-      "mode": 0,
-      "inputs": [
-        {
-          "localized_name": "samples",
-          "name": "samples",
-          "type": "LATENT",
-          "link": 1106
-        },
-        {
-          "localized_name": "vae",
-          "name": "vae",
-          "type": "VAE",
-          "link": 1107
-        },
-        {
-          "localized_name": "tile_size",
-          "name": "tile_size",
-          "type": "INT",
-          "widget": {
-            "name": "tile_size"
-          },
-          "link": null
-        },
-        {
-          "localized_name": "overlap",
-          "name": "overlap",
-          "type": "INT",
-          "widget": {
-            "name": "overlap"
-          },
-          "link": null
-        },
-        {
-          "localized_name": "temporal_size",
-          "name": "temporal_size",
-          "type": "INT",
-          "widget": {
-            "name": "temporal_size"
-          },
-          "link": null
-        },
-        {
-          "localized_name": "temporal_overlap",
-          "name": "temporal_overlap",
-          "type": "INT",
-          "widget": {
-            "name": "temporal_overlap"
-          },
-          "link": null
-        }
-      ],
-      "outputs": [
-        {
-          "localized_name": "IMAGE",
-          "name": "IMAGE",
-          "type": "IMAGE",
-          "links": [
-            1108
-          ]
-        }
-      ],
-      "properties": {
-        "Node name for S&R": "VAEDecodeTiled",
-        "ue_properties": {
-          "widget_ue_connectable": {},
-          "version": "7.8",
-          "input_ue_unconnectable": {}
-        }
-      },
-      "widgets_values": [
-        512,
-        64,
-        64,
-        16
-      ],
-      "widgets_values_named": {
-        "tile_size": 512,
-        "overlap": 64,
-        "temporal_size": 64,
-        "temporal_overlap": 16
-      }
-    },
-    {
-      "id": 33,
-      "type": "InfiniteMovieEngineOut",
-      "pos": [
-        5175,
-        -2268
-      ],
-      "size": [
-        320,
-        122
-      ],
-      "flags": {},
-      "order": 51,
-      "mode": 0,
-      "inputs": [
-        {
-          "localized_name": "images",
-          "name": "images",
-          "shape": 7,
-          "type": "IMAGE",
-          "link": 1108
-        },
-        {
-          "localized_name": "video",
-          "name": "video",
-          "shape": 7,
-          "type": "VIDEO",
-          "link": null
-        },
-        {
-          "localized_name": "audio",
-          "name": "audio",
-          "shape": 7,
-          "type": "AUDIO",
-          "link": 2121
-        },
-        {
-          "localized_name": "fps",
-          "name": "fps",
-          "type": "FLOAT",
-          "widget": {
-            "name": "fps"
-          },
-          "link": null
-        },
-        {
-          "localized_name": "length_grid",
-          "name": "length_grid",
-          "type": "INT",
-          "widget": {
-            "name": "length_grid"
-          },
-          "link": null
-        }
-      ],
-      "outputs": [
-        {
-          "localized_name": "engine",
-          "name": "engine",
-          "type": "STRING",
-          "links": [],
-          "slot_index": 0
-        }
-      ],
-      "properties": {
-        "Node name for S&R": "InfiniteMovieEngineOut",
-        "ue_properties": {
-          "widget_ue_connectable": {},
-          "version": "7.8",
-          "input_ue_unconnectable": {}
-        }
-      },
-      "widgets_values": [
-        24,
-        8
-      ],
-      "widgets_values_named": {
-        "fps": 24,
-        "length_grid": 8
+        "prompt_model": "qwen3vl_4b_bf16.safetensors",
+        "aspect": "4:5 · portrait (Instagram)",
+        "long_side": 960,
+        "output_folder": "",
+        "film_name": "infinite_movie",
+        "audio": false
       }
     },
     {
@@ -2522,14 +966,14 @@
       "type": "MarkdownNote",
       "pos": [
         -305,
-        -868
+        -418
       ],
       "size": [
         1600,
         940
       ],
       "flags": {},
-      "order": 16,
+      "order": 4,
       "mode": 0,
       "inputs": [],
       "outputs": [],
@@ -2542,10 +986,10 @@
         }
       },
       "widgets_values": [
-        "# Infinite Movie\n\nTurns a few stills into one seamless, looping film. The LTX 2.5 engine renders one shot per transition between two images; *Assemble* evens out the motion and joins the shots into the final film.\n\nNode pack: https://github.com/metamountain/comfyui-infinite-movie (by metamountain). Feedback and issues welcome.\n\n## How to read this workflow\nLeft: this README. Top: **1 · Engine** (LTX 2.5). Below it ONE row, read left to right – each area has its help note on top:\n2. **Settings** – LLM (one dropdown), size, output folder, film name.\n3. **Images** – load your stills (add more: they grow downwards).\n4. **Prompts** – *Prompt Style* (what the LLM is told, max words, camera) on top, then one *Auto Prompt* per transition.\n5. **Director** – seconds per shot, loop, variants. Click **AUTO LAYOUT** after changes.\n6. **Choose** – with variants: pick A or B per shot.\n7. **Assemble + Film** – joins the shots, shows the finished film, *Open folder*.\n\nThe settings are passed along one chain: Settings → Prompt Style → Auto Prompts → Director → Assemble.\nBefore a render starts, Run frees the GPU (unloads the LLM); if it cannot, the render is not queued and a message says why.\n\nOther engines: open **Infinite Movie - Engine Wan 2.2**, copy its group (Ctrl+C), paste it here (Ctrl+V) and mute the LTX group (Ctrl+M) – only ONE engine group may be active.\n\n## Required tools\n- ffmpeg (encoding/joining films): usually already there via `imageio-ffmpeg` (installed with VideoHelperSuite), otherwise https://www.gyan.dev/ffmpeg/builds/ (Windows) or https://ffmpeg.org/download.html – put `ffmpeg` on PATH.\n- VideoHelperSuite: https://github.com/Kosinkadink/ComfyUI-VideoHelperSuite\n\n## Models – LTX 2.5 (gated: accept the license on Hugging Face first)\n- diffusion_models: [ltx-2.5-22b-distilled-transformer-comfy-int8-convrot](https://huggingface.co/Lightricks/LTX-2.5/resolve/main/diffusion_models/ltx-2.5-22b-distilled-transformer-comfy-int8-convrot.safetensors)\n- text_encoders: [gemma4-12b-with-proj-ltx-2.5-comfy-int8-convrot](https://huggingface.co/Lightricks/LTX-2.5/resolve/main/text_encoders/gemma4-12b-with-proj-ltx-2.5-comfy-int8-convrot.safetensors)\n- vae: [ltx-2.5-video-vae-bf16](https://huggingface.co/Lightricks/LTX-2.5/resolve/main/vae/ltx-2.5-video-vae-bf16.safetensors) · [ltx-2.5-audio-vae-bf16](https://huggingface.co/Lightricks/LTX-2.5/resolve/main/vae/ltx-2.5-audio-vae-bf16.safetensors)\n- Model page: https://huggingface.co/Lightricks/LTX-2.5\n\n## Models – Wan 2.2 (optional engine group)\n- diffusion_models: [wan2.2_i2v_high_noise_14B_fp8_scaled](https://huggingface.co/Comfy-Org/Wan-2.2/resolve/main/split_files/diffusion_models/wan2.2_i2v_high_noise_14B_fp8_scaled.safetensors) · [wan2.2_i2v_low_noise_14B_fp8_scaled](https://huggingface.co/Comfy-Org/Wan-2.2/resolve/main/split_files/diffusion_models/wan2.2_i2v_low_noise_14B_fp8_scaled.safetensors)\n- loras (LightX2V 4-step): [high_noise](https://huggingface.co/Comfy-Org/Wan-2.2/resolve/main/split_files/loras/wan2.2_i2v_lightx2v_4steps_lora_v1_high_noise.safetensors) · [low_noise](https://huggingface.co/Comfy-Org/Wan-2.2/resolve/main/split_files/loras/wan2.2_i2v_lightx2v_4steps_lora_v1_low_noise.safetensors)\n- text_encoders: [umt5_xxl_fp8_e4m3fn_scaled](https://huggingface.co/Comfy-Org/Wan-2.2/resolve/main/split_files/text_encoders/umt5_xxl_fp8_e4m3fn_scaled.safetensors) · vae: [wan_2.1_vae](https://huggingface.co/Comfy-Org/Wan-2.2/resolve/main/split_files/vae/wan_2.1_vae.safetensors)\n\n## Optional\n- LTX IC-LoRA pixel upscaler + https://github.com/Lightricks/ComfyUI-LTXVideo\n- Low VRAM (12–16 GB, untested by us): community LTX-2.5 GGUF + https://github.com/city96/ComfyUI-GGUF\n\n**Tested on:** RTX 24 GB, 768×960, single shots up to 60 s (1441 frames).\n\n```\n                          /\\                                  /\\\n              /\\         /  \\        /\\                      /  \\        /\\\n       /\\    /  \\   /\\  /    \\      /  \\    /\\      /\\      /    \\      /  \\    /\\\n      /  \\  /    \\_/  \\/      \\    /    \\__/  \\    /  \\/\\  /      \\  /\\/    \\  /  \\\n ____/    \\/                   \\__/            \\__/      \\/        \\/          \\/    \\_______\n                    _                                                _             _\n  _ __ ___    ___  | |_    __ _   _ __ ___    ___    _   _   _ __   | |_    __ _  (_)  _ __\n | '_ ` _ \\  / _ \\ | __|  / _` | | '_ ` _ \\  / _ \\  | | | | | '_ \\  | __|  / _` | | | | '_ \\\n | | | | | ||  __/ | |_  | (_| | | | | | | || (_) | | |_| | | | | | | |_  | (_| | | | | | | |\n |_| |_| |_| \\___|  \\__|  \\__,_| |_| |_| |_| \\___/   \\__,_| |_| |_|  \\__|  \\__,_| |_| |_| |_|\n\n  metamountain · infinite movie\n```\n"
+        "# Infinite Movie\n\nTurns a few stills into one seamless, looping film. The MiniMax H3 engine renders one shot per transition between two images; *Assemble* evens out the motion and joins the shots into the final film.\n\nNode pack: https://github.com/metamountain/comfyui-infinite-movie (by metamountain). Feedback and issues welcome.\n\n## How to read this workflow\nLeft: this README. Top: **1 · Engine** (MiniMax H3). Below it ONE row, read left to right – each area has its help note on top:\n2. **Settings** – LLM (one dropdown), size, output folder, film name.\n3. **Images** – load your stills (add more: they grow downwards).\n4. **Prompts** – *Prompt Style* (what the LLM is told, max words, camera) on top, then one *Auto Prompt* per transition.\n5. **Director** – seconds per shot, loop, variants. Click **AUTO LAYOUT** after changes.\n6. **Choose** – with variants: pick A or B per shot.\n7. **Assemble + Film** – joins the shots, shows the finished film, *Open folder*.\n\nThe settings are passed along one chain: Settings → Prompt Style → Auto Prompts → Director → Assemble.\nBefore a render starts, Run frees the GPU (unloads the LLM); if it cannot, the render is not queued and a message says why.\n\nOther engines: open **Infinite Movie - Engine LTX 2.5** or **Infinite Movie - Engine Wan 2.2**, copy its group (Ctrl+C), paste it here (Ctrl+V) and mute the MiniMax group (Ctrl+M) – only ONE engine group may be active.\n\n## Required tools\n- ffmpeg (encoding/joining films): usually already there via `imageio-ffmpeg` (installed with VideoHelperSuite), otherwise https://www.gyan.dev/ffmpeg/builds/ (Windows) or https://ffmpeg.org/download.html – put `ffmpeg` on PATH.\n- VideoHelperSuite: https://github.com/Kosinkadink/ComfyUI-VideoHelperSuite\n\n## Models – MiniMax H3 (default engine)\n- diffusion_models: [minimax_h3_fl2va_pruned_int8_convrot](https://huggingface.co/Comfy-Org/MiniMax-H3/resolve/main/diffusion_models/minimax_h3_fl2va_pruned_int8_convrot.safetensors)\n- loras: [minimax_h3_fl2v_turbo_8step_v1.1_768p_comfyui_bf16](https://huggingface.co/lightx2v/Minimax-h3-Turbo/resolve/main/minimax_h3_fl2v_turbo_8step_v1.1_768p_comfyui_bf16.safetensors)\n- text_encoders (CLIPLoader type `minimax`): [qwen3vl_32b_minimax_h3_nvfp4_awq](https://huggingface.co/Comfy-Org/MiniMax-H3/resolve/main/text_encoders/qwen3vl_32b_minimax_h3_nvfp4_awq.safetensors)\n- vae: [minimax_h3_video_vae_int8_convrot](https://huggingface.co/Comfy-Org/MiniMax-H3/resolve/main/vae/minimax_h3_video_vae_int8_convrot.safetensors) · [minimax_h3_audio_vae_fp32](https://huggingface.co/Comfy-Org/MiniMax-H3/resolve/main/vae/minimax_h3_audio_vae_fp32.safetensors)\n- Model page: https://huggingface.co/Comfy-Org/MiniMax-H3\n\n## Optional\n- LTX IC-LoRA pixel upscaler + https://github.com/Lightricks/ComfyUI-LTXVideo\n- Low VRAM (12–16 GB, untested by us): community LTX-2.5 GGUF + https://github.com/city96/ComfyUI-GGUF\n\n**Tested on:** RTX 24 GB, 768×960, single shots up to 60 s (1441 frames).\n\n```\n                          /\\                                  /\\\n              /\\         /  \\        /\\                      /  \\        /\\\n       /\\    /  \\   /\\  /    \\      /  \\    /\\      /\\      /    \\      /  \\    /\\\n      /  \\  /    \\_/  \\/      \\    /    \\__/  \\    /  \\/\\  /      \\  /\\/    \\  /  \\\n ____/    \\/                   \\__/            \\__/      \\/        \\/          \\/    \\_______\n                    _                                                _             _\n  _ __ ___    ___  | |_    __ _   _ __ ___    ___    _   _   _ __   | |_    __ _  (_)  _ __\n | '_ ` _ \\  / _ \\ | __|  / _` | | '_ ` _ \\  / _ \\  | | | | | '_ \\  | __|  / _` | | | | '_ \\\n | | | | | ||  __/ | |_  | (_| | | | | | | || (_) | | |_| | | | | | | |_  | (_| | | | | | | |\n |_| |_| |_| \\___|  \\__|  \\__,_| |_| |_| |_| \\___/   \\__,_| |_| |_|  \\__|  \\__,_| |_| |_| |_|\n\n  metamountain · infinite movie\n```\n"
       ],
       "widgets_values_named": {
-        "text": "# Infinite Movie\n\nTurns a few stills into one seamless, looping film. An engine group (LTX 2.5 or Wan 2.2) renders the transitions, *Assemble* evens out the motion and joins the shots into the final film.\n\nNode pack: https://github.com/metamountain/comfyui-infinite-movie (by metamountain). Feedback and issues welcome.\n\n## How to use\n1. *Infinite Movie · Settings* (far left): LLM, prompt style, GPU handoff. It is passed on from node to node (settings in → settings out).\n2. Load your images; one *Infinite Movie · Auto Prompt* per transition – type a few keywords and click *Regenerate*.\n3. *Infinite Movie · Director*: seconds per transition, loop, intro/outro. Click **AUTO LAYOUT** after changes.\n4. Engine: keep ONE engine group active (LTX 2.5 or Wan 2.2), mute the other (Ctrl+M). Each group runs between *Infinite Movie · Engine Start (from Director)* and *Infinite Movie · Engine Result (to Director)*.\n5. *Infinite Movie · Assemble* (shots in) → final film.\n\n## How to read this workflow\nThe workflow is organised into numbered areas, read left to right:\n1. **Images** – load your stills.\n2. **Prompts (Auto Prompt)** – one node per transition; type keywords, click Regenerate.\n3. **Settings** – LLM, prompt style, GPU handoff, format (far left).\n4. **Director** – renders the transitions into a film.\n5. **Choose** – variants builder: pick the best variant per transition.\n6. **Assemble** – joins the chosen segments into the final film.\nBelow the main chain are two **Engine groups** (LTX 2.5 and Wan 2.2). Keep ONE active (unmute), mute the other (Ctrl+M). Each engine group runs between *Engine Start* (from Director) and *Engine Result* (to Director).\n\n## Required tools\n- ffmpeg (encoding/joining films): usually already there via `imageio-ffmpeg` (installed with VideoHelperSuite), otherwise https://www.gyan.dev/ffmpeg/builds/ (Windows) or https://ffmpeg.org/download.html – put `ffmpeg` on PATH.\n- VideoHelperSuite: https://github.com/Kosinkadink/ComfyUI-VideoHelperSuite\n\n## Models – LTX 2.5 (gated: accept the license on Hugging Face first)\n- diffusion_models: [ltx-2.5-22b-distilled-transformer-comfy-int8-convrot](https://huggingface.co/Lightricks/LTX-2.5/resolve/main/diffusion_models/ltx-2.5-22b-distilled-transformer-comfy-int8-convrot.safetensors)\n- text_encoders: [gemma4-12b-with-proj-ltx-2.5-comfy-int8-convrot](https://huggingface.co/Lightricks/LTX-2.5/resolve/main/text_encoders/gemma4-12b-with-proj-ltx-2.5-comfy-int8-convrot.safetensors)\n- vae: [ltx-2.5-video-vae-bf16](https://huggingface.co/Lightricks/LTX-2.5/resolve/main/vae/ltx-2.5-video-vae-bf16.safetensors) · [ltx-2.5-audio-vae-bf16](https://huggingface.co/Lightricks/LTX-2.5/resolve/main/vae/ltx-2.5-audio-vae-bf16.safetensors)\n- Model page: https://huggingface.co/Lightricks/LTX-2.5\n\n## Models – Wan 2.2 (optional engine group)\n- diffusion_models: [wan2.2_i2v_high_noise_14B_fp8_scaled](https://huggingface.co/Comfy-Org/Wan-2.2/resolve/main/split_files/diffusion_models/wan2.2_i2v_high_noise_14B_fp8_scaled.safetensors) · [wan2.2_i2v_low_noise_14B_fp8_scaled](https://huggingface.co/Comfy-Org/Wan-2.2/resolve/main/split_files/diffusion_models/wan2.2_i2v_low_noise_14B_fp8_scaled.safetensors)\n- loras (LightX2V 4-step): [high_noise](https://huggingface.co/Comfy-Org/Wan-2.2/resolve/main/split_files/loras/wan2.2_i2v_lightx2v_4steps_lora_v1_high_noise.safetensors) · [low_noise](https://huggingface.co/Comfy-Org/Wan-2.2/resolve/main/split_files/loras/wan2.2_i2v_lightx2v_4steps_lora_v1_low_noise.safetensors)\n- text_encoders: [umt5_xxl_fp8_e4m3fn_scaled](https://huggingface.co/Comfy-Org/Wan-2.2/resolve/main/split_files/text_encoders/umt5_xxl_fp8_e4m3fn_scaled.safetensors) · vae: [wan_2.1_vae](https://huggingface.co/Comfy-Org/Wan-2.2/resolve/main/split_files/vae/wan_2.1_vae.safetensors)\n\n## Optional\n- LTX IC-LoRA pixel upscaler + https://github.com/Lightricks/ComfyUI-LTXVideo\n- Low VRAM (12–16 GB, untested by us): community LTX-2.5 GGUF + https://github.com/city96/ComfyUI-GGUF\n\n**Tested on:** RTX 24 GB, 768×960, single shots up to 60 s (1441 frames).\n\n```\n                          /\\                                  /\\\n              /\\         /  \\        /\\                      /  \\        /\\\n       /\\    /  \\   /\\  /    \\      /  \\    /\\      /\\      /    \\      /  \\    /\\\n      /  \\  /    \\_/  \\/      \\    /    \\__/  \\    /  \\/\\  /      \\  /\\/    \\  /  \\\n ____/    \\/                   \\__/            \\__/      \\/        \\/          \\/    \\_______\n                    _                                                _             _\n  _ __ ___    ___  | |_    __ _   _ __ ___    ___    _   _   _ __   | |_    __ _  (_)  _ __\n | '_ ` _ \\  / _ \\ | __|  / _` | | '_ ` _ \\  / _ \\  | | | | | '_ \\  | __|  / _` | | | | '_ \\\n | | | | | ||  __/ | |_  | (_| | | | | | | || (_) | | |_| | | | | | | |_  | (_| | | | | | | |\n |_| |_| |_| \\___|  \\__|  \\__,_| |_| |_| |_| \\___/   \\__,_| |_| |_|  \\__|  \\__,_| |_| |_| |_|\n\n  metamountain · infinite movie\n```\n"
+        "text": "# Infinite Movie\n\nTurns a few stills into one seamless, looping film. The MiniMax H3 engine renders one shot per transition between two images; *Assemble* evens out the motion and joins the shots into the final film.\n\nNode pack: https://github.com/metamountain/comfyui-infinite-movie (by metamountain). Feedback and issues welcome.\n\n## How to read this workflow\nLeft: this README. Top: **1 · Engine** (MiniMax H3). Below it ONE row, read left to right – each area has its help note on top:\n2. **Settings** – LLM (one dropdown), size, output folder, film name.\n3. **Images** – load your stills (add more: they grow downwards).\n4. **Prompts** – *Prompt Style* (what the LLM is told, max words, camera) on top, then one *Auto Prompt* per transition.\n5. **Director** – seconds per shot, loop, variants. Click **AUTO LAYOUT** after changes.\n6. **Choose** – with variants: pick A or B per shot.\n7. **Assemble + Film** – joins the shots, shows the finished film, *Open folder*.\n\nThe settings are passed along one chain: Settings → Prompt Style → Auto Prompts → Director → Assemble.\nBefore a render starts, Run frees the GPU (unloads the LLM); if it cannot, the render is not queued and a message says why.\n\nOther engines: open **Infinite Movie - Engine LTX 2.5** or **Infinite Movie - Engine Wan 2.2**, copy its group (Ctrl+C), paste it here (Ctrl+V) and mute the MiniMax group (Ctrl+M) – only ONE engine group may be active.\n\n## Required tools\n- ffmpeg (encoding/joining films): usually already there via `imageio-ffmpeg` (installed with VideoHelperSuite), otherwise https://www.gyan.dev/ffmpeg/builds/ (Windows) or https://ffmpeg.org/download.html – put `ffmpeg` on PATH.\n- VideoHelperSuite: https://github.com/Kosinkadink/ComfyUI-VideoHelperSuite\n\n## Models – MiniMax H3 (default engine)\n- diffusion_models: [minimax_h3_fl2va_pruned_int8_convrot](https://huggingface.co/Comfy-Org/MiniMax-H3/resolve/main/diffusion_models/minimax_h3_fl2va_pruned_int8_convrot.safetensors)\n- loras: [minimax_h3_fl2v_turbo_8step_v1.1_768p_comfyui_bf16](https://huggingface.co/lightx2v/Minimax-h3-Turbo/resolve/main/minimax_h3_fl2v_turbo_8step_v1.1_768p_comfyui_bf16.safetensors)\n- text_encoders (CLIPLoader type `minimax`): [qwen3vl_32b_minimax_h3_nvfp4_awq](https://huggingface.co/Comfy-Org/MiniMax-H3/resolve/main/text_encoders/qwen3vl_32b_minimax_h3_nvfp4_awq.safetensors)\n- vae: [minimax_h3_video_vae_int8_convrot](https://huggingface.co/Comfy-Org/MiniMax-H3/resolve/main/vae/minimax_h3_video_vae_int8_convrot.safetensors) · [minimax_h3_audio_vae_fp32](https://huggingface.co/Comfy-Org/MiniMax-H3/resolve/main/vae/minimax_h3_audio_vae_fp32.safetensors)\n- Model page: https://huggingface.co/Comfy-Org/MiniMax-H3\n\n## Optional\n- LTX IC-LoRA pixel upscaler + https://github.com/Lightricks/ComfyUI-LTXVideo\n- Low VRAM (12–16 GB, untested by us): community LTX-2.5 GGUF + https://github.com/city96/ComfyUI-GGUF\n\n**Tested on:** RTX 24 GB, 768×960, single shots up to 60 s (1441 frames).\n\n```\n                          /\\                                  /\\\n              /\\         /  \\        /\\                      /  \\        /\\\n       /\\    /  \\   /\\  /    \\      /  \\    /\\      /\\      /    \\      /  \\    /\\\n      /  \\  /    \\_/  \\/      \\    /    \\__/  \\    /  \\/\\  /      \\  /\\/    \\  /  \\\n ____/    \\/                   \\__/            \\__/      \\/        \\/          \\/    \\_______\n                    _                                                _             _\n  _ __ ___    ___  | |_    __ _   _ __ ___    ___    _   _   _ __   | |_    __ _  (_)  _ __\n | '_ ` _ \\  / _ \\ | __|  / _` | | '_ ` _ \\  / _ \\  | | | | | '_ \\  | __|  / _` | | | | '_ \\\n | | | | | ||  __/ | |_  | (_| | | | | | | || (_) | | |_| | | | | | | |_  | (_| | | | | | | |\n |_| |_| |_| \\___|  \\__|  \\__,_| |_| |_| |_| \\___/   \\__,_| |_| |_|  \\__|  \\__,_| |_| |_| |_|\n\n  metamountain · infinite movie\n```\n"
       },
       "color": "#432",
       "bgcolor": "#653"
@@ -2555,14 +999,14 @@
       "type": "InfiniteMovieAutoPrompt",
       "pos": [
         2375,
-        640
+        1090
       ],
       "size": [
         600,
-        314
+        152
       ],
       "flags": {},
-      "order": 35,
+      "order": 31,
       "mode": 0,
       "inputs": [
         {
@@ -2575,19 +1019,20 @@
         {
           "localized_name": "image_from",
           "name": "image_from",
+          "shape": 7,
           "type": "IMAGE",
           "link": 2101
         },
         {
           "localized_name": "image_to",
           "name": "image_to",
+          "shape": 7,
           "type": "IMAGE",
           "link": 2112
         },
         {
           "localized_name": "prompt",
           "name": "prompt",
-          "shape": 7,
           "type": "STRING",
           "widget": {
             "name": "prompt"
@@ -2595,10 +1040,21 @@
           "link": null
         },
         {
+          "localized_name": "keywords",
           "name": "keywords",
           "type": "STRING",
           "widget": {
             "name": "keywords"
+          },
+          "link": null
+        },
+        {
+          "localized_name": "regen",
+          "name": "regen",
+          "shape": 7,
+          "type": "STRING",
+          "widget": {
+            "name": "regen"
           },
           "link": null
         }
@@ -2608,19 +1064,19 @@
           "localized_name": "prompt",
           "name": "prompt",
           "type": "STRING",
+          "slot_index": 0,
           "links": [
             2105
-          ],
-          "slot_index": 0
+          ]
         },
         {
           "localized_name": "settings ▶ chain",
           "name": "settings ▶ chain",
           "type": "SETTINGS",
+          "slot_index": 1,
           "links": [
             2115
-          ],
-          "slot_index": 1
+          ]
         }
       ],
       "properties": {
@@ -2634,25 +1090,30 @@
       },
       "widgets_values": [
         "",
+        "",
         ""
       ],
       "widgets_values_named": {
-        "prompt": "The rain eases off as a soft grey fog drifts in from the forest, obscuring the background while the house remains still. The raindrops stop early. Sound: Fading rain, soft fog drifting."
-      }
+        "prompt": "",
+        "keywords": "",
+        "regen": ""
+      },
+      "color": "#232",
+      "bgcolor": "#353"
     },
     {
       "id": 53,
       "type": "InfiniteMovieChooser",
       "pos": [
-        3615,
-        -528
+        3679,
+        -78
       ],
       "size": [
-        748,
-        482
+        992,
+        472
       ],
       "flags": {},
-      "order": 42,
+      "order": 37,
       "mode": 0,
       "inputs": [
         {
@@ -2676,25 +1137,29 @@
           "localized_name": "shots",
           "name": "shots",
           "type": "SHOTS",
+          "slot_index": 0,
           "links": [
             2109
-          ],
-          "slot_index": 0
+          ]
         }
       ],
       "properties": {
         "Node name for S&R": "InfiniteMovieChooser",
+        "marked": [],
         "ue_properties": {
           "widget_ue_connectable": {},
           "input_ue_unconnectable": {},
           "version": "7.8"
-        }
+        },
+        "rejected": {}
       },
       "widgets_values": [
+        "",
         ""
       ],
       "widgets_values_named": {
-        "choices": ""
+        "choices": "",
+        "fc_choose": ""
       }
     },
     {
@@ -2702,14 +1167,14 @@
       "type": "MarkdownNote",
       "pos": [
         1875,
-        -868
+        -418
       ],
       "size": [
         420,
         270
       ],
       "flags": {},
-      "order": 50,
+      "order": 5,
       "mode": 0,
       "inputs": [],
       "outputs": [],
@@ -2722,27 +1187,27 @@
         }
       },
       "widgets_values": [
-        "## 3 · Images\nYour stills; each one is a keyframe of the film.\n- **Load Image** (×3: summer, fog, rain) → Director `image 1`, `image 2`, …\n- Connect another Load Image to the free `image` slot: a new Auto Prompt is added automatically. Then click **AUTO LAYOUT**."
+        "## 3 · Images\nYour stills, top to bottom = order in the film.\n- **Load Image** → Director `image 1`, `image 2`, …\n- More or fewer images: set Director › `images` – new Load Images (copy of the last image) and their Auto Prompts are added and laid out automatically. Then replace the copies with your pictures.\n- Leave an image out: select it, Ctrl+M (mute)."
       ],
       "widgets_values_named": {
-        "text": "## 1 · Images\nLoad your still images here. Each image becomes one \"shot\" in the film.\n- **LoadImage** (×3: summer, fog, rain): pick a file from the ComfyUI upload folder; the IMAGE output goes to the Director's `image 1`–`image 4` inputs.\n- Typical workflow: upload 3–5 images, one per scene/season/mood.\n- Output: IMAGE → Director (image slots)."
+        "text": "## 3 · Images\nYour stills, top to bottom = order in the film.\n- **Load Image** → Director `image 1`, `image 2`, …\n- More or fewer images: set Director › `images` – new Load Images (copy of the last image) and their Auto Prompts are added and laid out automatically. Then replace the copies with your pictures.\n- Leave an image out: select it, Ctrl+M (mute)."
       },
-      "color": "#2a2a3a",
-      "bgcolor": "#3a3a4a"
+      "color": "#432",
+      "bgcolor": "#653"
     },
     {
       "id": 61,
       "type": "MarkdownNote",
       "pos": [
         2375,
-        -868
+        -418
       ],
       "size": [
         640,
         270
       ],
       "flags": {},
-      "order": 51,
+      "order": 6,
       "mode": 0,
       "inputs": [],
       "outputs": [],
@@ -2755,27 +1220,27 @@
         }
       },
       "widgets_values": [
-        "## 4 · Prompts\n- **Infinite Movie · Prompt Style** (top): what the LLM is told (system prompt), `max_words`, `camera`, `audio`, `sky_rule`. Applies to all Auto Prompts below.\n- **Infinite Movie · Auto Prompt** (one per transition, summer→fog, fog→rain, rain→summer): type a few keywords in `prompt`, click **Regenerate** – the LLM writes the shot prompt from both images.\n- `image_from` / `image_to`: the two images of this transition.\n- Output `prompt` → Director `prompt 1 → 2`, …; `settings ▶ chain` → next node."
+        "## 4 · Prompts\n- **Prompt Style** (top): what the prompt model is told, `max_words`, `camera`. Applies to all Auto Prompts.\n- **Auto Prompt** (one per transition, sits between its two images): type a few words into `keywords`, press **🔄 Regenerate prompt** – the model looks at both images and writes `prompt`. Edit it freely; Run never rewrites it.\n- Output `prompt` → Director; `settings ▶ chain` → next node."
       ],
       "widgets_values_named": {
-        "text": "## 2 · Prompts (Auto Prompt)\nOne Auto Prompt node per transition between two images.\n- **Infinite Movie · Auto Prompt** (×3: summer→fog, fog→rain, rain→summer): type a few keywords in `prompt`, click **Regenerate** to let the LLM write the transition prompt.\n- `image_from` / `image_to`: the two images this transition connects (wired from the Images area).\n- `settings`: passed through from the Settings node (or the previous Auto Prompt in the chain).\n- Output: `prompt` (STRING) → Director's `prompt 1 → 2` etc."
+        "text": "## 4 · Prompts\n- **Prompt Style** (top): what the prompt model is told, `max_words`, `camera`. Applies to all Auto Prompts.\n- **Auto Prompt** (one per transition, sits between its two images): type a few words into `keywords`, press **🔄 Regenerate prompt** – the model looks at both images and writes `prompt`. Edit it freely; Run never rewrites it.\n- Output `prompt` → Director; `settings ▶ chain` → next node."
       },
-      "color": "#2a2a3a",
-      "bgcolor": "#3a3a4a"
+      "color": "#432",
+      "bgcolor": "#653"
     },
     {
       "id": 62,
       "type": "MarkdownNote",
       "pos": [
         1375,
-        -868
+        -418
       ],
       "size": [
         420,
         270
       ],
       "flags": {},
-      "order": 52,
+      "order": 7,
       "mode": 0,
       "inputs": [],
       "outputs": [],
@@ -2788,27 +1253,27 @@
         }
       },
       "widgets_values": [
-        "## 2 · Settings\nOne node for the whole workflow.\n- **LLM dropdown** (`llm_preset`): local router/llama.cpp, Ollama, LM Studio, OpenAI, Gemini, OpenRouter, custom, off. Only the fields this choice needs are shown (URL/model, API-key variable for cloud).\n- `width` / `height`: 0 = engine default.\n- `output_folder` (**📂 Choose folder**) and `film_name`: where the finished film goes and what it is called.\n- **⚙ all settings**: GPU thresholds, negative prompt and other rarely needed fields.\n- Output `settings ▶ chain` → Prompt Style."
+        "## 2 · Settings\nOne node for the whole workflow.\n- `prompt_model`: local vision model that writes the prompts (Qwen3-VL in `models/text_encoders`); `off` = write them yourself.\n- `aspect` + `long_side`: picture size (both sides rounded to 32; 4:5 + 960 = 768×960).\n- `output_folder` (**📂 Choose folder**) and `film_name`: where the film goes and what it is called.\n- `audio`: sound from the engine (off = faster, silent film).\n- **📦 Check models**: lists missing model files with their size and downloads them.\n- Output `settings ▶ chain` → Prompt Style."
       ],
       "widgets_values_named": {
-        "text": "## 3 · Settings\nCentral settings for the whole workflow – LLM, prompt style, GPU handoff, format.\n- **Infinite Movie · Settings**: set `llm_url`, `model`, `max_words`, `camera`, `audio`, `width`/`height`, `negative`, GPU thresholds.\n- The `settings ▶ chain` output is passed node-to-node (Auto Prompt → Auto Prompt → … → Director → Assemble).\n- Only ONE Settings node is needed; its output fans out to all consumers."
+        "text": "## 2 · Settings\nOne node for the whole workflow.\n- `prompt_model`: local vision model that writes the prompts (Qwen3-VL in `models/text_encoders`); `off` = write them yourself.\n- `aspect` + `long_side`: picture size (both sides rounded to 32; 4:5 + 960 = 768×960).\n- `output_folder` (**📂 Choose folder**) and `film_name`: where the film goes and what it is called.\n- `audio`: sound from the engine (off = faster, silent film).\n- **📦 Check models**: lists missing model files with their size and downloads them.\n- Output `settings ▶ chain` → Prompt Style."
       },
-      "color": "#2a2a3a",
-      "bgcolor": "#3a3a4a"
+      "color": "#432",
+      "bgcolor": "#653"
     },
     {
       "id": 63,
       "type": "MarkdownNote",
       "pos": [
-        3095,
-        -868
+        3127,
+        -418
       ],
       "size": [
         440,
         270
       ],
       "flags": {},
-      "order": 53,
+      "order": 8,
       "mode": 0,
       "inputs": [],
       "outputs": [],
@@ -2821,27 +1286,27 @@
         }
       },
       "widgets_values": [
-        "## 5 · Director\nTurns images + prompts into shots.\n- Sockets: `settings`, `engine` (empty = the one active engine group), `image …`, `prompt …`.\n- `seconds` per shot, `loop` (last image → first), `mode` (segments / one pass), `variants` (2 = render A and B, then choose).\n- Output `shots ▶ Assemble` (top) → Choose / Assemble."
+        "## 5 · Director\nTurns images + prompts into shots.\n- `images`: number of images (adds or mutes Load Image + Auto Prompt, then lays out).\n- `seconds` per shot, `loop` (last image back to the first), `variants` (2 = render A and B, pick in Choose), `seed`.\n- **🔗 AUTO LAYOUT**: tidies all groups.\n- Output `shots ▶ Assemble` → Choose."
       ],
       "widgets_values_named": {
-        "text": "## 4 · Director\nThe core render node – turns images + prompts into a film.\n- **Infinite Movie · Director**: set `seconds` (per-transition length), `loop` (seamless loop), `mode` (segments / one pass), `variants` (1 = single pass, 2 = variants builder).\n- `image 1`–`image 5`: from the Images area.\n- `prompt 1 → 2` …: from the Auto Prompt nodes.\n- `settings`: from the Settings chain.\n- Output: `shots ▶ Assemble` (SHOTS pipe) → Choose."
+        "text": "## 5 · Director\nTurns images + prompts into shots.\n- `images`: number of images (adds or mutes Load Image + Auto Prompt, then lays out).\n- `seconds` per shot, `loop` (last image back to the first), `variants` (2 = render A and B, pick in Choose), `seed`.\n- **🔗 AUTO LAYOUT**: tidies all groups.\n- Output `shots ▶ Assemble` → Choose."
       },
-      "color": "#2a2a3a",
-      "bgcolor": "#3a3a4a"
+      "color": "#432",
+      "bgcolor": "#653"
     },
     {
       "id": 64,
       "type": "MarkdownNote",
       "pos": [
-        3615,
-        -868
+        3679,
+        -418
       ],
       "size": [
         1068,
         270
       ],
       "flags": {},
-      "order": 54,
+      "order": 9,
       "mode": 0,
       "inputs": [],
       "outputs": [],
@@ -2854,27 +1319,27 @@
         }
       },
       "widgets_values": [
-        "## 6 · Choose\nOnly matters with `variants` = 2: shows variant A and B of each shot side by side.\n- The better one is pre-selected (cut / flicker / particles / jerk check); click A or B to override.\n- Status line: waiting / rendering / choose / assemble. **ASSEMBLE** appears when a choice changed.\n- Output `shots` → Assemble."
+        "## 6 · Choose\nCheck the shots before the film is built.\n- Hover plays a shot; click picks it (A/B with `variants` = 2). **✓ KEEP / ✗ REDO** per shot; red *⚠ HARD CUT / SEAM* marks bad joins.\n- **✎ prompt** / **⏱ seconds** change one shot and mark it REDO.\n- Big button: **ASSEMBLE ▶** builds the film, **RERENDER n ↻** renders only the marked shots.\n- Output `shots` → Assemble."
       ],
       "widgets_values_named": {
-        "text": "## 5 · Choose\nVariants builder (Auftrag 61): for each transition, shows variant A and B side by side.\n- **Infinite Movie · Choose**: an algorithm pre-selects the better variant (CUT/FLICKER/PARTICLES + jerk metric); you can override per transition in the frontend.\n- `shots` input: the SHOTS pipe from the Director.\n- `choices` (hidden): written by the frontend, e.g. `'auto,b,auto'`.\n- Output: `shots` (SHOTS, chosen segments) → Assemble; `segments` (STRING, one per line)."
+        "text": "## 6 · Choose\nCheck the shots before the film is built.\n- Hover plays a shot; click picks it (A/B with `variants` = 2). **✓ KEEP / ✗ REDO** per shot; red *⚠ HARD CUT / SEAM* marks bad joins.\n- **✎ prompt** / **⏱ seconds** change one shot and mark it REDO.\n- Big button: **ASSEMBLE ▶** builds the film, **RERENDER n ↻** renders only the marked shots.\n- Output `shots` → Assemble."
       },
-      "color": "#2a2a3a",
-      "bgcolor": "#3a3a4a"
+      "color": "#432",
+      "bgcolor": "#653"
     },
     {
       "id": 65,
       "type": "MarkdownNote",
       "pos": [
-        4953,
-        -868
+        5069,
+        -418
       ],
       "size": [
         440,
         270
       ],
       "flags": {},
-      "order": 55,
+      "order": 10,
       "mode": 0,
       "inputs": [],
       "outputs": [],
@@ -2887,32 +1352,48 @@
         }
       },
       "widgets_values": [
-        "## 7 · Assemble + Film\n- **Infinite Movie · Assemble**: joins the shots, evens out the motion (`retime`), optional crossfade (`strength`), target length (`seconds_out`), RIFE (`interpolate`). Folder and name come from Settings.\n- **Infinite Movie · Film**: plays the finished film, confirms where it was saved, **📂 Open folder**."
+        "## 7 · Assemble + Film\n- **Assemble**: joins the shots. `even_motion` evens out the motion (`strength`, `keep`), `interpolate` RIFE x2, `output_size`. Viewer: Graph · Timeline · Heatmap · Frames · Particles · Sheet. Sound only with `even_motion` off.\n- **Film**: plays the finished film, shows where it was saved, **📂 Open folder**."
       ],
       "widgets_values_named": {
-        "text": "## 6 · Assemble\nJoins the chosen segments into the final film.\n- **Infinite Movie · Assemble**: `strength` (crossfade), `seconds_out` (output length), `retime` (speed-normalise), `loop` (seamless loop), `fps`, `interpolate` (RIFE), `copy_to` (output folder).\n- `shots` input: the SHOTS pipe from Choose (highest priority; overrides `segments`/`save_folder`/`save_name`).\n- `settings`: from the Settings chain.\n- Output: `video` (VIDEO), `video_path` (STRING), `images` (IMAGE)."
+        "text": "## 7 · Assemble + Film\n- **Assemble**: joins the shots. `even_motion` evens out the motion (`strength`, `keep`), `interpolate` RIFE x2, `output_size`. Viewer: Graph · Timeline · Heatmap · Frames · Particles · Sheet. Sound only with `even_motion` off.\n- **Film**: plays the finished film, shows where it was saved, **📂 Open folder**."
       },
-      "color": "#2a2a3a",
-      "bgcolor": "#3a3a4a"
+      "color": "#432",
+      "bgcolor": "#653"
     },
     {
-      "id": 66,
-      "type": "MarkdownNote",
+      "id": 68,
+      "type": "InfiniteMovieFilm",
       "pos": [
-        3155,
-        -2696
+        5351,
+        -78
       ],
       "size": [
-        560,
-        358
+        400,
+        622
       ],
       "flags": {},
-      "order": 56,
+      "order": 39,
       "mode": 0,
-      "inputs": [],
+      "inputs": [
+        {
+          "localized_name": "video_path",
+          "name": "video_path",
+          "shape": 7,
+          "type": "STRING",
+          "link": 2110
+        },
+        {
+          "localized_name": "video",
+          "name": "video",
+          "shape": 7,
+          "type": "VIDEO",
+          "link": null
+        }
+      ],
       "outputs": [],
-      "title": "Help: 1 · Engine: LTX 2.5",
       "properties": {
+        "Node name for S&R": "InfiniteMovieFilm",
+        "im_recent": [],
         "ue_properties": {
           "widget_ue_connectable": {},
           "version": "7.8",
@@ -2920,102 +1401,108 @@
         }
       },
       "widgets_values": [
-        "## 1 · Engine: LTX 2.5\nRenders one shot (start image → end image) per call from the Director. Lightricks LTX 2.5, 22B distilled, int8.\n- **Infinite Movie · Engine Start** (from Director): `start_image`, `end_image`, `prompt`, `negative`, `seed`, `width`, `height`, `length`.\n- **UNETLoader / VAELoader / CLIPLoader**: LTX 2.5 model, video VAE, audio VAE, Gemma-4 text encoder.\n- **LTXVPreprocess** (×2): prepares the start/end images.\n- **LTXVConditioning + LTXVAddGuide** (×2): conditioning with first/last-frame guides.\n- **SamplerCustomAdvanced + LTXVDualCFGGuider**: 8 steps, manual sigmas.\n- **VAEDecodeTiled**: latent → frames (tiled, saves VRAM).\n- **Infinite Movie · Engine Result** (to Director): the rendered frames.\n- Only ONE engine group may be active; mute any other (Ctrl+M)."
+        ""
       ],
       "widgets_values_named": {
-        "text": "## ENGINE: LTX 2.5\nVideo generation engine (Lightricks LTX 2.5, 22B distilled, int8).\n- **Infinite Movie · Engine Start** (from Director): receives `start_image`, `end_image`, `prompt`, `negative`, `seed`, `width`, `height`, `length`.\n- **UNETLoader / VAELoader / CLIPLoader**: load the LTX 2.5 model, video VAE, audio VAE, and Gemma-4 text encoder.\n- **LTXVPreprocess** (×2): prepares start/end images for the model.\n- **LTXVConditioning + LTXVAddGuide** (×2): builds positive/negative conditioning with first/last-frame guides.\n- **SamplerCustomAdvanced + LTXVDualCFGGuider**: runs the diffusion sampling (8 steps, manual sigmas).\n- **VAEDecodeTiled**: decodes the latent to pixels (tiled to save VRAM).\n- **Infinite Movie · Engine Result** (to Director): outputs the rendered frames.\n- Keep ONE engine group active; mute the other (Ctrl+M)."
-      },
-      "color": "#2a3a2a",
-      "bgcolor": "#3a4a3a"
-    },
-    {
-      "id": 68,
-      "type": "InfiniteMovieFilm",
-      "pos": [
-        5183,
-        -528
-      ],
-      "size": [
-        400,
-        592
-      ],
-      "flags": {},
-      "order": 59,
-      "mode": 0,
-      "inputs": [
-        {
-          "name": "video_path",
-          "type": "STRING",
-          "link": 2110
-        },
-        {
-          "name": "video",
-          "type": "VIDEO",
-          "link": null
-        }
-      ],
-      "outputs": [],
-      "title": "Infinite Movie · Film",
-      "properties": {
-        "Node name for S&R": "InfiniteMovieFilm"
-      },
-      "widgets_values": []
+        "fc_film": ""
+      }
     },
     {
       "id": 69,
       "type": "InfiniteMovieStyle",
       "pos": [
         2375,
-        -528
+        -78
       ],
       "size": [
         600,
         330
       ],
       "flags": {},
-      "order": 0,
+      "order": 22,
       "mode": 0,
       "inputs": [
         {
+          "localized_name": "settings",
           "name": "settings",
+          "shape": 7,
           "type": "SETTINGS",
           "link": 64
+        },
+        {
+          "localized_name": "instruction",
+          "name": "instruction",
+          "type": "STRING",
+          "widget": {
+            "name": "instruction"
+          },
+          "link": null
+        },
+        {
+          "localized_name": "max_words",
+          "name": "max_words",
+          "type": "INT",
+          "widget": {
+            "name": "max_words"
+          },
+          "link": null
+        },
+        {
+          "localized_name": "camera",
+          "name": "camera",
+          "type": "COMBO",
+          "widget": {
+            "name": "camera"
+          },
+          "link": null
         }
       ],
       "outputs": [
         {
+          "localized_name": "settings ▶ chain",
           "name": "settings ▶ chain",
           "type": "SETTINGS",
+          "slot_index": 0,
           "links": [
             2111
-          ],
-          "slot_index": 0
+          ]
         }
       ],
       "properties": {
         "Node name for S&R": "InfiniteMovieStyle",
-        "cnr_id": "comfyui-infinite-movie"
+        "cnr_id": "comfyui-infinite-movie",
+        "ue_properties": {
+          "widget_ue_connectable": {},
+          "version": "7.8",
+          "input_ue_unconnectable": {}
+        }
       },
       "widgets_values": [
         "Describe the transition from image 1 to image 2 in ONE sentence, max {words} words.",
         12,
         "none"
       ],
-      "title": "Infinite Movie · Prompt Style"
+      "widgets_values_named": {
+        "instruction": "Describe the transition from image 1 to image 2 in ONE sentence, max {words} words.",
+        "max_words": 12,
+        "camera": "none"
+      },
+      "color": "#232",
+      "bgcolor": "#353"
     },
     {
       "id": 70,
       "type": "LoadImage",
       "pos": [
         1875,
-        751
+        1201
       ],
       "size": [
         283,
         314
       ],
       "flags": {},
-      "order": 2,
+      "order": 11,
       "mode": 0,
       "inputs": [
         {
@@ -3052,7 +1539,7 @@
           "localized_name": "MASK",
           "name": "MASK",
           "type": "MASK",
-          "links": null
+          "links": []
         }
       ],
       "properties": {
@@ -3077,14 +1564,14 @@
       "type": "InfiniteMovieAutoPrompt",
       "pos": [
         2375,
-        1024
+        1474
       ],
       "size": [
         600,
-        314
+        152
       ],
       "flags": {},
-      "order": 35,
+      "order": 34,
       "mode": 0,
       "inputs": [
         {
@@ -3097,19 +1584,20 @@
         {
           "localized_name": "image_from",
           "name": "image_from",
+          "shape": 7,
           "type": "IMAGE",
           "link": 2113
         },
         {
           "localized_name": "image_to",
           "name": "image_to",
+          "shape": 7,
           "type": "IMAGE",
           "link": 2114
         },
         {
           "localized_name": "prompt",
           "name": "prompt",
-          "shape": 7,
           "type": "STRING",
           "widget": {
             "name": "prompt"
@@ -3117,10 +1605,21 @@
           "link": null
         },
         {
+          "localized_name": "keywords",
           "name": "keywords",
           "type": "STRING",
           "widget": {
             "name": "keywords"
+          },
+          "link": null
+        },
+        {
+          "localized_name": "regen",
+          "name": "regen",
+          "shape": 7,
+          "type": "STRING",
+          "widget": {
+            "name": "regen"
           },
           "link": null
         }
@@ -3130,19 +1629,19 @@
           "localized_name": "prompt",
           "name": "prompt",
           "type": "STRING",
+          "slot_index": 0,
           "links": [
             2118
-          ],
-          "slot_index": 0
+          ]
         },
         {
           "localized_name": "settings ▶ chain",
           "name": "settings ▶ chain",
           "type": "SETTINGS",
+          "slot_index": 1,
           "links": [
             2116
-          ],
-          "slot_index": 1
+          ]
         }
       ],
       "properties": {
@@ -3156,63 +1655,30 @@
       },
       "widgets_values": [
         "",
+        "",
         ""
       ],
       "widgets_values_named": {
-        "prompt": "The rain eases off as a soft grey fog drifts in from the forest, obscuring the background while the house remains still. The raindrops stop early. Sound: Fading rain, soft fog drifting."
-      }
-    },
-    {
-      "id": 72,
-      "type": "LTXVAudioVAEDecode",
-      "pos": [
-        4415,
-        -2098
-      ],
-      "size": [
-        280,
-        80
-      ],
-      "flags": {},
-      "order": 0,
-      "mode": 0,
-      "inputs": [
-        {
-          "name": "samples",
-          "type": "LATENT",
-          "link": 2119
-        },
-        {
-          "name": "audio_vae",
-          "type": "VAE",
-          "link": 2120
-        }
-      ],
-      "outputs": [
-        {
-          "name": "Audio",
-          "type": "AUDIO",
-          "links": [
-            2121
-          ]
-        }
-      ],
-      "properties": {},
-      "widgets_values": []
+        "prompt": "",
+        "keywords": "",
+        "regen": ""
+      },
+      "color": "#232",
+      "bgcolor": "#353"
     },
     {
       "id": 73,
       "type": "UNETLoader",
       "pos": [
-        5663,
-        -582
+        5831,
+        -78
       ],
       "size": [
         270,
         82
       ],
       "flags": {},
-      "order": 0,
+      "order": 12,
       "mode": 2,
       "inputs": [
         {
@@ -3245,34 +1711,44 @@
         }
       ],
       "properties": {
+        "Node name for S&R": "UNETLoader",
         "ue_properties": {
           "widget_ue_connectable": {},
-          "input_ue_unconnectable": {}
+          "input_ue_unconnectable": {},
+          "version": "7.8"
         },
-        "Node name for S&R": "UNETLoader"
+        "models": [
+          {
+            "name": "ltx-2.5-22b-distilled-transformer-comfy-int8-convrot.safetensors",
+            "url": "https://huggingface.co/Lightricks/LTX-2.5/resolve/main/diffusion_models/ltx-2.5-22b-distilled-transformer-comfy-int8-convrot.safetensors",
+            "directory": "diffusion_models"
+          }
+        ]
       },
       "widgets_values": [
-        "LTX\\ltx-2.5-22b-distilled-transformer-comfy-int8-convrot.safetensors",
+        "ltx-2.5-22b-distilled-transformer-comfy-int8-convrot.safetensors",
         "default"
       ],
       "widgets_values_named": {
-        "unet_name": "LTX\\ltx-2.5-22b-distilled-transformer-comfy-int8-convrot.safetensors",
+        "unet_name": "ltx-2.5-22b-distilled-transformer-comfy-int8-convrot.safetensors",
         "weight_dtype": "default"
-      }
+      },
+      "color": "#223",
+      "bgcolor": "#335"
     },
     {
       "id": 74,
       "type": "VAELoader",
       "pos": [
-        5663,
-        -402
+        5831,
+        102
       ],
       "size": [
         270,
         58
       ],
       "flags": {},
-      "order": 1,
+      "order": 13,
       "mode": 2,
       "inputs": [
         {
@@ -3296,32 +1772,42 @@
         }
       ],
       "properties": {
+        "Node name for S&R": "VAELoader",
         "ue_properties": {
           "widget_ue_connectable": {},
-          "input_ue_unconnectable": {}
+          "input_ue_unconnectable": {},
+          "version": "7.8"
         },
-        "Node name for S&R": "VAELoader"
+        "models": [
+          {
+            "name": "ltx-2.5-video-vae-bf16.safetensors",
+            "url": "https://huggingface.co/Lightricks/LTX-2.5/resolve/main/vae/ltx-2.5-video-vae-bf16.safetensors",
+            "directory": "vae"
+          }
+        ]
       },
       "widgets_values": [
-        "LTX\\ltx-2.5-video-vae-bf16.safetensors"
+        "ltx-2.5-video-vae-bf16.safetensors"
       ],
       "widgets_values_named": {
-        "vae_name": "LTX\\ltx-2.5-video-vae-bf16.safetensors"
-      }
+        "vae_name": "ltx-2.5-video-vae-bf16.safetensors"
+      },
+      "color": "#223",
+      "bgcolor": "#335"
     },
     {
       "id": 75,
       "type": "CLIPLoader",
       "pos": [
-        5663,
-        -262
+        5831,
+        242
       ],
       "size": [
         270,
         106
       ],
       "flags": {},
-      "order": 2,
+      "order": 14,
       "mode": 2,
       "inputs": [
         {
@@ -3365,11 +1851,19 @@
         }
       ],
       "properties": {
+        "Node name for S&R": "CLIPLoader",
         "ue_properties": {
           "widget_ue_connectable": {},
-          "input_ue_unconnectable": {}
+          "input_ue_unconnectable": {},
+          "version": "7.8"
         },
-        "Node name for S&R": "CLIPLoader"
+        "models": [
+          {
+            "name": "gemma4-12b-with-proj-ltx-2.5-comfy-int8-convrot.safetensors",
+            "url": "https://huggingface.co/Lightricks/LTX-2.5/resolve/main/text_encoders/gemma4-12b-with-proj-ltx-2.5-comfy-int8-convrot.safetensors",
+            "directory": "text_encoders"
+          }
+        ]
       },
       "widgets_values": [
         "gemma4-12b-with-proj-ltx-2.5-comfy-int8-convrot.safetensors",
@@ -3380,21 +1874,23 @@
         "clip_name": "gemma4-12b-with-proj-ltx-2.5-comfy-int8-convrot.safetensors",
         "type": "ltxv",
         "device": "default"
-      }
+      },
+      "color": "#223",
+      "bgcolor": "#335"
     },
     {
       "id": 76,
       "type": "CLIPTextEncode",
       "pos": [
-        6063,
-        -362
+        6231,
+        142
       ],
       "size": [
         400,
         200
       ],
       "flags": {},
-      "order": 4,
+      "order": 23,
       "mode": 2,
       "inputs": [
         {
@@ -3425,32 +1921,35 @@
       ],
       "title": "Look (no objects)",
       "properties": {
+        "Node name for S&R": "CLIPTextEncode",
         "ue_properties": {
           "widget_ue_connectable": {},
-          "input_ue_unconnectable": {}
-        },
-        "Node name for S&R": "CLIPTextEncode"
+          "input_ue_unconnectable": {},
+          "version": "7.8"
+        }
       },
       "widgets_values": [
         "photographic, 4k"
       ],
       "widgets_values_named": {
         "text": "photographic, 4k"
-      }
+      },
+      "color": "#232",
+      "bgcolor": "#353"
     },
     {
       "id": 77,
       "type": "CLIPTextEncode",
       "pos": [
-        6063,
-        -112
+        6231,
+        392
       ],
       "size": [
         400,
         200
       ],
       "flags": {},
-      "order": 5,
+      "order": 24,
       "mode": 2,
       "inputs": [
         {
@@ -3481,32 +1980,35 @@
       ],
       "title": "Negative (unused at cfg 1)",
       "properties": {
+        "Node name for S&R": "CLIPTextEncode",
         "ue_properties": {
           "widget_ue_connectable": {},
-          "input_ue_unconnectable": {}
-        },
-        "Node name for S&R": "CLIPTextEncode"
+          "input_ue_unconnectable": {},
+          "version": "7.8"
+        }
       },
       "widgets_values": [
         ""
       ],
       "widgets_values_named": {
         "text": ""
-      }
+      },
+      "color": "#322",
+      "bgcolor": "#533"
     },
     {
       "id": 78,
       "type": "VHS_LoadVideoPath",
       "pos": [
-        5663,
-        -22
+        5831,
+        482
       ],
       "size": [
         255.8291015625,
-        456.1844645700637
+        306
       ],
       "flags": {},
-      "order": 3,
+      "order": 40,
       "mode": 2,
       "inputs": [
         {
@@ -3627,10 +2129,30 @@
           "links": [
             2126
           ]
+        },
+        {
+          "localized_name": "video_path",
+          "name": "video_path",
+          "type": "STRING",
+          "links": null
         }
       ],
       "properties": {
-        "Node name for S&R": "VHS_LoadVideoPath"
+        "Node name for S&R": "VHS_LoadVideoPath",
+        "ue_properties": {
+          "widget_ue_connectable": {
+            "video": true,
+            "force_rate": true,
+            "custom_width": true,
+            "custom_height": true,
+            "frame_load_cap": true,
+            "skip_first_frames": true,
+            "select_every_nth": true,
+            "format": true
+          },
+          "version": "7.8",
+          "input_ue_unconnectable": {}
+        }
       },
       "widgets_values": {
         "video": "",
@@ -3641,7 +2163,6 @@
         "skip_first_frames": 0,
         "select_every_nth": 1,
         "format": "AnimateDiff",
-        "choose video to upload": "image",
         "videopreview": {
           "hidden": false,
           "paused": false,
@@ -3649,7 +2170,7 @@
         }
       },
       "widgets_values_named": {
-        "video": "57g_wetter_5s.mp4",
+        "video": "",
         "force_rate": 0,
         "custom_width": 0,
         "custom_height": 0,
@@ -3657,21 +2178,10 @@
         "skip_first_frames": 0,
         "select_every_nth": 1,
         "format": "AnimateDiff",
-        "choose video to upload": "image",
         "videopreview": {
           "hidden": false,
           "paused": false,
-          "params": {
-            "filename": "2c2..mp4",
-            "type": "input",
-            "format": "video/mp4",
-            "force_rate": 0,
-            "custom_width": 0,
-            "custom_height": 0,
-            "frame_load_cap": 0,
-            "skip_first_frames": 0,
-            "select_every_nth": 1
-          }
+          "params": {}
         }
       }
     },
@@ -3679,15 +2189,15 @@
       "id": 79,
       "type": "VHS_VideoInfoLoaded",
       "pos": [
-        6063,
-        138
+        6231,
+        642
       ],
       "size": [
         250.4150390625,
         106
       ],
       "flags": {},
-      "order": 7,
+      "order": 42,
       "mode": 2,
       "inputs": [
         {
@@ -3733,11 +2243,12 @@
         }
       ],
       "properties": {
+        "Node name for S&R": "VHS_VideoInfoLoaded",
         "ue_properties": {
           "widget_ue_connectable": {},
-          "input_ue_unconnectable": {}
-        },
-        "Node name for S&R": "VHS_VideoInfoLoaded"
+          "input_ue_unconnectable": {},
+          "version": "7.8"
+        }
       },
       "widgets_values": {}
     },
@@ -3745,15 +2256,15 @@
       "id": 80,
       "type": "LTXVConditioning",
       "pos": [
-        6463,
-        -282
+        6631,
+        222
       ],
       "size": [
         270,
         78
       ],
       "flags": {},
-      "order": 8,
+      "order": 43,
       "mode": 2,
       "inputs": [
         {
@@ -3797,11 +2308,12 @@
         }
       ],
       "properties": {
+        "Node name for S&R": "LTXVConditioning",
         "ue_properties": {
           "widget_ue_connectable": {},
-          "input_ue_unconnectable": {}
-        },
-        "Node name for S&R": "LTXVConditioning"
+          "input_ue_unconnectable": {},
+          "version": "7.8"
+        }
       },
       "widgets_values": [
         25
@@ -3814,15 +2326,15 @@
       "id": 81,
       "type": "UpscaleCropUniversal",
       "pos": [
-        6463,
-        -22
+        6631,
+        482
       ],
       "size": [
         270,
         312
       ],
       "flags": {},
-      "order": 6,
+      "order": 41,
       "mode": 2,
       "inputs": [
         {
@@ -4053,11 +2565,19 @@
       ],
       "title": "Base upscale (video model)",
       "properties": {
+        "Node name for S&R": "UpscaleCropUniversal",
         "ue_properties": {
           "widget_ue_connectable": {},
-          "input_ue_unconnectable": {}
+          "input_ue_unconnectable": {},
+          "version": "7.8"
         },
-        "Node name for S&R": "UpscaleCropUniversal"
+        "models": [
+          {
+            "name": "2xLiveActionV1_SPAN_490000.pth",
+            "url": "https://raw.githubusercontent.com/jcj83429/upscaling/f73a3a02874360ec6ced18f8bdd8e43b5d7bba57/2xLiveActionV1_SPAN/2xLiveActionV1_SPAN_490000.pth",
+            "directory": "upscale_models"
+          }
+        ]
       },
       "widgets_values": [
         "scale_factor",
@@ -4108,15 +2628,15 @@
       "id": 82,
       "type": "InfiniteMovieLTXRefine",
       "pos": [
-        6913,
-        -582
+        7081,
+        -78
       ],
       "size": [
         300.962890625,
         610
       ],
       "flags": {},
-      "order": 9,
+      "order": 44,
       "mode": 2,
       "inputs": [
         {
@@ -4346,11 +2866,12 @@
         }
       ],
       "properties": {
+        "Node name for S&R": "InfiniteMovieLTXRefine",
         "ue_properties": {
           "widget_ue_connectable": {},
-          "input_ue_unconnectable": {}
-        },
-        "Node name for S&R": "InfiniteMovieLTXRefine"
+          "input_ue_unconnectable": {},
+          "version": "7.8"
+        }
       },
       "widgets_values": [
         "refine 1:1",
@@ -4399,48 +2920,62 @@
       "id": 83,
       "type": "InfiniteMovieFilm",
       "pos": [
-        7253.962890625,
-        -582
+        7421.962890625,
+        -78
       ],
       "size": [
         400,
-        592
+        622
       ],
       "flags": {},
-      "order": 59,
+      "order": 45,
       "mode": 2,
       "inputs": [
         {
+          "localized_name": "video_path",
           "name": "video_path",
+          "shape": 7,
           "type": "STRING",
           "link": 2137
         },
         {
+          "localized_name": "video",
           "name": "video",
+          "shape": 7,
           "type": "VIDEO",
           "link": null
         }
       ],
       "outputs": [],
-      "title": "Infinite Movie · Film",
       "properties": {
-        "Node name for S&R": "InfiniteMovieFilm"
+        "Node name for S&R": "InfiniteMovieFilm",
+        "im_recent": [],
+        "ue_properties": {
+          "widget_ue_connectable": {},
+          "version": "7.8",
+          "input_ue_unconnectable": {}
+        }
       },
-      "widgets_values": []
+      "widgets_values": [
+        ""
+      ],
+      "widgets_values_named": {
+        "fc_film": ""
+      }
     },
     {
       "id": 84,
       "type": "MarkdownNote",
       "pos": [
-        5683,
-        -868
+        6606.4814453125,
+        -418
       ],
       "size": [
         440,
         270
       ],
       "flags": {},
-      "order": 55,
+      "order": 15,
       "mode": 0,
       "inputs": [],
       "outputs": [],
@@ -4455,8 +2990,956 @@
       "widgets_values": [
         "## 8 · Upscale (optional)\n- Off by default. **Select the group, Ctrl+M** turns it on.\n- Then **ASSEMBLE** also renders an upscaled film: model upscale (Upscale Crop Universal) + **LTX Refine** 1:1 (prompt `photographic, 4k`), with the film's sound.\n- The second **Film** node shows the upscaled version."
       ],
-      "color": "#2a2a3a",
-      "bgcolor": "#3a3a4a"
+      "widgets_values_named": {
+        "text": "## 8 · Upscale (optional)\n- Off by default. **Select the group, Ctrl+M** turns it on.\n- Then **ASSEMBLE** also renders an upscaled film: model upscale (Upscale Crop Universal) + **LTX Refine** 1:1 (prompt `photographic, 4k`), with the film's sound.\n- The second **Film** node shows the upscaled version."
+      },
+      "color": "#432",
+      "bgcolor": "#653"
+    },
+    {
+      "id": 85,
+      "type": "UNETLoader",
+      "pos": [
+        1375,
+        -1358
+      ],
+      "size": [
+        320,
+        82
+      ],
+      "flags": {},
+      "order": 16,
+      "mode": 0,
+      "inputs": [
+        {
+          "localized_name": "unet_name",
+          "name": "unet_name",
+          "type": "COMBO",
+          "widget": {
+            "name": "unet_name"
+          },
+          "link": null
+        },
+        {
+          "localized_name": "weight_dtype",
+          "name": "weight_dtype",
+          "type": "COMBO",
+          "widget": {
+            "name": "weight_dtype"
+          },
+          "link": null
+        }
+      ],
+      "outputs": [
+        {
+          "localized_name": "MODEL",
+          "name": "MODEL",
+          "type": "MODEL",
+          "links": [
+            2139
+          ]
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "UNETLoader",
+        "models": [
+          {
+            "name": "minimax_h3_fl2va_pruned_int8_convrot.safetensors",
+            "url": "https://huggingface.co/Comfy-Org/MiniMax-H3/resolve/main/diffusion_models/minimax_h3_fl2va_pruned_int8_convrot.safetensors",
+            "directory": "diffusion_models"
+          }
+        ],
+        "ue_properties": {
+          "widget_ue_connectable": {},
+          "version": "7.8",
+          "input_ue_unconnectable": {}
+        }
+      },
+      "widgets_values": [
+        "minimax_h3_fl2va_pruned_int8_convrot.safetensors",
+        "default"
+      ],
+      "widgets_values_named": {
+        "unet_name": "minimax_h3_fl2va_pruned_int8_convrot.safetensors",
+        "weight_dtype": "default"
+      },
+      "color": "#223",
+      "bgcolor": "#335"
+    },
+    {
+      "id": 86,
+      "type": "LoraLoaderModelOnly",
+      "pos": [
+        1375,
+        -1228
+      ],
+      "size": [
+        320,
+        82
+      ],
+      "flags": {},
+      "order": 25,
+      "mode": 0,
+      "inputs": [
+        {
+          "localized_name": "model",
+          "name": "model",
+          "type": "MODEL",
+          "link": 2139
+        },
+        {
+          "localized_name": "lora_name",
+          "name": "lora_name",
+          "type": "COMBO",
+          "widget": {
+            "name": "lora_name"
+          },
+          "link": null
+        },
+        {
+          "localized_name": "strength_model",
+          "name": "strength_model",
+          "type": "FLOAT",
+          "widget": {
+            "name": "strength_model"
+          },
+          "link": null
+        }
+      ],
+      "outputs": [
+        {
+          "localized_name": "MODEL",
+          "name": "MODEL",
+          "type": "MODEL",
+          "links": [
+            2156
+          ]
+        }
+      ],
+      "title": "Turbo LoRA 8 steps",
+      "properties": {
+        "Node name for S&R": "LoraLoaderModelOnly",
+        "models": [
+          {
+            "name": "minimax_h3_fl2v_turbo_8step_v1.1_768p_comfyui_bf16.safetensors",
+            "url": "https://huggingface.co/lightx2v/Minimax-h3-Turbo/resolve/main/minimax_h3_fl2v_turbo_8step_v1.1_768p_comfyui_bf16.safetensors",
+            "directory": "loras"
+          }
+        ],
+        "ue_properties": {
+          "widget_ue_connectable": {},
+          "version": "7.8",
+          "input_ue_unconnectable": {}
+        }
+      },
+      "widgets_values": [
+        "minimax_h3_fl2v_turbo_8step_v1.1_768p_comfyui_bf16.safetensors",
+        1
+      ],
+      "widgets_values_named": {
+        "lora_name": "minimax_h3_fl2v_turbo_8step_v1.1_768p_comfyui_bf16.safetensors",
+        "strength_model": 1
+      },
+      "color": "#223",
+      "bgcolor": "#335"
+    },
+    {
+      "id": 87,
+      "type": "CLIPLoader",
+      "pos": [
+        1375,
+        -1098
+      ],
+      "size": [
+        320,
+        106
+      ],
+      "flags": {},
+      "order": 17,
+      "mode": 0,
+      "inputs": [
+        {
+          "localized_name": "clip_name",
+          "name": "clip_name",
+          "type": "COMBO",
+          "widget": {
+            "name": "clip_name"
+          },
+          "link": null
+        },
+        {
+          "localized_name": "type",
+          "name": "type",
+          "type": "COMBO",
+          "widget": {
+            "name": "type"
+          },
+          "link": null
+        },
+        {
+          "localized_name": "device",
+          "name": "device",
+          "shape": 7,
+          "type": "COMBO",
+          "widget": {
+            "name": "device"
+          },
+          "link": null
+        }
+      ],
+      "outputs": [
+        {
+          "localized_name": "CLIP",
+          "name": "CLIP",
+          "type": "CLIP",
+          "links": [
+            2157
+          ]
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "CLIPLoader",
+        "models": [
+          {
+            "name": "qwen3vl_32b_minimax_h3_nvfp4_awq.safetensors",
+            "url": "https://huggingface.co/Comfy-Org/MiniMax-H3/resolve/main/text_encoders/qwen3vl_32b_minimax_h3_nvfp4_awq.safetensors",
+            "directory": "text_encoders"
+          }
+        ],
+        "ue_properties": {
+          "widget_ue_connectable": {},
+          "version": "7.8",
+          "input_ue_unconnectable": {}
+        }
+      },
+      "widgets_values": [
+        "qwen3vl_32b_minimax_h3_nvfp4_awq.safetensors",
+        "minimax",
+        "default"
+      ],
+      "widgets_values_named": {
+        "clip_name": "qwen3vl_32b_minimax_h3_nvfp4_awq.safetensors",
+        "type": "minimax",
+        "device": "default"
+      },
+      "color": "#223",
+      "bgcolor": "#335"
+    },
+    {
+      "id": 88,
+      "type": "VAELoader",
+      "pos": [
+        1375,
+        -948
+      ],
+      "size": [
+        320,
+        58
+      ],
+      "flags": {},
+      "order": 18,
+      "mode": 0,
+      "inputs": [
+        {
+          "localized_name": "vae_name",
+          "name": "vae_name",
+          "type": "COMBO",
+          "widget": {
+            "name": "vae_name"
+          },
+          "link": null
+        }
+      ],
+      "outputs": [
+        {
+          "localized_name": "VAE",
+          "name": "VAE",
+          "type": "VAE",
+          "links": [
+            2158,
+            2159
+          ]
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "VAELoader",
+        "models": [
+          {
+            "name": "minimax_h3_video_vae_int8_convrot.safetensors",
+            "url": "https://huggingface.co/Comfy-Org/MiniMax-H3/resolve/main/vae/minimax_h3_video_vae_int8_convrot.safetensors",
+            "directory": "vae"
+          }
+        ],
+        "ue_properties": {
+          "widget_ue_connectable": {},
+          "version": "7.8",
+          "input_ue_unconnectable": {}
+        }
+      },
+      "widgets_values": [
+        "minimax_h3_video_vae_int8_convrot.safetensors"
+      ],
+      "widgets_values_named": {
+        "vae_name": "minimax_h3_video_vae_int8_convrot.safetensors"
+      },
+      "color": "#223",
+      "bgcolor": "#335"
+    },
+    {
+      "id": 89,
+      "type": "VAELoader",
+      "pos": [
+        1375,
+        -848
+      ],
+      "size": [
+        320,
+        58
+      ],
+      "flags": {},
+      "order": 19,
+      "mode": 0,
+      "inputs": [
+        {
+          "localized_name": "vae_name",
+          "name": "vae_name",
+          "type": "COMBO",
+          "widget": {
+            "name": "vae_name"
+          },
+          "link": null
+        }
+      ],
+      "outputs": [
+        {
+          "localized_name": "VAE",
+          "name": "VAE",
+          "type": "VAE",
+          "links": [
+            2140
+          ]
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "VAELoader",
+        "models": [
+          {
+            "name": "minimax_h3_audio_vae_fp32.safetensors",
+            "url": "https://huggingface.co/Comfy-Org/MiniMax-H3/resolve/main/vae/minimax_h3_audio_vae_fp32.safetensors",
+            "directory": "vae"
+          }
+        ],
+        "ue_properties": {
+          "widget_ue_connectable": {},
+          "version": "7.8",
+          "input_ue_unconnectable": {}
+        }
+      },
+      "widgets_values": [
+        "minimax_h3_audio_vae_fp32.safetensors"
+      ],
+      "widgets_values_named": {
+        "vae_name": "minimax_h3_audio_vae_fp32.safetensors"
+      },
+      "color": "#223",
+      "bgcolor": "#335"
+    },
+    {
+      "id": 90,
+      "type": "InfiniteMovieEngineIn",
+      "pos": [
+        1375,
+        -738
+      ],
+      "size": [
+        323.167578125,
+        166
+      ],
+      "flags": {},
+      "order": 20,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "localized_name": "start_image",
+          "name": "start_image",
+          "type": "IMAGE",
+          "links": [
+            2145
+          ]
+        },
+        {
+          "localized_name": "end_image",
+          "name": "end_image",
+          "type": "IMAGE",
+          "links": [
+            2146
+          ]
+        },
+        {
+          "localized_name": "prompt",
+          "name": "prompt",
+          "type": "STRING",
+          "links": [
+            2141
+          ]
+        },
+        {
+          "localized_name": "seed",
+          "name": "seed",
+          "type": "INT",
+          "links": [
+            2153
+          ]
+        },
+        {
+          "localized_name": "width",
+          "name": "width",
+          "type": "INT",
+          "links": [
+            2142
+          ]
+        },
+        {
+          "localized_name": "height",
+          "name": "height",
+          "type": "INT",
+          "links": [
+            2143
+          ]
+        },
+        {
+          "localized_name": "length",
+          "name": "length",
+          "type": "INT",
+          "links": [
+            2144
+          ]
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "InfiniteMovieEngineIn",
+        "ue_properties": {
+          "widget_ue_connectable": {},
+          "version": "7.8",
+          "input_ue_unconnectable": {}
+        }
+      },
+      "color": "#233",
+      "bgcolor": "#355"
+    },
+    {
+      "id": 91,
+      "type": "MiniMaxH3ImageToVideo",
+      "pos": [
+        1755,
+        -1358
+      ],
+      "size": [
+        330,
+        220
+      ],
+      "flags": {},
+      "order": 26,
+      "mode": 0,
+      "inputs": [
+        {
+          "localized_name": "clip",
+          "name": "clip",
+          "type": "CLIP",
+          "link": 2157
+        },
+        {
+          "localized_name": "vae",
+          "name": "vae",
+          "type": "VAE",
+          "link": 2158
+        },
+        {
+          "localized_name": "first_frame",
+          "name": "first_frame",
+          "shape": 7,
+          "type": "IMAGE",
+          "link": 2145
+        },
+        {
+          "localized_name": "last_frame",
+          "name": "last_frame",
+          "shape": 7,
+          "type": "IMAGE",
+          "link": 2146
+        },
+        {
+          "localized_name": "prompt",
+          "name": "prompt",
+          "type": "STRING",
+          "widget": {
+            "name": "prompt"
+          },
+          "link": 2141
+        },
+        {
+          "localized_name": "width",
+          "name": "width",
+          "type": "INT",
+          "widget": {
+            "name": "width"
+          },
+          "link": 2142
+        },
+        {
+          "localized_name": "height",
+          "name": "height",
+          "type": "INT",
+          "widget": {
+            "name": "height"
+          },
+          "link": 2143
+        },
+        {
+          "localized_name": "length",
+          "name": "length",
+          "type": "INT",
+          "widget": {
+            "name": "length"
+          },
+          "link": 2144
+        }
+      ],
+      "outputs": [
+        {
+          "localized_name": "positive",
+          "name": "positive",
+          "type": "CONDITIONING",
+          "links": [
+            2149,
+            2150
+          ]
+        },
+        {
+          "localized_name": "LATENT",
+          "name": "LATENT",
+          "type": "LATENT",
+          "links": [
+            2152
+          ]
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "MiniMaxH3ImageToVideo",
+        "ue_properties": {
+          "widget_ue_connectable": {
+            "prompt": true,
+            "width": true,
+            "height": true,
+            "length": true
+          },
+          "version": "7.8",
+          "input_ue_unconnectable": {}
+        }
+      },
+      "widgets_values": [
+        "",
+        768,
+        960,
+        121
+      ],
+      "widgets_values_named": {
+        "prompt": "",
+        "width": 768,
+        "height": 960,
+        "length": 121
+      },
+      "color": "#232",
+      "bgcolor": "#353"
+    },
+    {
+      "id": 92,
+      "type": "VAEDecode",
+      "pos": [
+        2515,
+        -1358
+      ],
+      "size": [
+        230,
+        46
+      ],
+      "flags": {},
+      "order": 32,
+      "mode": 0,
+      "inputs": [
+        {
+          "localized_name": "samples",
+          "name": "samples",
+          "type": "LATENT",
+          "link": 2154
+        },
+        {
+          "localized_name": "vae",
+          "name": "vae",
+          "type": "VAE",
+          "link": 2159
+        }
+      ],
+      "outputs": [
+        {
+          "localized_name": "IMAGE",
+          "name": "IMAGE",
+          "type": "IMAGE",
+          "links": [
+            2147
+          ]
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "VAEDecode",
+        "ue_properties": {
+          "widget_ue_connectable": {},
+          "version": "7.8",
+          "input_ue_unconnectable": {}
+        }
+      }
+    },
+    {
+      "id": 93,
+      "type": "VAEDecodeAudio",
+      "pos": [
+        2515,
+        -1238
+      ],
+      "size": [
+        230,
+        46
+      ],
+      "flags": {},
+      "order": 33,
+      "mode": 0,
+      "inputs": [
+        {
+          "localized_name": "samples",
+          "name": "samples",
+          "type": "LATENT",
+          "link": 2155
+        },
+        {
+          "localized_name": "vae",
+          "name": "vae",
+          "type": "VAE",
+          "link": 2140
+        }
+      ],
+      "outputs": [
+        {
+          "localized_name": "AUDIO",
+          "name": "AUDIO",
+          "type": "AUDIO",
+          "links": [
+            2148
+          ]
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "VAEDecodeAudio",
+        "ue_properties": {
+          "widget_ue_connectable": {},
+          "version": "7.8",
+          "input_ue_unconnectable": {}
+        }
+      }
+    },
+    {
+      "id": 94,
+      "type": "InfiniteMovieEngineOut",
+      "pos": [
+        2895,
+        -1358
+      ],
+      "size": [
+        320,
+        122
+      ],
+      "flags": {},
+      "order": 35,
+      "mode": 0,
+      "inputs": [
+        {
+          "localized_name": "images",
+          "name": "images",
+          "shape": 7,
+          "type": "IMAGE",
+          "link": 2147
+        },
+        {
+          "localized_name": "video",
+          "name": "video",
+          "shape": 7,
+          "type": "VIDEO",
+          "link": null
+        },
+        {
+          "localized_name": "audio",
+          "name": "audio",
+          "shape": 7,
+          "type": "AUDIO",
+          "link": 2148
+        },
+        {
+          "localized_name": "fps",
+          "name": "fps",
+          "type": "FLOAT",
+          "widget": {
+            "name": "fps"
+          },
+          "link": null
+        },
+        {
+          "localized_name": "length_grid",
+          "name": "length_grid",
+          "type": "INT",
+          "widget": {
+            "name": "length_grid"
+          },
+          "link": null
+        }
+      ],
+      "outputs": [
+        {
+          "localized_name": "engine",
+          "name": "engine",
+          "type": "STRING",
+          "links": []
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "InfiniteMovieEngineOut",
+        "ue_properties": {
+          "widget_ue_connectable": {},
+          "version": "7.8",
+          "input_ue_unconnectable": {}
+        }
+      },
+      "widgets_values": [
+        24,
+        17
+      ],
+      "widgets_values_named": {
+        "fps": 24,
+        "length_grid": 17
+      },
+      "color": "#233",
+      "bgcolor": "#355"
+    },
+    {
+      "id": 95,
+      "type": "MarkdownNote",
+      "pos": [
+        2015,
+        -1808
+      ],
+      "size": [
+        560,
+        380
+      ],
+      "flags": {},
+      "order": 21,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [],
+      "title": "Help: 1 · Engine: MiniMax H3",
+      "properties": {
+        "Node name for S&R": "MarkdownNote",
+        "ue_properties": {
+          "widget_ue_connectable": {},
+          "version": "7.8",
+          "input_ue_unconnectable": {}
+        }
+      },
+      "widgets_values": [
+        "## 1 · Engine: MiniMax H3\nRenders one shot (start image → end image) per call from the Director. MiniMax H3 first/last-frame, int8, **8-step turbo LoRA v1.1** (768p), video + sound.\n- **Infinite Movie · Engine Start** (from Director): `start_image`, `end_image`, `prompt`, `seed`, `width`, `height`, `length`.\n- **UNETLoader + Turbo LoRA 8 steps**: H3 model + LoRA (strength 1). Without the LoRA: bypass it, 20–25 steps.\n- **CLIPLoader** (type `minimax`): Qwen3-VL 32B text encoder. **VAELoader** ×2: video + audio VAE.\n- **MiniMax H3 Image To Video**: first/last frame, prompt, size and length from Engine Start (last frame optional).\n- **KSampler**: 8 steps, cfg 1, res_multistep, simple; seed from Engine Start. Negative = empty (ConditioningZeroOut), ignored at cfg 1.\n- **Infinite Movie · Engine Result** (to Director): frames + sound, 24 fps, `length_grid` 17 (H3 snaps to 17k+5 frames).\n- Sound is only kept when Settings › `audio` is on.\n- Other engines: `Infinite Movie - Engine LTX 2.5` / `Infinite Movie - Engine Wan 2.2`. Only ONE engine group may be active; mute the other (select group, Ctrl+M)."
+      ],
+      "widgets_values_named": {
+        "text": "## 1 · Engine: MiniMax H3\nRenders one shot (start image → end image) per call from the Director. MiniMax H3 first/last-frame, int8, **8-step turbo LoRA v1.1** (768p), video + sound.\n- **Infinite Movie · Engine Start** (from Director): `start_image`, `end_image`, `prompt`, `seed`, `width`, `height`, `length`.\n- **UNETLoader + Turbo LoRA 8 steps**: H3 model + LoRA (strength 1). Without the LoRA: bypass it, 20–25 steps.\n- **CLIPLoader** (type `minimax`): Qwen3-VL 32B text encoder. **VAELoader** ×2: video + audio VAE.\n- **MiniMax H3 Image To Video**: first/last frame, prompt, size and length from Engine Start (last frame optional).\n- **KSampler**: 8 steps, cfg 1, res_multistep, simple; seed from Engine Start. Negative = empty (ConditioningZeroOut), ignored at cfg 1.\n- **Infinite Movie · Engine Result** (to Director): frames + sound, 24 fps, `length_grid` 17 (H3 snaps to 17k+5 frames).\n- Sound is only kept when Settings › `audio` is on.\n- Other engines: `Infinite Movie - Engine LTX 2.5` / `Infinite Movie - Engine Wan 2.2`. Only ONE engine group may be active; mute the other (select group, Ctrl+M)."
+      },
+      "color": "#432",
+      "bgcolor": "#653"
+    },
+    {
+      "id": 96,
+      "type": "ConditioningZeroOut",
+      "pos": [
+        2135,
+        -1358
+      ],
+      "size": [
+        204.134765625,
+        26
+      ],
+      "flags": {},
+      "order": 28,
+      "mode": 0,
+      "inputs": [
+        {
+          "localized_name": "conditioning",
+          "name": "conditioning",
+          "type": "CONDITIONING",
+          "link": 2149
+        }
+      ],
+      "outputs": [
+        {
+          "localized_name": "CONDITIONING",
+          "name": "CONDITIONING",
+          "type": "CONDITIONING",
+          "links": [
+            2151
+          ]
+        }
+      ],
+      "title": "Negative (empty, cfg 1)",
+      "properties": {
+        "Node name for S&R": "ConditioningZeroOut",
+        "ue_properties": {
+          "widget_ue_connectable": {},
+          "version": "7.8",
+          "input_ue_unconnectable": {}
+        }
+      },
+      "color": "#322",
+      "bgcolor": "#533"
+    },
+    {
+      "id": 97,
+      "type": "KSampler",
+      "pos": [
+        2135,
+        -1238
+      ],
+      "size": [
+        270,
+        262
+      ],
+      "flags": {},
+      "order": 30,
+      "mode": 0,
+      "inputs": [
+        {
+          "localized_name": "model",
+          "name": "model",
+          "type": "MODEL",
+          "link": 2156
+        },
+        {
+          "localized_name": "positive",
+          "name": "positive",
+          "type": "CONDITIONING",
+          "link": 2150
+        },
+        {
+          "localized_name": "negative",
+          "name": "negative",
+          "type": "CONDITIONING",
+          "link": 2151
+        },
+        {
+          "localized_name": "latent_image",
+          "name": "latent_image",
+          "type": "LATENT",
+          "link": 2152
+        },
+        {
+          "localized_name": "seed",
+          "name": "seed",
+          "type": "INT",
+          "widget": {
+            "name": "seed"
+          },
+          "link": 2153
+        },
+        {
+          "localized_name": "steps",
+          "name": "steps",
+          "type": "INT",
+          "widget": {
+            "name": "steps"
+          },
+          "link": null
+        },
+        {
+          "localized_name": "cfg",
+          "name": "cfg",
+          "type": "FLOAT",
+          "widget": {
+            "name": "cfg"
+          },
+          "link": null
+        },
+        {
+          "localized_name": "sampler_name",
+          "name": "sampler_name",
+          "type": "COMBO",
+          "widget": {
+            "name": "sampler_name"
+          },
+          "link": null
+        },
+        {
+          "localized_name": "scheduler",
+          "name": "scheduler",
+          "type": "COMBO",
+          "widget": {
+            "name": "scheduler"
+          },
+          "link": null
+        },
+        {
+          "localized_name": "denoise",
+          "name": "denoise",
+          "type": "FLOAT",
+          "widget": {
+            "name": "denoise"
+          },
+          "link": null
+        }
+      ],
+      "outputs": [
+        {
+          "localized_name": "LATENT",
+          "name": "LATENT",
+          "type": "LATENT",
+          "links": [
+            2154,
+            2155
+          ]
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "KSampler",
+        "ue_properties": {
+          "widget_ue_connectable": {
+            "seed": true
+          },
+          "version": "7.8",
+          "input_ue_unconnectable": {}
+        }
+      },
+      "widgets_values": [
+        0,
+        "fixed",
+        8,
+        1,
+        "res_multistep",
+        "simple",
+        1
+      ],
+      "widgets_values_named": {
+        "seed": 0,
+        "control_after_generate": "fixed",
+        "steps": 8,
+        "cfg": 1,
+        "sampler_name": "res_multistep",
+        "scheduler": "simple",
+        "denoise": 1
+      }
     }
   ],
   "links": [
@@ -4493,286 +3976,6 @@
       "IMAGE"
     ],
     [
-      1068,
-      16,
-      0,
-      17,
-      0,
-      "IMAGE"
-    ],
-    [
-      1069,
-      16,
-      1,
-      18,
-      0,
-      "IMAGE"
-    ],
-    [
-      1070,
-      16,
-      4,
-      19,
-      0,
-      "INT"
-    ],
-    [
-      1071,
-      16,
-      5,
-      19,
-      1,
-      "INT"
-    ],
-    [
-      1072,
-      16,
-      6,
-      19,
-      2,
-      "INT"
-    ],
-    [
-      1075,
-      16,
-      3,
-      21,
-      0,
-      "INT"
-    ],
-    [
-      1080,
-      22,
-      0,
-      24,
-      0,
-      "CONDITIONING"
-    ],
-    [
-      1081,
-      23,
-      0,
-      24,
-      1,
-      "CONDITIONING"
-    ],
-    [
-      1082,
-      24,
-      0,
-      25,
-      0,
-      "CONDITIONING"
-    ],
-    [
-      1083,
-      24,
-      1,
-      25,
-      1,
-      "CONDITIONING"
-    ],
-    [
-      1084,
-      12,
-      0,
-      25,
-      2,
-      "VAE"
-    ],
-    [
-      1085,
-      19,
-      0,
-      25,
-      3,
-      "LATENT"
-    ],
-    [
-      1086,
-      17,
-      0,
-      25,
-      4,
-      "IMAGE"
-    ],
-    [
-      1087,
-      25,
-      0,
-      26,
-      0,
-      "CONDITIONING"
-    ],
-    [
-      1088,
-      25,
-      1,
-      26,
-      1,
-      "CONDITIONING"
-    ],
-    [
-      1089,
-      12,
-      0,
-      26,
-      2,
-      "VAE"
-    ],
-    [
-      1090,
-      25,
-      2,
-      26,
-      3,
-      "LATENT"
-    ],
-    [
-      1091,
-      18,
-      0,
-      26,
-      4,
-      "IMAGE"
-    ],
-    [
-      1092,
-      26,
-      2,
-      27,
-      0,
-      "LATENT"
-    ],
-    [
-      1093,
-      20,
-      0,
-      27,
-      1,
-      "LATENT"
-    ],
-    [
-      1094,
-      10,
-      0,
-      28,
-      0,
-      "MODEL"
-    ],
-    [
-      1095,
-      26,
-      0,
-      28,
-      1,
-      "CONDITIONING"
-    ],
-    [
-      1096,
-      26,
-      1,
-      28,
-      2,
-      "CONDITIONING"
-    ],
-    [
-      1097,
-      21,
-      0,
-      29,
-      0,
-      "NOISE"
-    ],
-    [
-      1098,
-      28,
-      0,
-      29,
-      1,
-      "GUIDER"
-    ],
-    [
-      1099,
-      11,
-      0,
-      29,
-      2,
-      "SAMPLER"
-    ],
-    [
-      1100,
-      13,
-      0,
-      29,
-      3,
-      "SIGMAS"
-    ],
-    [
-      1101,
-      27,
-      0,
-      29,
-      4,
-      "LATENT"
-    ],
-    [
-      1102,
-      29,
-      1,
-      30,
-      0,
-      "LATENT"
-    ],
-    [
-      1103,
-      26,
-      0,
-      31,
-      0,
-      "CONDITIONING"
-    ],
-    [
-      1104,
-      26,
-      1,
-      31,
-      1,
-      "CONDITIONING"
-    ],
-    [
-      1105,
-      30,
-      0,
-      31,
-      2,
-      "LATENT"
-    ],
-    [
-      1106,
-      31,
-      2,
-      32,
-      0,
-      "LATENT"
-    ],
-    [
-      1107,
-      12,
-      0,
-      32,
-      1,
-      "VAE"
-    ],
-    [
-      1108,
-      32,
-      0,
-      33,
-      0,
-      "IMAGE"
-    ],
-    [
       64,
       9,
       0,
@@ -4787,54 +3990,6 @@
       6,
       0,
       "SETTINGS"
-    ],
-    [
-      68,
-      4,
-      1,
-      8,
-      3,
-      "SETTINGS"
-    ],
-    [
-      1073,
-      16,
-      6,
-      20,
-      1,
-      "INT"
-    ],
-    [
-      1074,
-      14,
-      0,
-      20,
-      0,
-      "VAE"
-    ],
-    [
-      1076,
-      16,
-      2,
-      22,
-      1,
-      "STRING"
-    ],
-    [
-      1077,
-      15,
-      0,
-      22,
-      0,
-      "CLIP"
-    ],
-    [
-      1079,
-      15,
-      0,
-      23,
-      0,
-      "CLIP"
     ],
     [
       2101,
@@ -4853,66 +4008,10 @@
       "SETTINGS"
     ],
     [
-      1,
-      1,
-      0,
-      4,
-      2,
-      "IMAGE"
-    ],
-    [
-      2,
-      2,
-      0,
-      4,
-      3,
-      "IMAGE"
-    ],
-    [
-      3,
-      3,
-      0,
-      4,
-      4,
-      "IMAGE"
-    ],
-    [
-      60,
-      5,
-      0,
-      4,
-      6,
-      "STRING"
-    ],
-    [
-      63,
-      6,
-      0,
-      4,
-      7,
-      "STRING"
-    ],
-    [
-      2105,
-      52,
-      0,
-      4,
-      8,
-      "STRING"
-    ],
-    [
       2108,
       4,
       0,
       53,
-      0,
-      "SHOTS"
-    ],
-    [
-      2109,
-      53,
-      0,
-      8,
       0,
       "SHOTS"
     ],
@@ -4963,54 +4062,6 @@
       71,
       0,
       "SETTINGS"
-    ],
-    [
-      2116,
-      71,
-      1,
-      4,
-      0,
-      "SETTINGS"
-    ],
-    [
-      2117,
-      70,
-      0,
-      4,
-      5,
-      "IMAGE"
-    ],
-    [
-      2118,
-      71,
-      0,
-      4,
-      9,
-      "STRING"
-    ],
-    [
-      2119,
-      30,
-      1,
-      72,
-      0,
-      "LATENT"
-    ],
-    [
-      2120,
-      14,
-      0,
-      72,
-      1,
-      "VAE"
-    ],
-    [
-      2121,
-      72,
-      0,
-      33,
-      2,
-      "AUDIO"
     ],
     [
       2122,
@@ -5147,15 +4198,283 @@
       82,
       24,
       "STRING"
+    ],
+    [
+      2139,
+      85,
+      0,
+      86,
+      0,
+      "MODEL"
+    ],
+    [
+      2140,
+      89,
+      0,
+      93,
+      1,
+      "VAE"
+    ],
+    [
+      2141,
+      90,
+      2,
+      91,
+      4,
+      "STRING"
+    ],
+    [
+      2142,
+      90,
+      4,
+      91,
+      5,
+      "INT"
+    ],
+    [
+      2143,
+      90,
+      5,
+      91,
+      6,
+      "INT"
+    ],
+    [
+      2144,
+      90,
+      6,
+      91,
+      7,
+      "INT"
+    ],
+    [
+      2145,
+      90,
+      0,
+      91,
+      2,
+      "IMAGE"
+    ],
+    [
+      2146,
+      90,
+      1,
+      91,
+      3,
+      "IMAGE"
+    ],
+    [
+      2147,
+      92,
+      0,
+      94,
+      0,
+      "IMAGE"
+    ],
+    [
+      2148,
+      93,
+      0,
+      94,
+      2,
+      "AUDIO"
+    ],
+    [
+      2149,
+      91,
+      0,
+      96,
+      0,
+      "CONDITIONING"
+    ],
+    [
+      2150,
+      91,
+      0,
+      97,
+      1,
+      "CONDITIONING"
+    ],
+    [
+      2151,
+      96,
+      0,
+      97,
+      2,
+      "CONDITIONING"
+    ],
+    [
+      2152,
+      91,
+      1,
+      97,
+      3,
+      "LATENT"
+    ],
+    [
+      2153,
+      90,
+      3,
+      97,
+      4,
+      "INT"
+    ],
+    [
+      2154,
+      97,
+      0,
+      92,
+      0,
+      "LATENT"
+    ],
+    [
+      2155,
+      97,
+      0,
+      93,
+      0,
+      "LATENT"
+    ],
+    [
+      2156,
+      86,
+      0,
+      97,
+      0,
+      "MODEL"
+    ],
+    [
+      2157,
+      87,
+      0,
+      91,
+      0,
+      "CLIP"
+    ],
+    [
+      2158,
+      88,
+      0,
+      91,
+      1,
+      "VAE"
+    ],
+    [
+      2159,
+      88,
+      0,
+      92,
+      1,
+      "VAE"
+    ],
+    [
+      2116,
+      71,
+      1,
+      4,
+      0,
+      "SETTINGS"
+    ],
+    [
+      1,
+      1,
+      0,
+      4,
+      2,
+      "IMAGE"
+    ],
+    [
+      2,
+      2,
+      0,
+      4,
+      3,
+      "IMAGE"
+    ],
+    [
+      3,
+      3,
+      0,
+      4,
+      4,
+      "IMAGE"
+    ],
+    [
+      2117,
+      70,
+      0,
+      4,
+      5,
+      "IMAGE"
+    ],
+    [
+      60,
+      5,
+      0,
+      4,
+      7,
+      "STRING"
+    ],
+    [
+      63,
+      6,
+      0,
+      4,
+      8,
+      "STRING"
+    ],
+    [
+      2105,
+      52,
+      0,
+      4,
+      9,
+      "STRING"
+    ],
+    [
+      2118,
+      71,
+      0,
+      4,
+      16,
+      "STRING"
+    ],
+    [
+      2109,
+      53,
+      0,
+      8,
+      0,
+      "SHOTS"
+    ],
+    [
+      68,
+      4,
+      1,
+      8,
+      3,
+      "SETTINGS"
     ]
   ],
   "groups": [
+    {
+      "id": 62,
+      "title": "1 · Engine: MiniMax H3",
+      "bounding": [
+        1355,
+        -1902,
+        1880,
+        1350
+      ],
+      "color": "#5a4a8a",
+      "flags": {}
+    },
     {
       "id": 60,
       "title": "0 · README",
       "bounding": [
         -325,
-        -962,
+        -512,
         1640,
         1054
       ],
@@ -5163,23 +4482,11 @@
       "flags": {}
     },
     {
-      "id": 25,
-      "title": "1 · Engine: LTX 2.5",
-      "bounding": [
-        1355,
-        -2790,
-        4160,
-        1788
-      ],
-      "color": "#3f7850",
-      "flags": {}
-    },
-    {
       "id": 54,
       "title": "3 · Images",
       "bounding": [
         1855,
-        -962,
+        -512,
         460,
         2158
       ],
@@ -5191,7 +4498,7 @@
       "title": "4 · Prompts",
       "bounding": [
         2355,
-        -962,
+        -512,
         680,
         2158
       ],
@@ -5203,7 +4510,7 @@
       "title": "2 · Settings",
       "bounding": [
         1355,
-        -962,
+        -512,
         460,
         2158
       ],
@@ -5215,8 +4522,8 @@
       "title": "5 · Director",
       "bounding": [
         3075,
-        -962,
-        480,
+        -512,
+        544,
         2158
       ],
       "color": "#6a4a8a",
@@ -5226,8 +4533,8 @@
       "id": 58,
       "title": "6 · Choose",
       "bounding": [
-        3595,
-        -962,
+        3659,
+        -512,
         1108,
         2158
       ],
@@ -5238,9 +4545,9 @@
       "id": 59,
       "title": "7 · Assemble + Film",
       "bounding": [
-        4743,
-        -962,
-        860,
+        4807,
+        -512,
+        964,
         2158
       ],
       "color": "#8a3a5a",
@@ -5250,13 +4557,12 @@
       "id": 61,
       "title": "8 · Upscale (optional – Ctrl+M to turn on)",
       "bounding": [
-        5643,
-        -962,
+        5811,
+        -512,
         2030.962890625,
         2158
       ],
       "color": "#8a3a5a",
-      "font_size": 24,
       "flags": {}
     }
   ],

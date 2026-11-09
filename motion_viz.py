@@ -99,12 +99,18 @@ def _even_idx(idx: np.ndarray, n: int) -> np.ndarray:
 # 1. timeline_heatmap
 # ---------------------------------------------------------------------------
 
-def timeline_heatmap(curves: list, picks: list, labels: list = None, width: int = 512) -> np.ndarray:
+def timeline_heatmap(curves: list, picks: list, labels: list = None, width: int = 512,
+                     height: int = None) -> np.ndarray:
     """One block per shot: label line (16 px) + band A (16 px, change per source frame
     through the LUT) + 2 px + band B (8 px, frame status) + 10 px. Title 18 px on top,
-    status legend 18 px + colour legend 26 px below. Height = 18 + shots*52 + 18 + 26."""
+    status legend 18 px + colour legend 26 px below. Height = 18 + shots*52 + 18 + 26.
+    height (optional, 2026-11-09 viewer 4:5): the bands grow so the picture fills this height
+    (band A 2/3, band B 1/3 of the extra space per shot); never smaller than the minimum."""
     n_shots = len(curves)
-    height = 18 + n_shots * 52 + 18 + 26
+    min_h = 18 + n_shots * 52 + 18 + 26
+    extra = max(0, (int(height) - min_h) // max(n_shots, 1)) if height else 0
+    a_h, b_h = 16 + extra * 2 // 3, 8 + extra - extra * 2 // 3
+    height = max(min_h, int(height or 0))
     img = np.full((height, width, 3), BG, dtype=np.uint8)
     band_w = width - 2 * MARGIN  # 496
     texts: list[tuple[int, int, str]] = [(MARGIN, 3,
@@ -126,15 +132,15 @@ def timeline_heatmap(curves: list, picks: list, labels: list = None, width: int 
             dm = d.max()
             v = (d / dm) ** 0.6 if dm > 0 else np.zeros_like(d)
             a_idx = _band_pixels(v, band_w)
-            img[y:y + 16, MARGIN:MARGIN + band_w] = LUT[_lut_idx(v[a_idx])]
+            img[y:y + a_h, MARGIN:MARGIN + band_w] = LUT[_lut_idx(v[a_idx])]
         else:
-            img[y:y + 16, MARGIN:MARGIN + band_w] = LUT[0]
-        y += 16 + 2
+            img[y:y + a_h, MARGIN:MARGIN + band_w] = LUT[0]
+        y += a_h + 2
         # band B (8 px): status per source frame (0 dropped / 1 used / >=2 duplicate)
         cnt = np.bincount(pick, minlength=n)
         status = np.where(cnt >= 2, 2, np.where(cnt == 1, 1, 0))
-        img[y:y + 8, MARGIN:MARGIN + band_w] = _STATUS[status[_band_pixels(cnt, band_w)]]
-        y += 8 + 10
+        img[y:y + b_h, MARGIN:MARGIN + band_w] = _STATUS[status[_band_pixels(cnt, band_w)]]
+        y += b_h + 10
     # status legend (18 px): 10×10 squares at y+4, 4 px to the text, 16 px between entries
     x = MARGIN
     for color, name in ((DROP, "dropped"), (USED, "used"), (DUP, "duplicate")):

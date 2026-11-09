@@ -639,6 +639,127 @@ window.__im_countCrossings = countCrossings;
 // 57c: Ein Knopf statt zwei – "🔗 AUTO LAYOUT" (Nutzer 2026-11-02).
 // Klick = (a) Prompt-Kette prüfen, (b) shots→Assemble verbinden, (c) Settings verbinden, (d) Layout.
 // Per Name gesucht (nicht Flag), damit er nach configure/Reload/Kopie nur EINMAL entsteht.
+// 92 (Nutzer 2026-11-09): Bildanzahl am Director. Mehr = gemutete Bilder (vom Zähler stummgeschaltet) zurückholen,
+// dann neue Load Image als Kopie des letzten Bildes („image N – replace“); Auto Prompts legt reconcileChain an,
+// danach AUTO LAYOUT. Weniger = Bilder von hinten muten (nie löschen), ihre Prompts mutet reconcileChain 1b mit.
+// Nur Bilder dieser Director-Kette. Widget nicht gespeichert (serialize) und nicht im Prompt (options.serialize),
+// Name ≠ „images“ (Autogrow-Gruppe).
+function fcChainImages(chain) {
+  const g = chain.graph;
+  return (chain.inputs || [])
+    .filter((i) => i.name?.startsWith(IMG) && i.link != null)
+    .sort((a, b) => slotKey(a.name)[0] - slotKey(b.name)[0])
+    .map((i) => g.getNodeById(getLink(g, i.link)?.origin_id))
+    .filter((n) => n && fcImgActive(g, n));
+}
+
+function fcImgPath(g, n) {
+  const path = [n];
+  for (let d = 0; d < 20; d++) {
+    const inp = (path[path.length - 1].inputs || []).find((i) => i.type === "IMAGE" && i.link != null);
+    const o = inp && g.getNodeById(getLink(g, inp.link)?.origin_id);
+    if (!o) break;
+    path.push(o);
+  }
+  return path;
+}
+
+function fcSetImageCount(chain, want) {
+  const g = chain.graph;
+  if (!g) return;
+  want = Math.max(1, Math.min(12, Math.round(Number(want) || 1)));
+  let imgs = fcChainImages(chain);
+  if (want === imgs.length) return;
+  chain._fcReady = false;                                   // kein addPromptForNewImage dazwischen
+  try {
+    if (want < imgs.length) {
+      for (const n of imgs.slice(want).reverse()) {
+        const path = fcImgPath(g, n);
+        const root = path[path.length - 1];
+        for (const p of path) p.mode = 2;
+        root.properties = root.properties || {};
+        root.properties.im_count_muted = chain.id;
+        root.properties.im_count_path = path.map((p) => p.id);
+      }
+    } else {
+      // 1) vom Zähler gemutete Bilder zurückholen (älteste zuerst)
+      const muted = (g._nodes || []).filter((n) => n.properties?.im_count_muted === chain.id)
+        .sort((a, b) => a.id - b.id);
+      let have = imgs.length;
+      for (const root of muted) {
+        if (have >= want) break;
+        for (const id of root.properties.im_count_path || [root.id]) {
+          const p = g.getNodeById(id);
+          if (p) p.mode = 0;
+        }
+        delete root.properties.im_count_muted;
+        delete root.properties.im_count_path;
+        have++;
+      }
+      // Zurückgeholte hängen nur noch an ihren Auto Prompts → reconcile verdrahtet sie wieder an den Director
+      if (have > imgs.length) { reconcileChain(chain); chain._fcReady = false; imgs = fcChainImages(chain); }
+      // 2) neue Load Image als Kopie des letzten Bildes
+      const lastRoot = imgs.length ? fcImgRoot(g, imgs[imgs.length - 1]) : null;
+      const tplFile = lastRoot?.comfyClass === "LoadImage"
+        ? lastRoot.widgets?.find((w) => w.name === "image")?.value : null;
+      const imgTpl = (chain.inputs || []).find((i) => i.name?.startsWith(IMG));
+      let prev = lastRoot;
+      for (let k = imgs.length; k < want; k++) {
+        const ni = LiteGraph.createNode("LoadImage");
+        if (!ni) break;
+        g.add(ni);
+        ni.title = `image ${k + 1} – replace`;
+        ni.properties = ni.properties || {};
+        ni.properties.im_count_created = chain.id;
+        const iw = ni.widgets?.find((w) => w.name === "image");
+        if (iw && tplFile) { iw.value = tplFile; iw.callback?.(tplFile); }   // callback lädt die Vorschau
+        if (prev) {
+          ni.size = [...prev.size];
+          ni.pos = [prev.pos[0], prev.pos[1] + prev.size[1] + 60];
+        } else {
+          ni.pos = [chain.pos[0] - 900, chain.pos[1]];
+        }
+        prev = ni;
+        let idx = slotIndex(chain, IMG + k);
+        if (idx < 0) {
+          const base = imgTpl ? JSON.parse(JSON.stringify(imgTpl)) : { type: "IMAGE" };
+          base.name = IMG + k; base.link = null; delete base.label; delete base.localized_name;
+          chain.inputs.push(base);
+          idx = chain.inputs.length - 1;
+        } else if (chain.inputs[idx].link != null) {
+          chain.disconnectInput(idx);
+        }
+        ni.connect(Math.max(0, (ni.outputs || []).findIndex((o) => o.type === "IMAGE")), chain, idx);
+      }
+    }
+  } finally {
+    chain._fcReady = true;
+  }
+  reconcileChain(chain);
+  removeStaleModeAPs(chain);
+  // AUTO LAYOUT wie per Knopf (verdrahtet Settings-Kette + ordnet alle Gruppen)
+  chain.widgets?.find((w) => w.name === "🔗 AUTO LAYOUT")?.callback?.();
+  g.setDirtyCanvas?.(true, true);
+}
+
+function addImageCounter(node) {
+  if (node.widgets?.find((w) => w.name === "image_count")) return;
+  const n0 = Math.max(1, fcChainImages(node).length);
+  const w = node.addWidget("number", "image_count", n0, (v) => {
+    clearTimeout(node._fcCountT);
+    node._fcCountT = setTimeout(() => fcSetImageCount(node, v), 350);   // Pfeile/Ziehen entprellen
+  }, { min: 1, max: 12, step: 10, round: 1, precision: 0, serialize: false });
+  w.serialize = false;
+  w.label = "images";
+  w.tooltip = "Number of images. More: adds Load Image nodes (copy of the last image – replace them) with their Auto Prompts and tidies the layout. Fewer: mutes the last images and their prompts (nothing is deleted).";
+  // direkt über den AUTO-LAYOUT-Knopf (beide nicht gespeichert → gespeicherte Widget-Positionen bleiben gleich)
+  const bi = node.widgets.findIndex((x) => x.name === "🔗 AUTO LAYOUT");
+  if (bi >= 0 && bi < node.widgets.length - 1) {
+    node.widgets.splice(node.widgets.indexOf(w), 1);
+    node.widgets.splice(bi, 0, w);
+  }
+}
+
 function addLayoutButton(node) {
   if (node.widgets?.find((w) => w.name === "🔗 AUTO LAYOUT")) return;
   const w = node.addWidget("button", "🔗 AUTO LAYOUT", null, () => {
@@ -797,6 +918,7 @@ function addPromptForNewImage(chain, imgName) {
   const titleH = globalThis.LiteGraph?.NODE_TITLE_HEIGHT ?? 30;
   ap.pos = last ? [last.pos[0], last.pos[1] + last.size[1] + titleH + 20] : [chain.pos[0] - 420, chain.pos[1]];
   g.add(ap);
+  if (last) ap.size = [last.size[0], ap.size[1]];
   prevImg.connect(prevSlot, ap, slotIndex(ap, "image_from"));
   newImg.connect(newSlot, ap, slotIndex(ap, "image_to"));
   if (loop && closing) {
@@ -1053,6 +1175,7 @@ function reconcileChain(chain) {
           ap.pos = last && last !== ap
             ? [last.pos[0], last.pos[1] + last.size[1] + titleH + 20]
             : [chain.pos[0] - 420, chain.pos[1]];
+          if (last && last !== ap) ap.size = [last.size[0], ap.size[1]];   // 92: gleiche Breite wie die anderen
         }
         matched.add(ap.id);
         wireAp(ap, fromN, toN, idx);
@@ -1101,6 +1224,8 @@ function reconcileChain(chain) {
     }
     interleave(chain);
     wireSettingsChain(chain);                                 // 57c2: Kette nach Reconciliation neu verdrahten
+    const cw = chain.widgets?.find((w) => w.name === "image_count");   // 92: Zähler = aktive Bilder
+    if (cw && N > 0) cw.value = N;
     chain.setDirtyCanvas?.(true, true);
   } finally {
     chain._fcRec = false;
@@ -1241,6 +1366,7 @@ app.registerExtension({
           interleave(this);
           _fcSetupWidgetHooks(this);
           addLayoutButton(this);
+          addImageCounter(this);
           // 82: shot_seconds wird in Choose (⏱) bearbeitet – im Node verborgen.
           imToggleWidget(this.widgets?.find((w) => w.name === "shot_seconds"), false);
           this.setSize([this.size[0], this.computeSize()[1]]);
@@ -1293,6 +1419,7 @@ app.registerExtension({
   nodeCreated(node) {
     if (node.comfyClass !== "InfiniteMovieRender") return;
     addLayoutButton(node);
+    addImageCounter(node);
     // 82: shot_seconds wird in Choose (⏱) bearbeitet – im Node verborgen.
     setTimeout(() => {
       imToggleWidget(node.widgets?.find((w) => w.name === "shot_seconds"), false);
@@ -1429,8 +1556,12 @@ function imvShot(node) {
   return v?.shots?.[node._imv?.seg ?? 0] || null;
 }
 
-function imvSide(node) {
-  return Math.max(200, Math.round((node.size?.[0] || 400) - 24));
+// 2026-11-09 (Nutzer: „Assemble window auf 3×3 … alle Analyzer auf eine Größe“): feste Fläche = 3×3 Load-Image-Kacheln
+// (160×200, 4:5) -> 480×600; jeder Tab füllt genau diese Fläche. Director bekommt dieselbe Breite (IMV_NODE_W).
+const IMV_W = 480, IMV_H = 600, IMV_NODE_W = IMV_W + 24;
+function imvFixWidth(node) {
+  if (!node?.size || Math.abs(node.size[0] - IMV_NODE_W) < 1) return;
+  node.setSize([IMV_NODE_W, Math.max(node.size[1], node.computeSize()[1])]);
 }
 
 // Bild eingepasst (contain) und mittig in ein Rechteck zeichnen
@@ -1468,7 +1599,8 @@ function imvEnsure(node) {
   const segRow = document.createElement("div");
   segRow.style.cssText = row;
   const canvas = document.createElement("canvas");
-  canvas.style.cssText = "display:block;flex:none;width:100%;background:#121212;border-radius:3px;";
+  canvas.style.cssText = `display:block;flex:none;width:${IMV_W}px;height:${IMV_H}px;margin:0 auto;` +
+    "background:#121212;border-radius:3px;";
   canvas.addEventListener("click", (e) => {
     // Sheet: Klick auf eine Kachel öffnet diesen Frame im Tab Frames
     if (st.tab !== "Sheet" || !st._sheet) return;
@@ -1522,11 +1654,11 @@ function imvEnsure(node) {
   info.style.cssText = "height:14px;line-height:14px;flex:none;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;";
   el.appendChild(tabRow); el.appendChild(segRow); el.appendChild(canvas); el.appendChild(ctlRow); el.appendChild(info);
   Object.assign(st, { el, segRow, canvas, ctlRow, slider, play, onionLbl, gridLbl, trailLbl, trailIn: trail, info });
-  // feste Höhe: quadratische Fläche + 4 Zeilen (22+22+22+14) + 4 Abstände -> springt nicht beim Tab-Wechsel
+  // feste Höhe: Fläche 480×600 + 4 Zeilen (22+22+22+14) + 4 Abstände -> springt nicht beim Tab-Wechsel
   node.addDOMWidget("im_viz", "div", el, {
     serialize: false,
-    getMinHeight: () => imvSide(node) + 96,
-    getMaxHeight: () => imvSide(node) + 96,
+    getMinHeight: () => IMV_H + 96,
+    getMaxHeight: () => IMV_H + 96,
   });
   return st;
 }
@@ -1562,29 +1694,30 @@ function imvDraw(node) {
   st.trailLbl.textContent = `trail ${st.trail}`;
   st.gridLbl.style.display = isSheet ? "" : "none";
 
-  const W = imvSide(node);
+  imvFixWidth(node);
+  const W = IMV_W, H = IMV_H;
   const c = st.canvas, ctx = c.getContext("2d");
-  if (c.width !== W || c.height !== W) { c.width = W; c.height = W; }
+  if (c.width !== W || c.height !== H) { c.width = W; c.height = H; }
   ctx.globalAlpha = 1;
   ctx.fillStyle = "#121212";
-  ctx.fillRect(0, 0, W, W);
+  ctx.fillRect(0, 0, W, H);
   st._sheet = null;
 
   let text = "";
   const sh = shots[st.seg];
   if (st.tab === "Graph") {
-    if (st.graph?.naturalWidth) imvFit(ctx, st.graph, 0, 0, W, W);
+    if (st.graph?.naturalWidth) imvFit(ctx, st.graph, 0, 0, W, H);
     text = st.graph ? "timing per shot: grey = as rendered, coloured = even_motion" : "Run Assemble once to see the graph.";
   } else if (!v) {
     text = "Run Assemble once (even_motion on) to see timeline, heatmap and frames.";
   } else if (st.tab === "Timeline") {
     const tl = st.liveTimeline || (v.timeline && { subfolder: v.subfolder, filename: v.timeline });
     const img = tl && imvImg(node, imvUrl(tl.subfolder, tl.filename));
-    if (img?.complete && img.naturalWidth) imvFit(ctx, img, 0, 0, W, W);
+    if (img?.complete && img.naturalWidth) imvFit(ctx, img, 0, 0, W, H);
     text = "top: change per frame · bottom: grey dropped, green used, orange duplicate";
   } else if (st.tab === "Heatmap" && sh) {
     const img = imvImg(node, imvUrl(sh.subfolder, sh.heat));
-    if (img.complete && img.naturalWidth) imvFit(ctx, img, 0, 0, W, W);
+    if (img.complete && img.naturalWidth) imvFit(ctx, img, 0, 0, W, H);
     text = `seg ${sh.seg} · where the picture changes (bright = most change)`;
   } else if (st.tab === "Frames" && sh) {
     const n = sh.frames.length;
@@ -1595,13 +1728,13 @@ function imvDraw(node) {
     const f = sh.frames[st.k];
     const img = imvImg(node, imvUrl(sh.subfolder, f.f));
     if (img.complete && img.naturalWidth) {
-      imvFit(ctx, img, 0, 0, W, W);
+      imvFit(ctx, img, 0, 0, W, H);
       if (st.onion) {
         const alphas = [0.35, 0.22, 0.12];
         [1, 2, 3].map((d) => sh.frames[st.k - d]).forEach((g, i) => {
           if (!g) return;
           const gi = imvImg(node, imvUrl(sh.subfolder, g.f));
-          if (gi.complete && gi.naturalWidth) { ctx.globalAlpha = alphas[i]; imvFit(ctx, gi, 0, 0, W, W); }
+          if (gi.complete && gi.naturalWidth) { ctx.globalAlpha = alphas[i]; imvFit(ctx, gi, 0, 0, W, H); }
         });
         ctx.globalAlpha = 1;
       }
@@ -1624,10 +1757,10 @@ function imvDraw(node) {
     const f = sh.frames[st.k];
     const img = imvImg(node, imvUrl(sh.subfolder, f.f));
     const tj = sh.tracks ? imvJson(node, imvUrl(sh.subfolder, sh.tracks)) : null;
-    let bx = 0, by = 0, bw = W, bh = W;
+    let bx = 0, by = 0, bw = W, bh = H;
     if (img.complete && img.naturalWidth) {
-      const sc = Math.min(W / img.naturalWidth, W / img.naturalHeight);
-      bw = img.naturalWidth * sc; bh = img.naturalHeight * sc; bx = (W - bw) / 2; by = (W - bh) / 2;
+      const sc = Math.min(W / img.naturalWidth, H / img.naturalHeight);
+      bw = img.naturalWidth * sc; bh = img.naturalHeight * sc; bx = (W - bw) / 2; by = (H - bh) / 2;
       ctx.globalAlpha = 0.35; ctx.drawImage(img, bx, by, bw, bh); ctx.globalAlpha = 1;
     }
     let shown = 0, gain = 1;
@@ -1697,16 +1830,17 @@ function imvDraw(node) {
     st.gridLbl.textContent = `${g}×${g}`;
     const picks = imvSheetPicks(sh.frames.length, g);
     st._sheet = { grid: g, picks };
-    const T = W / g, gap = 2, bar = 3;
+    // Kacheln im Seitenverhältnis der Fläche (4:5): 3×3 = 160×200 wie Load Image
+    const T = W / g, TH = H / g, gap = 2, bar = 3;
     ctx.font = `${Math.max(9, Math.round(T / 9))}px sans-serif`;
     ctx.textBaseline = "top";
     picks.forEach((k, i) => {
       const f = sh.frames[k];
-      const x = (i % g) * T, y = Math.floor(i / g) * T;
+      const x = (i % g) * T, y = Math.floor(i / g) * TH;
       const img = imvImg(node, imvUrl(sh.subfolder, f.f));
-      if (img.complete && img.naturalWidth) imvFit(ctx, img, x + gap / 2, y + gap / 2, T - gap, T - gap - bar);
+      if (img.complete && img.naturalWidth) imvFit(ctx, img, x + gap / 2, y + gap / 2, T - gap, TH - gap - bar);
       ctx.fillStyle = f.dup ? IMV_DUP : IMV_USED;
-      ctx.fillRect(x + gap / 2, y + T - gap / 2 - bar, T - gap, bar);
+      ctx.fillRect(x + gap / 2, y + TH - gap / 2 - bar, T - gap, bar);
       if (T >= 48) {
         const lbl = `#${f.out}`;
         ctx.fillStyle = "rgba(0,0,0,0.6)";
@@ -1935,6 +2069,10 @@ app.registerExtension({
   },
   nodeCreated(node) {
     if (node.comfyClass !== "InfiniteMovieRender") return;
+    // 2026-11-09 (Nutzer: „ebenso Director“): gleiche Breite wie der Assemble-Viewer (3×3 Kacheln)
+    setTimeout(() => imvFixWidth(node), 0);
+    const onCfg = node.onConfigure;
+    node.onConfigure = function (...a) { const r = onCfg?.apply(this, a); setTimeout(() => imvFixWidth(this), 0); return r; };
     const drawFg = node.onDrawForeground;
     node.onDrawForeground = function (ctx) {
       const r = drawFg?.apply(this, arguments);
@@ -3325,5 +3463,24 @@ app.registerExtension({
       }
       fcFilmRender(this);
     };
+  },
+});
+
+// 2026-11-09 (Nutzer: „pos prompt immer grün. Farbigkeit logifizieren“): feste Farbe nach Aufgabe für die eigenen
+// Nodes, auch für neu angelegte (z. B. automatisch erzeugte Auto Prompts). LiteGraph-Standardpalette:
+// grün = positiver Prompt, cyan = Engine-Schnittstelle. Gespeicherte Farben (Workflow) gewinnen.
+const IM_ROLE_COLORS = {
+  InfiniteMovieAutoPrompt: ["#232", "#353"],
+  InfiniteMovieStyle: ["#232", "#353"],
+  InfiniteMovieEngineIn: ["#233", "#355"],
+  InfiniteMovieEngineOut: ["#233", "#355"],
+};
+app.registerExtension({
+  name: "InfiniteMovie.RoleColors",
+  nodeCreated(node) {
+    const c = IM_ROLE_COLORS[node.comfyClass];
+    if (!c || node.color) return;
+    node.color = c[0];
+    node.bgcolor = c[1];
   },
 });

@@ -96,7 +96,8 @@ def draw_graph(curves: list, picks: list, fps: float, strength: float = None, re
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt
 
-    fig = plt.figure(figsize=(12, 9), dpi=100)
+    # 4:5 wie der Assemble-Viewer (480×600, Nutzer 2026-11-09: alle Analyzer gleich groß)
+    fig = plt.figure(figsize=(7.2, 9), dpi=100)
     gs = fig.add_gridspec(3, 1, height_ratios=[3, 3, 2])
     ax0, ax1, ax2 = fig.add_subplot(gs[0]), fig.add_subplot(gs[1]), fig.add_subplot(gs[2])
     fig.patch.set_facecolor("#1e1e1e")
@@ -141,12 +142,12 @@ def draw_graph(curves: list, picks: list, fps: float, strength: float = None, re
             head += f"   strength {strength:.2f}  ->  {rendered_seconds:g} s per segment"
         if interpolate != "off":
             head += f"   (picked from {interpolate} frames)"
-    ax0.set_title(head + "\nwhich rendered frame is shown when (dashed = plain speed-up, steep = skips still "
-                  "frames, flat = slows down for the change)", color="#eeeeee", fontsize=10)
+    ax0.set_title(head + "\nwhich rendered frame is shown when\n(dashed = plain speed-up, steep = skips still "
+                  "frames, flat = slows down)", color="#eeeeee", fontsize=9)
     ax0.set_ylabel("rendered time (s)", color="#cccccc", fontsize=9)
     ax1.set_ylabel("transition progress", color="#cccccc", fontsize=9)
     ax2.set_ylabel("change per frame", color="#cccccc", fontsize=9)
-    ax2.set_xlabel("time (s): panel 1 = output time; panels 2+3 grey = rendered, colour = output",
+    ax2.set_xlabel("time (s): panel 1 = output time\npanels 2+3: grey = rendered, colour = output",
                    color="#cccccc", fontsize=9)
     for ax in (ax0, ax1, ax2):
         ax.legend(loc="upper left", fontsize=8, facecolor="#333333", labelcolor="#dddddd", edgecolor="#555555")
@@ -714,7 +715,9 @@ def _viz_timeline(curves: list, picks: list, n_out: list, keep: float, viz_dir: 
         k = (n - 1) / max(full - 1, 1)
         labels.append(f"seg {i + 1} · {len(c)} -> {n} frames · keep {k:.2f}{' auto' if keep <= 0 else ''}")
     name = f"timeline{tag}.png"
-    Image.fromarray(motion_viz.timeline_heatmap(curves, picks, labels)).save(os.path.join(viz_dir, name))
+    # 4:5 wie der Assemble-Viewer (480×600, Nutzer 2026-11-09: alle Analyzer gleich groß)
+    Image.fromarray(motion_viz.timeline_heatmap(curves, picks, labels, width=512, height=640)).save(
+        os.path.join(viz_dir, name))
     return name
 
 

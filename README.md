@@ -4,133 +4,172 @@
 
 <p align="center"><sub>Four stills, one LTX 2.5 render pass (737 frames, 24 fps), shown at 2x speed.</sub></p>
 
-ComfyUI custom nodes that turn a sequence of stills into a (looping) film:
-pairwise first/last-frame video segments (MiniMax H3 / LTX 2.5 / Wan 2.2 FLF2V), stitched and finished.
-Built for a single GPU that may be shared with a local LLM server (VRAM handoff before every render).
+**Turn a few still images into one smooth, looping film.** For each pair of images a video model renders the
+transition (start image → end image); the pack joins all shots into one film, evens out the motion and saves it.
+A local vision model writes the prompts for you if you like. Built for a single GPU (also one shared with a local LLM).
 
 ![Workflow: stills and prompts → render → assemble](assets/workflow.png)
-<sub>Example workflow (four seasons): images + prompts → Infinite Movie · Director → Assemble.</sub>
+<sub>Example workflow (four seasons): images + prompts → Director → Choose → Assemble.</sub>
 
-## Engine
+## Quick start
 
-The video model is **always visible** in the workflow as an *engine group*:
+1. **Install.** Clone this repository into `ComfyUI/custom_nodes/` and restart ComfyUI.
+   Also needed: [VideoHelperSuite](https://github.com/Kosinkadink/ComfyUI-VideoHelperSuite) (brings ffmpeg).
+   Optional: [ComfyUI-Frame-Interpolation](https://github.com/Fannovel16/ComfyUI-Frame-Interpolation) for RIFE.
+2. **Open the workflow** `Infinite Movie` (Workflow menu › Browse Templates › *comfyui-infinite-movie*, or drag
+   `example_workflows/Infinite Movie.json` onto ComfyUI).
+3. **Get the models.** ComfyUI lists missing model files when the workflow opens, with a download button per file.
+   Or press **📦 Check models** on the *Settings* node: it shows every missing file with its size, the total and the free
+   disk space, and downloads after you confirm. ⚠ **The default engine needs about 42 GB, the prompt writer 9 GB more** –
+   see [Models and download sizes](#models-and-download-sizes).
+4. **Set the number of images** in Director › `images` (1–12) – Load Image nodes and their Auto Prompts are added and laid out for you. Then **load your pictures** into them (1 image works too, see [One image](#one-image)).
+5. **Write the prompts.** Type a few keywords into each *Auto Prompt* and press **🔄 Regenerate prompt**, or write the
+   prompt yourself.
+6. **Run.** The shots render and stop at *Choose*. Look at them, keep or redo, then press **ASSEMBLE ▶** – the film
+   appears in the *Film* node and in your output folder.
+
+## The workflow at a glance
+
+The engine sits at the top, below it one row read from left to right. Every area has a help note at its top.
+
+| Area | What you do there |
+|---|---|
+| **1 · Engine** | The video model (MiniMax H3). Normally nothing to change. |
+| **2 · Settings** | Prompt model, picture size, output folder, film name, sound on/off, **📦 Check models**. |
+| **3 · Images** | Your stills, top to bottom = order in the film. |
+| **4 · Prompts** | *Prompt Style* (how prompts are written) and one *Auto Prompt* per transition. |
+| **5 · Director** | `images` (how many), seconds per shot, `loop` (last image back to the first), `variants` (1 or 2 per shot). |
+| **6 · Choose** | Check the shots, pick A/B, mark shots to redo, **ASSEMBLE** / **RERENDER**. |
+| **7 · Assemble + Film** | Joins the shots, evens out the motion, shows and saves the film. |
+| **8 · Upscale** | Optional (muted): sharper, larger film. Select the group and press Ctrl+M to turn it on. |
+
+Settings are passed along one chain: Settings → Prompt Style → Auto Prompts → Director → Assemble.
+
+**Node colours:** green = positive prompt, red = negative prompt, blue = model loader, cyan = engine connection
+(*Engine Start* / *Engine Result*), yellow = help notes.
+
+## Models and download sizes
+
+Put the files into the folders under `ComfyUI/models/`. You only need **one** engine.
+
+| Use | Files | Download |
+|---|---|---|
+| **MiniMax H3** (default engine, with sound) | 5 files | **42.0 GB** |
+| Prompt writer `qwen3vl_4b_bf16` (optional: writes the prompts) | 1 file | **8.9 GB** |
+| LTX 2.5 (other engine, 🔒 gated) | 4 files | 38.7 GB |
+| Wan 2.2 (other engine, no sound) | 6 files | 38.0 GB |
+| Upscale model (group 8) | 1 file | 0.01 GB |
+
+**MiniMax H3**
+
+| File | Folder | Size | Download |
+|---|---|---|---|
+| `minimax_h3_fl2va_pruned_int8_convrot.safetensors` | `diffusion_models` | 21.0 GB | [Comfy-Org/MiniMax-H3](https://huggingface.co/Comfy-Org/MiniMax-H3/resolve/main/diffusion_models/minimax_h3_fl2va_pruned_int8_convrot.safetensors) |
+| `minimax_h3_fl2v_turbo_8step_v1.1_768p_comfyui_bf16.safetensors` | `loras` | 2.0 GB | [lightx2v/Minimax-h3-Turbo](https://huggingface.co/lightx2v/Minimax-h3-Turbo/resolve/main/minimax_h3_fl2v_turbo_8step_v1.1_768p_comfyui_bf16.safetensors) |
+| `qwen3vl_32b_minimax_h3_nvfp4_awq.safetensors` | `text_encoders` | 15.7 GB | [Comfy-Org/MiniMax-H3](https://huggingface.co/Comfy-Org/MiniMax-H3/resolve/main/text_encoders/qwen3vl_32b_minimax_h3_nvfp4_awq.safetensors) |
+| `minimax_h3_video_vae_int8_convrot.safetensors` | `vae` | 2.8 GB | [Comfy-Org/MiniMax-H3](https://huggingface.co/Comfy-Org/MiniMax-H3/resolve/main/vae/minimax_h3_video_vae_int8_convrot.safetensors) |
+| `minimax_h3_audio_vae_fp32.safetensors` | `vae` | 0.6 GB | [Comfy-Org/MiniMax-H3](https://huggingface.co/Comfy-Org/MiniMax-H3/resolve/main/vae/minimax_h3_audio_vae_fp32.safetensors) |
+
+**Prompt writer** (Settings › `prompt_model`; any Qwen3-VL in `text_encoders` works, `off` = write prompts yourself)
+
+| File | Folder | Size | Download |
+|---|---|---|---|
+| `qwen3vl_4b_bf16.safetensors` | `text_encoders` | 8.9 GB | [Comfy-Org/Qwen3-VL](https://huggingface.co/Comfy-Org/Qwen3-VL/resolve/main/text_encoders/qwen3vl_4b_bf16.safetensors) |
+
+The model links for LTX 2.5 and Wan 2.2 are in their engine workflows (help note) and in `models.json`.
+**LTX 2.5 is gated:** accept the license on [Hugging Face](https://huggingface.co/Lightricks/LTX-2.5) first; for the
+automatic download set the environment variable `HF_TOKEN` to your Hugging Face token.
+
+## Engines
+
+The video model is always **visible** in the workflow as an engine group:
 
 ```
 Infinite Movie · Engine Start (from Director)  →  your model chain  →  Infinite Movie · Engine Result (to Director)
 ```
 
-You build the model chain yourself between *Engine Start* and *Engine Result* (any loaders / samplers),
-for example inside a group. The example workflow ships two engine groups at the top, above the row Settings → Images →
-Prompts → Director → Choose → Assemble: **1b · Engine: MiniMax H3** (default, 24 fps, 17k+5 frame grid, with sound) and
-**1 · Engine: LTX 2.5** (24 fps, 8n+1 frame grid, muted). **Infinite Movie - Engine Wan 2.2** contains only the
-**ENGINE: Wan 2.2** group (16 fps, 4n+1 frame grid) – copy it into your workflow and mute the LTX group. Other engines work the same way: build the chain between *Engine Start* and *Engine Result*.
+| Engine | Workflow with only this group | fps | Frame grid | Sound |
+|---|---|---|---|---|
+| **MiniMax H3** (default, built into *Infinite Movie*) | `Infinite Movie - Engine MiniMax H3` | 24 | 17k+5 | yes |
+| LTX 2.5 | `Infinite Movie - Engine LTX 2.5` | 24 | 8n+1 | yes |
+| Wan 2.2 | `Infinite Movie - Engine Wan 2.2` | 16 | 4n+1 | no |
 
-- **Leave images out = mute them.** Select *Load Image* nodes and press Ctrl+M: the Director skips them, their Auto Prompts are muted too and keep their text. Unmute to get everything back.
-- **One image.** Without `loop`: an open shot (start image + prompt, no end image). With `loop`: **two passes** – shot 1 runs
-  free from the image, shot 2 runs from shot 1's last frame back to the image; Assemble joins them without doubled frames
-  (picture and sound). Each shot has its own prompt (shot 1: what happens, shot 2: how it returns). One image → itself in a
-  single shot tends to read as "nothing happens"; the two-pass loop moves. Example: **Infinite Movie - 1 image loop**.
-  The engine must run without an end image for shot 1 (MiniMax H3 `last_frame` and Wan `end_image` are optional; LTX drops its end guide).
-- **Switching engines = muting groups.** If you build a second engine group, keep ONE active and mute the other (Ctrl+M).
-  Muted nodes are excluded from the prompt, so the muted engine never runs.
-- **Director · engine input is optional.** When connected, exactly that *Engine Result* is used.
-  When unconnected, the single non-muted *Engine Result* in the workflow is used automatically.
-  No engine group → clear error; several active groups without a connection → error listing the node IDs.
-- The *Director* reads the engine from the graph (not from a preset). There are no hidden presets:
-  what you see between *Engine Start* and *Engine Result* is what renders.
+- **Switch engine:** open the engine workflow, copy its group (Ctrl+C), paste it into your workflow (Ctrl+V) and mute
+  the MiniMax group (select it, Ctrl+M). Only **one** engine group may be active; muted groups never run.
+- The *Director* finds the one active *Engine Result* by itself. With several active groups, connect the wanted
+  *Engine Result* to the Director's `engine` input.
+- **Own engine:** build any loader/sampler chain between *Engine Start* and *Engine Result*. There are no hidden
+  presets – what you see is what renders.
+- **MiniMax H3 group:** first/last-frame model + 8-step turbo LoRA, KSampler (8 steps, cfg 1, `res_multistep`, `simple`,
+  negative = *ConditioningZeroOut*). Without the LoRA: bypass it and use 20–25 steps.
+- The H3 and LTX text encoders cannot write prompts; Settings › `prompt_model` hides them.
 
-### MiniMax H3 engine (default)
+### One image
 
-**1b · Engine: MiniMax H3**: first/last-frame model + 8-step turbo LoRA, **KSampler** (8 steps, cfg 1, `res_multistep`,
-`simple`, negative = *ConditioningZeroOut*), video + sound. Model, CLIP and video VAE reach the group's nodes through
-**Anything Everywhere** restricted to the group (nothing leaks into the other engine or the Director); the audio VAE is a
-direct link. Without the LoRA: bypass it and use 20–25 steps.
+- `loop` off: an open shot – starts on the image and runs free.
+- `loop` on: **two passes** – shot 1 runs free from the image, shot 2 runs from shot 1's last frame back to the image.
+  Each shot has its own prompt (shot 1: what happens, shot 2: how it returns).
 
-| File | Folder | Size | Download |
-|---|---|---|---|
-| `minimax_h3_fl2va_pruned_int8_convrot.safetensors` | `models/diffusion_models` | 21.0 GB | [Comfy-Org/MiniMax-H3](https://huggingface.co/Comfy-Org/MiniMax-H3/resolve/main/diffusion_models/minimax_h3_fl2va_pruned_int8_convrot.safetensors) |
-| `minimax_h3_fl2v_turbo_8step_v1.1_768p_comfyui_bf16.safetensors` | `models/loras` | 2.0 GB | [lightx2v/Minimax-h3-Turbo](https://huggingface.co/lightx2v/Minimax-h3-Turbo/resolve/main/minimax_h3_fl2v_turbo_8step_v1.1_768p_comfyui_bf16.safetensors) |
-| `qwen3vl_32b_minimax_h3_nvfp4_awq.safetensors` (CLIPLoader type `minimax`) | `models/text_encoders` | 15.7 GB | [Comfy-Org/MiniMax-H3](https://huggingface.co/Comfy-Org/MiniMax-H3/resolve/main/text_encoders/qwen3vl_32b_minimax_h3_nvfp4_awq.safetensors) (int8 27.1 GB / bf16 51.5 GB in the same repo) |
-| `minimax_h3_video_vae_int8_convrot.safetensors` | `models/vae` | 2.8 GB | [Comfy-Org/MiniMax-H3](https://huggingface.co/Comfy-Org/MiniMax-H3/resolve/main/vae/minimax_h3_video_vae_int8_convrot.safetensors) |
-| `minimax_h3_audio_vae_fp32.safetensors` | `models/vae` | 0.6 GB | [Comfy-Org/MiniMax-H3](https://huggingface.co/Comfy-Org/MiniMax-H3/resolve/main/vae/minimax_h3_audio_vae_fp32.safetensors) |
+### Leave images out
 
-Optional: `minimax_h3_ref2va_pruned_int8_convrot.safetensors` (same repo, `diffusion_models`, 21.0 GB) – reference-image
-model (the image steers subject and look instead of being pinned as a frame), for *MiniMax H3 Reference to Video*.
+Lower Director › `images`: the last images are muted (not deleted), their Auto Prompts too, and keep their text – raise it again to bring them back. Or select any *Load Image* and press Ctrl+M: the Director skips it the same way.
 
-**Infinite Movie · Last Frame**: the last frame of a film (`video`, priority 1), an image batch (`images`) or a file
-(`video_path`) – e.g. the start image of the next shot. Videos are read frame by frame, never loaded whole.
+## Sound
 
-The H3 text encoder is not a prompt writer: Settings › `prompt_model` hides it (and LTX's encoder) – use a Qwen3-VL model there.
-The example workflows use **Anything Everywhere** ([cg-use-everywhere](https://github.com/chrisgoringe/cg-use-everywhere))
-and **Set/Get** ([KJNodes](https://github.com/kijai/ComfyUI-KJNodes)) to keep the engine groups compact.
+Settings › `audio` is **off** by default (faster, no audio model is loaded). Turn it on for engines with sound
+(MiniMax H3, LTX). Assemble keeps the sound **only with `even_motion` off** – evening out changes the timing, so the film
+stays silent then. Prompts can describe sound, e.g. `sound: howling wind`.
 
-| Node | Purpose |
+## Nodes
+
+| Node | What it does |
 |---|---|
-| **Infinite Movie · Director** | 1–12 images (dynamic inputs) + one prompt per transition → renders all segments. Length in seconds (snapped to the engine's frame grid, 17k+5 for MiniMax H3 / 8n+1 for LTX / 4n+1 for Wan). `variants` combo (`1`/`2`): with `2` each transition renders twice (A + B, see *Variants*). Outputs a `shots` pipe (SHOTS: segment paths, folder, name, fps, loop, variants, …) for one-connection wiring to Choose/Assemble. Outputs: `shots ▶ Assemble`, `settings ▶ chain`. Optional `engine` input (see *Engine* above). |
-| **Infinite Movie · Engine Start (from Director)** | Left edge of an engine group. Outputs `start_image`, `end_image`, `prompt`, `seed`, `width`, `height`, `length` — the per-segment values the *Director* feeds into your model chain. |
-| **Infinite Movie · Engine Result (to Director)** | Right edge of an engine group. Takes the decoded `images` (or `video`) from your chain plus `fps`, `length_grid` and optional `audio`, and hands the engine to the *Director* via its `engine` output. |
-| **Infinite Movie · Prompt Style** | What the prompt model is told (system prompt, prefilled: *One sentence, max {words} words: what happens from the first to the last frame. Never mention images or frames.*) plus `max_words`, `camera` (dropdown, appended after the text; `none` = no camera sentence). Sits in the settings chain: Settings → Prompt Style → Auto Prompts. Overrides only these fields. |
-| **Infinite Movie · Settings** | Shared settings for the whole chain in ONE node; its `settings ▶ chain` output is passed along: Settings → Prompt Style → Auto Prompts → Director → Assemble. Without it the built-in defaults apply. `prompt_model`: the **local vision model** that writes the shot prompts inside ComfyUI – any generating model in `models/text_encoders` (e.g. `qwen3vl_4b_bf16.safetensors`); `off` = write the prompts yourself. No LLM server, no provider, no API key. `aspect` (classic ratios: 4:5, 9:16, 2:3, 3:4, 1:1, 4:3, 3:2, 16:9, 21:9) + `long_side` (longest side): both sides are rounded to 32 (Lightricks LTX needs sides divisible by 32), the result shows next to `long_side` (4:5 + 960 = 768×960, the LTX template; 4:5 + 1344 = 1088×1344 ≈ Instagram 1080×1350); `output_folder` (**📂 Choose folder** opens a folder browser inside ComfyUI, folder names only, only from this computer; empty = next to the shots), `film_name` (empty = `film`), `audio` (default **off**: sound from LTX is not decoded – saves the audio VAE per shot – and shots and film stay silent; on = sound is carried into the film). All fields are always shown. No negative prompt: both engines sample with CFG 1 (LTX distilled, Wan Lightning), where a negative prompt has no effect. **GPU check on Run:** before anything is queued, the free GPU memory is measured once (memory ComfyUI itself holds counts as free; the requirement is capped at 85 % of the card). If another program holds too much, nothing is queued and a message names that program – the pack never closes or unloads other programs. Without `nvidia-smi` the check is skipped. After the film, ComfyUI frees its VRAM (fixed, no setting). |
-| **Infinite Movie · Auto Prompt** | Writes the prompt for one transition with the local `prompt_model`: it looks at both images (start + end), follows the Prompt Style instruction and your keywords, then camera, particle rule and sky rule are appended. Type keywords into `prompt` and press **🔄 Regenerate prompt** – only this one node writes (about 20 s with Qwen3-VL 4B; the other Auto Prompts of the chain stay as they are), the result replaces the text and you can edit it; press again for a new version (the keywords are kept until you edit the text). Prompts are **never** written on Run: a filled `prompt` is used as is, an empty one asks first (*Render without prompt?*). The model is unloaded afterwards. Outputs: `prompt`, `settings ▶ chain`. |
-| **Infinite Movie · Assemble** | Joins the shots into one film; `even_motion` evens out their motion (frames re-picked so each carries about the same change). `keep` = share of each shot's rendered length that stays: `1` (default) keeps the full length – where a shot stands still, the time is filled with repeated frames; `0` = auto: per shot as many frames as possible without repeats, the still parts are dropped and the film gets shorter; `0.05–0.95` = fixed share. Made for time-lapses, architecture and morphs between stills; not for real-time action, lip sync or music with a fixed length. Below the widgets a viewer shows the last run: **Graph** (timing per shot), **Timeline** (change per frame; grey = dropped, green = used, orange = duplicate), **Heatmap** (where the picture changes) and **Frames** (slider through the used frames – all up to 64, above that every x-th –, ▶ play, onion skin with 3 ghosts), **Particles** (detected image points tracked through the shot draw glowing trails with sparks; sliders for frame and trail length; small motion is magnified around each spark, the factor is shown) and **Sheet** (contact sheet of the used frames, grid 3×3 … 8×8 by slider; click a tile to open it in Frames). The viewer is square with a fixed height, so portrait and landscape films fit without the node jumping. `interpolate` defaults to **RIFE x2** (needs *ComfyUI-Frame-Interpolation*): twice the frames to pick from, so evening out leaves fewer duplicate frames; `off` is faster. Takes the `shots` pipe (one connection) or a film via `video`/`images`/`video_path`/`file`. `output_size`: `as rendered`, `Instagram 4:5 1080×1350`, `Reel 9:16 1080×1920` or `2× rendered` (scaled + centre-cropped, H.264 yuv420p, faststart). Sound from the engine (LTX) is carried into the film – only without `even_motion` (it changes the timing, so the film stays silent then). The film mp4 contains the prompt and the workflow (drag it onto ComfyUI to load it). Outputs: `video_path`, `video`. Runs only when you press **ASSEMBLE** in *Choose* (not on Run). Folder and name come from Settings. Output `last_frame` (IMAGE): the last frame of the finished film – connect it to the Director's image input to continue the film where it ends (open shot, loop off) or to start the next part. Output `first_frame` (IMAGE): the first frame of the film – e.g. for a lead-in that ends where the film starts, or to loop a follow-up back to the beginning. |
-| **Infinite Movie · Choose** | Shows every shot (one column per transition, variant **A** above **B** when `variants` = 2). **Hover** plays a shot. **Click** a variant to use it (green frame + **✓ A**/**✓ B** badge, the other one is dimmed); click the chosen one again to reject it (**✗**) – reject both and the shot is marked **✗ REDO**. Without variants, a click toggles KEEP/REDO; the big **✓ KEEP / ✗ REDO** switch under each shot does the same. Below every tile the check result in plain words and colour: green *✓ smooth*, yellow *△ slight flicker / frozen particles*, red *⚠ HARD CUT / HARD JUMP* (jerk ≥ 7); red *⚠ HARD SEAM → next* when the last frame of a shot does not match the first frame of the next one. An **AUTO** pick is only made on a strong indication (one variant clearly bad, the other clearly better); otherwise A stays and the choice is yours. Status line with the steps **1 Prompts › 2 Run › 3 Pick › 4 ASSEMBLE** and a **progress bar with remaining time** while rendering. **✎ prompt** under a shot opens its prompt: edit it, save, and the shot is marked REDO – RERENDER renders only this shot with the new prompt. **⏱ 2 s** sets the length of this shot (or back to the global `seconds`); it is stored in the Director (hidden field `shot_seconds`), marks the shot REDO and RERENDER renders only this shot. Output: `shots`. The big button: **ASSEMBLE ▶** builds the film from your picks (Director + Choose come from cache, seeds stay fixed), **RERENDER n ↻** re-renders only the marked shots with new seeds (unchanged shots are reused, not rendered again). Each shot shows its first frame (hover plays it); at the bottom of the node a **large 3×3 contact sheet** shows 9 frames across the shot under the mouse (the variant under the mouse, otherwise the chosen one). Below each shot is the **seam** to the next shot: its last frame next to the next shot's first frame, with the jump value (red = hard cut). Clicking a shot's title opens that shot in Assemble's viewer; the viewer's seg buttons highlight the shot in Choose. |
-| **Infinite Movie · Film** | Shows the finished film (looping preview) and confirms where it was saved. Takes the `video` (VIDEO, priority 1) or the `video_path` string (e.g. Assemble → `video_path`). Remembers the last three films: **new / -1 / -2** switch the preview. No outputs. |
-| **Infinite Movie · Movie to GIF** | Turns a film into an animated **GIF** or **WebP** (usually 3–5× smaller). Inputs: `video` > `images` > `video_path` > `file` (with upload). **Live preview** in the node: every change (size, crop 1:1/4:5/9:16/16:9, fps, start/end trim, speed, forward/reverse/boomerang, colours, dither, palette per film or per frame, WebP quality, repeat count) renders a small preview within about a second and shows the estimated full file size; a connected `video`/`images` input previews after one Run. `max_mb` shrinks the GIF step by step until it fits (e.g. 8 MB Discord). output `gif_path`; **💾 Save as…** chooses the folder (`output_folder`, empty = ComfyUI output folder) and `filename` (empty = name of the film, never overwrites); **⬇ Download** downloads what the preview shows. |
+| **Settings** | Shared settings for the whole chain: `prompt_model`, `aspect` + `long_side` (both sides rounded to 32; 4:5 + 960 = 768×960), `output_folder` (**📂 Choose folder**), `film_name`, `audio`, **📦 Check models**. GPU check on Run: if another program holds too much GPU memory, nothing is queued and a message names it – the pack never closes other programs. |
+| **Prompt Style** | What the prompt model is told, `max_words`, `camera` (appended; `none` = no camera sentence). |
+| **Auto Prompt** | One per transition. Looks at both images and writes the prompt from your keywords when you press **🔄 Regenerate prompt** (only this node; ~20 s with Qwen3-VL 4B). Never writes on Run: a filled prompt is used as is. |
+| **Director** | 1–12 images + one prompt per transition → renders all shots. `images` sets the count: more adds Load Image nodes (copy of the last image) with Auto Prompts, fewer mutes the last ones. `seconds` per shot (snapped to the engine's frame grid), `loop`, `variants` (`2` = render A and B per shot). Outputs `shots ▶ Assemble`, `settings ▶ chain`. Shows progress and remaining time. |
+| **Engine Start / Engine Result** | Left and right edge of an engine group (see [Engines](#engines)). |
+| **Choose** | One tile per shot (A above B with variants). Hover plays, click picks; **✓ KEEP / ✗ REDO** per shot. Each tile shows a check in plain words: green *✓ smooth*, yellow *△ slight flicker*, red *⚠ HARD CUT / HARD SEAM*. **✎ prompt** and **⏱ seconds** change one shot and mark it REDO. Big button: **ASSEMBLE ▶** (build the film from your picks) or **RERENDER n ↻** (only the marked shots). 3×3 contact sheet of the shot under the mouse. |
+| **Assemble** | Joins the shots into the film. `even_motion` re-picks frames so each carries about the same change; `strength` (how strongly), `keep` (share of each shot's length: `1` full, `0` auto = drop still parts). `interpolate` RIFE x2 (fewer repeated frames), `output_size` (as rendered, Instagram 4:5, Reel 9:16, 2×). Runs only on **ASSEMBLE**. The film mp4 contains the prompt and the workflow. Viewer (3×3 Load-Image tiles, all tabs the same size): **Graph**, **Timeline**, **Heatmap**, **Frames** (slider, ▶, onion skin), **Particles** (motion trails), **Sheet** (3×3 … 8×8, click = open frame). Outputs `video_path`, `video`, `last_frame`, `first_frame`. |
+| **Film** | Plays the finished film, shows where it was saved, **📂 Open folder**, remembers the last three films. |
+| **Last Frame** | Last frame of a film, an image batch or a file – e.g. the start image of the next part. Reads frame by frame. |
+| **Movie to GIF** | Film → GIF or WebP with live preview and size estimate (crop, fps, trim, speed, boomerang, palette, `max_mb`). |
+| **H3 Loop / H3 Loop Decode** | Seamless loops in one MiniMax H3 pass (end wrapped around to the start while sampling). |
+| **LTX Refine** | See [Upscale](#upscale). |
 
-Nodes marked *(internal)* are used by the engine groups and are not meant to be placed by hand: Infinite Movie · Frames Collect (internal), Infinite Movie · Segment Paths (internal), Infinite Movie · Segment Save (internal), Infinite Movie · Shots Out (internal).
+*(internal)* nodes are used by the engine expansion and are not meant to be placed by hand.
 
-## Choose, variants and Assemble
+### Choose and variants
 
-The *Director* has a `variants` combo (`1` or `2`, default `1`). With `2`, every transition is rendered **twice**:
-
-- **A** — the usual seed, saved as `seg_XXX.mp4`.
-- **B** — seed A + 500, saved as `seg_XXX_b.mp4`.
-
-Both are separate renders (separate keys), so the *Director* blocks until all of them finish. The `shots`
-pipe then carries a `variants` list (`[[a_path, b_path], …]`); `segments` stays the A list. With `1` nothing changes.
-
-The *Choose* node sits between the *Director* and the *Assemble* (already wired in the example workflow; it also works with `variants` = 1 – one tile per shot):
-
-```
-Director  →  Infinite Movie · Choose  →  Assemble
-```
+With Director › `variants` = `2` every shot renders twice: **A** (`seg_XXX.mp4`) and **B** (seed + 500,
+`seg_XXX_b.mp4`). **Run** renders and stops at *Choose*; pick per shot, then **ASSEMBLE** – only Assemble runs.
+Changing only the pick never re-renders. **RERENDER** re-seeds only the marked shots. **Cancel** removes the
+half-finished film.
 
 ![Choose: one tile per shot, quality line, KEEP / REDO](assets/choose.png)
 
-**Run** renders the shots and stops at *Choose* – the film is not built yet. Pick per shot (or reject
-shots and press **RERENDER**), then press **ASSEMBLE**: only *Assemble* runs, with your picks. The *Choose*
-node checks each variant (cheap CUT/FLICKER/PARTICLES level + a jerk metric) and pre-selects the other
-variant only when one is clearly bad. Changing only the choice never re-renders. A new Run (new seed)
-renders all shots again; RERENDER re-seeds only the marked shots and reuses the others unchanged.
-**Cancel** removes the half-finished film from *Assemble*/*Film*/*Choose*.
-
 ## Upscale
 
-The main workflow has the same chain as group **8 · Upscale (optional)** right after *Assemble* – muted by default. Select the group and press **Ctrl+M** to turn it on: **ASSEMBLE** then also renders the upscaled film (input = *Assemble* › `video_path`, with the film's sound) and shows it in its own *Film* node. The result lands next to the film as `<name>_upscale.mp4`.
-
-
-`example_workflows/Infinite Movie - LTX Upscale.json` — the same two stages as a separate workflow for any film:
+Group **8 · Upscale** (muted) in the main workflow, or the separate workflow `Infinite Movie - LTX Upscale` for any film:
 
 ```
-VHS Load Video  →  Upscale Crop Universal (video upscale model, ×1.3334, multiple of 64)  →  Infinite Movie · LTX Refine (1:1)
+VHS Load Video  →  Upscale Crop Universal (×1.3334, multiple of 64)  →  Infinite Movie · LTX Refine (1:1)
 ```
 
-| Node | Purpose |
-|---|---|
-| **Infinite Movie · LTX Refine** | Re-renders a film of any length with LTX 2.5 in overlapping chunks (default 49 frames, 17 overlap, crossfaded), so it fits in VRAM. Mode `refine 1:1` (default): partial denoise at the same size to bring back detail on top of a soft upscale; mode `ic-lora upscale x2` (optional, needs the IC-LoRA pixel upscaler). Seamless loops (`loop`), size modes as in Upscale Crop Universal, saves the film itself (H.264), keeps the source audio. With `video_path` connected it saves next to that file as `<name>_upscale.mp4`, otherwise under `filename_prefix`. Frees the GPU (VRAM handoff) before it starts. |
+- **LTX Refine** re-renders the film with LTX 2.5 in overlapping chunks (49 frames, 17 overlap) at low denoise to bring
+  back detail. Works for any length, keeps loops seamless and the sound, saves `<name>_upscale.mp4` next to the film.
+  Needs the LTX 2.5 models (🔒 gated).
+- Prompt `photographic, 4k`, negative empty, sigmas `0.421875, 0.0` (higher = softer, more flicker).
+- Base upscale model: [2x-LiveActionV1-SPAN](https://openmodeldb.info/models/2x-LiveActionV1-SPAN) by jcj83429
+  (CC-BY-NC-SA-4.0) – [download](https://raw.githubusercontent.com/jcj83429/upscaling/f73a3a02874360ec6ced18f8bdd8e43b5d7bba57/2xLiveActionV1_SPAN/2xLiveActionV1_SPAN_490000.pth)
+  (9 MB) into `models/upscale_models/`. *Upscale Crop Universal* ships with this pack.
 
-- Prompt `photographic, 4k`, negative empty. Sigmas `0.421875, 0.0` — higher values soften and flicker more.
-- Base upscale model: [2x-LiveActionV1-SPAN](https://openmodeldb.info/models/2x-LiveActionV1-SPAN) by jcj83429 (CC-BY-NC-SA-4.0) – [download `2xLiveActionV1_SPAN_490000.pth`](https://raw.githubusercontent.com/jcj83429/upscaling/f73a3a02874360ec6ced18f8bdd8e43b5d7bba57/2xLiveActionV1_SPAN/2xLiveActionV1_SPAN_490000.pth) (9 MB) into `models/upscale_models/`.
-- Upscale Crop Universal is shipped in `upscale_universal/`.
-- **Silent films:** VHS Load Video fails as soon as its `audio` output is used on a film without sound.
-  `python tools/patch_vhs_silent_audio.py` patches VideoHelperSuite to return silence instead (re-run after VHS updates,
-  `--check` to test).
+## Requirements and troubleshooting
 
-Requires ComfyUI with the V3 node API and **ffmpeg**: either `imageio-ffmpeg` (`pip install imageio-ffmpeg`, comes with
-[VideoHelperSuite](https://github.com/Kosinkadink/ComfyUI-VideoHelperSuite)) or an ffmpeg on PATH
-([Windows builds](https://www.gyan.dev/ffmpeg/builds/), [ffmpeg.org](https://ffmpeg.org/download.html)).
-RIFE via [ComfyUI-Frame-Interpolation](https://github.com/Fannovel16/ComfyUI-Frame-Interpolation) (optional).
-
-Install: clone into `ComfyUI/custom_nodes/` and restart ComfyUI.
-
-Example workflows live in `example_workflows/`; each carries a README note (top left) with the model links.
+- ComfyUI with the V3 node API, a recent frontend, an NVIDIA GPU (tested on 24 GB, 768×960).
+- **ffmpeg:** comes with VideoHelperSuite (`imageio-ffmpeg`); otherwise install it
+  ([Windows builds](https://www.gyan.dev/ffmpeg/builds/), [ffmpeg.org](https://ffmpeg.org/download.html)) and put it on PATH.
+- **Run does not start and names another program:** that program holds too much GPU memory; close it and press Run again.
+- **Silent film in VHS Load Video fails:** `python tools/patch_vhs_silent_audio.py` patches VideoHelperSuite to return
+  silence (re-run after VHS updates, `--check` to test).
+- **Missing model after download:** check the folder (table above) and press **R** in ComfyUI to refresh the lists.
