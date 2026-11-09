@@ -16,7 +16,7 @@ tests/object_info_snapshot.json
 
 # nur lokal (Nutzer 2026-11-04: auf GitHub nur das Minimum – Code, web, templates, Beispiel-Workflows, README)
 docs/
-workflows/
+/workflows/
 tools/*
 !tools/patch_vhs_silent_audio.py
 tests/
