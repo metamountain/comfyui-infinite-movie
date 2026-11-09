@@ -1967,7 +1967,29 @@ app.registerExtension({
     // 57c: Tooltip für `file` (Nutzer 2026-11-01)
     const fileW = node.widgets?.find((x) => x.name === "file");
     if (fileW) fileW.tooltip = "Only for re-timing an existing video without the Director. Hidden while 'shots' is connected.";
+    // 2026-11-09: ungültige Werte (verrutschte widgets_values nach Schema-Änderung, z. B. interpolate=24,
+    // fps='') auf den Standard setzen – sonst scheitert die Validierung an Feldern, die verborgen und damit
+    // für den Nutzer nicht korrigierbar sind. Gültige Werte bleiben unangetastet.
+    // Standardwerte wie retime_nodes.py InfiniteMovieAssemble.define_schema (das Frontend kennt sie hier nicht).
+    const DEFAULTS = { fps: 24, strength: 0.8, keep: 1, interpolate: "RIFE x2", even_motion: true, loop: true };
+    const sanitize = () => {
+      for (const w of node.widgets || []) {
+        const vals = w.options?.values;
+        const def = DEFAULTS[w.name];
+        if (w.type === "combo" && Array.isArray(vals) && vals.length && !vals.includes(w.value)) {
+          if (w.name === "file") continue; // Datei-Liste: unbekannte Datei bleibt sichtbar als Fehler
+          w.value = vals.includes(def) ? def : vals[0];
+        } else if (w.type === "number" && (w.value === "" || w.value === null || !Number.isFinite(Number(w.value)))) {
+          w.value = def ?? w.options?.min ?? 0;
+        } else if (w.type === "toggle" && typeof w.value !== "boolean") {
+          w.value = def ?? true;
+        } else if (w.name === "video_path" && w.value === "as rendered") {
+          w.value = ""; // Rest des gestrichenen output_size-Combos (verrutscht)
+        }
+      }
+    };
     const update = () => {
+      sanitize();
       const inp = (node.inputs || []).find((i) => i.name === "shots");
       setHidden(inp?.link == null);
     };
