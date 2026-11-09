@@ -1189,6 +1189,12 @@ class InfiniteMovieSegmentSave(io.ComfyNode):
         # are not logged (intended). The early "already complete" skip returns
         # before this line, so resumed segments are not logged either.
         _log_segment_timing(unique_id, expected_frames)
+        # 2026-11-09: the next segment's text encoder would otherwise evict the partially loaded, LoRA-patched
+        # video model from inside torch.inference_mode -> "Cannot set version_counter for inference tensor"
+        # (model_patcher.partially_unload -> utils.set_attr_param). Unloading here with inference mode OFF
+        # avoids that path; the models reload from RAM for the next segment.
+        from .vram import unload_comfyui_models
+        unload_comfyui_models()
         return io.NodeOutput(path)
 
 
