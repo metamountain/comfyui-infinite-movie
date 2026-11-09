@@ -359,6 +359,13 @@ def _make_last(path: str, out_last: str) -> None:
 _EXTRAS = {"sheet_file": (_make_sheet, "_sheet.webp", "sheet"), "last_file": (_make_last, "_last.webp", "last")}
 
 
+def _short_err(what: str, e: Exception) -> str:
+    """One short line for the Choose UI: '<what> failed: <last line of the error>'."""
+    msg = str(e).strip().splitlines()
+    print(f"[InfiniteMovieChooser] {what} failed: {e!r}")
+    return f"{what} failed: {(msg[-1] if msg else type(e).__name__)[:120]}"
+
+
 def _variant_entry(path: str, choose_dir: str, subfolder: str, variant_key: str,
                    cache: dict, cache_key: str) -> tuple[dict, bool]:
     """Vorschau (animierte WebP) + Standbild + Pruefungen + jerk fuer eine
@@ -366,6 +373,7 @@ def _variant_entry(path: str, choose_dir: str, subfolder: str, variant_key: str,
     if not os.path.exists(path):
         return {"preview": None, "still": None, "flags": [], "level": 0,
                 "info": f"segment file not found: {os.path.basename(path)}",
+                "errors": [f"file missing: {os.path.basename(path)}"],
                 "jerk": 0.0, "score": 0.0}, False
     size, mtime = _segment_sig(path)
     sig = f"{size}:{mtime:.6f}"
@@ -374,7 +382,8 @@ def _variant_entry(path: str, choose_dir: str, subfolder: str, variant_key: str,
             os.path.exists(os.path.join(choose_dir, cached["preview_file"])) and \
             cached.get("still_file") and os.path.exists(os.path.join(choose_dir, cached["still_file"])):
         made = False
-        for key, (fn, suffix, _ui) in _EXTRAS.items():
+        errors = []
+        for key, (fn, suffix, ui) in _EXTRAS.items():
             if cached.get(key) and os.path.exists(os.path.join(choose_dir, cached[key])):
                 continue
             try:   # ältere Cache-Einträge: fehlende Zusatzbilder nachziehen
@@ -382,8 +391,9 @@ def _variant_entry(path: str, choose_dir: str, subfolder: str, variant_key: str,
                 fn(path, os.path.join(choose_dir, f))
                 cached[key] = f
                 made = True
-            except Exception:  # noqa: BLE001
+            except Exception as e:  # noqa: BLE001
                 cached[key] = None
+                errors.append(_short_err(ui, e))
         return {
             "preview": {"filename": cached["preview_file"], "subfolder": subfolder, "type": "temp"},
             "still": {"filename": cached["still_file"], "subfolder": subfolder, "type": "temp"},
@@ -394,6 +404,7 @@ def _variant_entry(path: str, choose_dir: str, subfolder: str, variant_key: str,
             "info": cached.get("info", ""),
             "jerk": cached.get("jerk", 0.0),
             "score": cached.get("score", 0.0),
+            "errors": errors + ([cached["info"]] if str(cached.get("info", "")).startswith("choose failed") else []),
         }, made
     h = hashlib.md5(sig.encode("utf-8")).hexdigest()[:8]
     preview_file = f"{variant_key}_{h}.webp"
@@ -401,17 +412,20 @@ def _variant_entry(path: str, choose_dir: str, subfolder: str, variant_key: str,
     out_webp = os.path.join(choose_dir, preview_file)
     out_still = os.path.join(choose_dir, still_file)
     extra_files = {key: f"{variant_key}_{h}{sfx}" for key, (_fn, sfx, _ui) in _EXTRAS.items()}
+    errors = []
     try:
         res = _review_segment(path, out_webp)
         _make_still(path, out_still)
-        for key, (fn, _sfx, _ui) in _EXTRAS.items():
+        for key, (fn, _sfx, ui) in _EXTRAS.items():
             try:
                 fn(path, os.path.join(choose_dir, extra_files[key]))
-            except Exception:  # noqa: BLE001  (Zugabe – Vorschau/Prüfung laufen weiter)
+            except Exception as e:  # noqa: BLE001  (Zugabe – Vorschau/Prüfung laufen weiter)
                 extra_files[key] = None
+                errors.append(_short_err(ui, e))
         jerk = _jerk_metric(path)
     except Exception as e:  # noqa: BLE001
         res = {"flags": [], "level": 0, "info": f"choose failed: {e}"}
+        errors.append(f"choose failed: {str(e).strip().splitlines()[-1][:120] if str(e).strip() else type(e).__name__}")
         jerk = 0.0
     level = res["level"]
     score = level * 10 + jerk
@@ -428,6 +442,7 @@ def _variant_entry(path: str, choose_dir: str, subfolder: str, variant_key: str,
         "info": res["info"],
         "jerk": jerk,
         "score": score,
+        "errors": errors,
     }, True
 
 

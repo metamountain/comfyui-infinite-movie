@@ -2310,10 +2310,15 @@ const FC_CHOOSE_COL = 256;           // feste quadratische Kachel je Shot (Bild 
 const FC_CHOOSE_GAP = 4;
 const FC_CHOOSE_PAD = 20;            // DOM-Widget-Rand links+rechts in der Node
 const FC_CHOOSE_HEAD_H = 20, FC_CHOOSE_STAT_H = 24, FC_CHOOSE_BTNROW_H = 34;
+// Wirksame Wahl eines Shots: A/B aus dem Widget zählt nur, wenn der Shot beide Varianten hat (sonst steht nach
+// einem Lauf mit variants=1 ein altes „b“ im Widget und Sheet/Naht suchen eine Variante, die es nicht gibt).
+function fcChooseEff(e, c) { return (e?.has_variants && (c === "a" || c === "b")) ? c : (e?.auto || "a"); }
 // Befund einer Variante in Klartext (Schwellen wie review_nodes.JERK_HARD / LEVEL_STRONG).
 // 78: e = Shot-Eintrag; q.seam = rote Naht-Zeile zu naechstem Shot (nur wenn e.seam_bad).
 function fcChooseQuality(v, e) {
   const jerk = +v.jerk || 0, level = +v.level || 0, flags = v.flags || [];
+  // 2026-11-09: Fehler (Sheet/Standbild/Prüfung gescheitert, Datei fehlt) rot zeigen statt still schwarz.
+  if (v.errors?.length) return { text: `✗ ${v.errors.join(" · ")}`, color: "#fff", bg: "#b3261e" };
   const names = flags.map((f) => ({ CUT: "HARD CUT", FLICKER: "FLICKER", PARTICLES: "FROZEN PARTICLES" }[f] || f));
   if (jerk >= 7 && !names.includes("HARD CUT")) names.unshift("HARD JUMP");
   let q;
@@ -2660,13 +2665,16 @@ function fcChooseUpdateSheet(node, only = -1) {
     if (only >= 0 && i !== only) return;
     const e = entries[i];
     if (!e || !cell) return;
-    const eff = (choices[i] === "a" || choices[i] === "b") ? choices[i] : (e.auto || "a");
+    const eff = fcChooseEff(e, choices[i]);
     const k = (node._fc_sheet_hover?.[0] === i && e[node._fc_sheet_hover[1]]) ? node._fc_sheet_hover[1] : eff;
     const im = e[k]?.sheet;
     const src = im ? fcChooseStableUrl(im) : "";
     if (src && cell.img.getAttribute("src") !== src) cell.img.setAttribute("src", src);
     cell.img.style.visibility = src ? "visible" : "hidden";
-    cell.lbl.textContent = src ? `Shot ${e.number}${e.has_variants ? " · " + k.toUpperCase() : ""} · 3×3` : "no sheet yet – Run";
+    const err = e[k]?.errors?.find((x) => x.startsWith("sheet")) || (e.placeholder ? "" : e[k] ? "" : `variant ${k.toUpperCase()} missing`);
+    cell.lbl.textContent = src ? `Shot ${e.number}${e.has_variants ? " · " + k.toUpperCase() : ""} · 3×3`
+      : err ? `✗ Shot ${e.number}: ${err}` : "no sheet yet – Run";
+    cell.lbl.style.color = !src && err ? "#ff6b6b" : "";
   });
 }
 
@@ -2692,7 +2700,7 @@ function fcChooseSetChoices(node, arr) {
 // Effektive Wahl je Shot ('a'/'b'), AUTO aufgelöst.
 function fcChooseEffective(node) {
   const c = fcChooseGetChoices(node);
-  return (node._fc_choose_entries || []).map((e, i) => (c[i] === "a" || c[i] === "b") ? c[i] : (e.auto || "a"));
+  return (node._fc_choose_entries || []).map((e, i) => fcChooseEff(e, c[i]));
 }
 
 // Live-Vorschau: nur die Spalte unter der Maus ist animiert, alle anderen zeigen das Standbild.
@@ -2915,7 +2923,7 @@ function fcChooseRender(node) {
         node.properties.marked = m;
       };
 
-      const eff = e.placeholder ? null : ((choices[i] === "a" || choices[i] === "b") ? choices[i] : (e.auto || "a"));
+      const eff = e.placeholder ? null : fcChooseEff(e, choices[i]);
       const isAuto = !e.placeholder && choices[i] !== "a" && choices[i] !== "b";
       const canPick = !e.placeholder && !!e.has_variants;
       const letters = e.has_variants ? ["a", "b"] : ["a"];
@@ -2992,7 +3000,7 @@ function fcChooseRender(node) {
       // der Messwert stammt aus dem letzten Run (rot ab JERK_HARD, wie früher die Zeile 78).
       if (!e.placeholder && e.seam_next) {
         const ni = e.seam_next - 1, ne = entries[ni];
-        const pick = (en, idx) => (choices[idx] === "a" || choices[idx] === "b") ? choices[idx] : (en?.auto || "a");
+        const pick = (en, idx) => fcChooseEff(en, choices[idx]);
         const lastIm = (e[pick(e, i)] || e.a)?.last;
         const firstIm = ne ? ((ne[pick(ne, ni)] || ne.a)?.still) : null;
         const bad = !!e.seam_bad;
