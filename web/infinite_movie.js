@@ -1655,11 +1655,13 @@ function imvEnsure(node) {
   info.style.cssText = "height:14px;line-height:14px;flex:none;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;";
   el.appendChild(tabRow); el.appendChild(segRow); el.appendChild(canvas); el.appendChild(ctlRow); el.appendChild(info);
   Object.assign(st, { el, segRow, canvas, ctlRow, slider, play, onionLbl, gridLbl, trailLbl, trailIn: trail, info });
-  // feste Höhe: Fläche 480×480 + 4 Zeilen (22+22+22+14) + 4 Abstände -> springt nicht beim Tab-Wechsel
+  // feste Höhe: Fläche 480×480 + 4 Zeilen (22+22+22+14) + 4 Abstände -> springt nicht beim Tab-Wechsel.
+  // +20: das Frontend zieht vom Widget oben/unten je 10 px Rand ab (el = Höhe - 20); ohne die 20 ragten
+  // Regler- und Infozeile unten aus dem Rahmen (Nutzer 2026-11-09 „passen nicht in frame“).
   node.addDOMWidget("im_viz", "div", el, {
     serialize: false,
-    getMinHeight: () => IMV_H + 96,
-    getMaxHeight: () => IMV_H + 96,
+    getMinHeight: () => IMV_H + 96 + 20,
+    getMaxHeight: () => IMV_H + 96 + 20,
   });
   return st;
 }
