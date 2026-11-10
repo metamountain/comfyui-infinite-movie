@@ -84,20 +84,19 @@ def own_reserved_mb() -> int:
 
 
 def unload_comfyui_models() -> None:
-    """Unload all ComfyUI models and empty the CUDA cache. Only call from the prompt worker (inside a node).
+    """Ask ComfyUI to unload all models once the current prompt has finished (same as the core /free endpoint).
 
-    Nodes run inside torch.inference_mode() (execution.py:754); unpatching there fails with
-    "Cannot set version_counter for inference tensor" -> unload with inference mode disabled
-    (comfy.utils.set_attr_param clones inference tensors only when it is OFF, utils.py:1011).
+    Never unload directly from inside a node: nodes run in torch.inference_mode, and unloading there (or with
+    inference mode switched off) corrupts LoRA-patched models -> the next film crashes with "Cannot set
+    version_counter for inference tensor" / "Inference tensors do not track version counter" (Wan, LTX).
+    The prompt worker handles the flag between prompts, outside inference mode (main.py prompt_worker).
     """
     try:
-        import torch
-        import comfy.model_management as mm
-        with torch.inference_mode(False):
-            mm.unload_all_models()
-            mm.soft_empty_cache()
+        from server import PromptServer
+        PromptServer.instance.prompt_queue.set_flag("unload_models", True)
+        PromptServer.instance.prompt_queue.set_flag("free_memory", True)
     except Exception as exc:  # pragma: no cover - depends on ComfyUI runtime
-        print(f"[InfiniteMovie] model unload failed: {exc!r}")
+        print(f"[InfiniteMovie] model unload request failed: {exc!r}")
 
 
 # ---------------------------------------------------------------------------
@@ -223,7 +222,7 @@ def do_cleanup(free_vram: bool = True,
                unload=unload_comfyui_models,
                collect=None,
                log=print) -> str:
-    """free_vram: unload ComfyUI's models + empty the CUDA cache (no waiting).
+    """free_vram: unload ComfyUI's models after this prompt (core flag, like /free).
     free_ram: gc.collect(). The core /free endpoint additionally resets the executor cache; that cannot
     be done safely from inside a running node, so it is not replicated here."""
     import gc
@@ -231,7 +230,7 @@ def do_cleanup(free_vram: bool = True,
         collect = gc.collect
     parts = []
     if free_vram:
-        log("[InfiniteMovie] cleanup: unloading ComfyUI models + emptying cache")
+        log("[InfiniteMovie] cleanup: ComfyUI models unload after this prompt")
         unload()
         parts.append("models unloaded")
     if free_ram:

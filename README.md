@@ -182,6 +182,11 @@ quadratic). On 24 GB, 1088×1344 is the practical limit (up to 8 s per shot). Wh
 progress bar with the remaining time – from the first second on, using the durations of earlier shots **on your
 machine** (stored in `ComfyUI/user/infinite_movie_timings.jsonl`), then from the shots of the running film.
 
+Other engine groups, same machine, 768×960 per shot (warm): **LTX 2.5** distilled (8 sigmas) about 1.1 min at 2 s,
+1.3 min at 5 s, 2.0 min at 8 s – faster than MiniMax from 4 s on. **Wan 2.2** (lightx2v LoRA, 4 + 4 steps, 16 fps) is
+in the MiniMax range at 608×768 (0.9 min at 4 s, 3.7 min at 10 s) but loads two 14B experts, so the first shot after a
+start takes about 1 min longer.
+
 ## Requirements and troubleshooting
 
 - ComfyUI with the V3 node API, a recent frontend, an NVIDIA GPU (tested on 24 GB, up to 1088×1344).
