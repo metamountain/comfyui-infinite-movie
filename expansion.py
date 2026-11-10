@@ -659,11 +659,12 @@ def _model_inputs_tag(model_inputs: dict | None) -> str:
 
 
 def _reusable_segment(path: str, key: str) -> bool:
-    """78 (user 2026-11-03: RERENDER recomputed all shots and threw away the unchanged ones): file with exactly
-    this key (seed/prompt/images/length) present -> do not sample at all."""
+    """Reuse an existing shot unless its seed changed (user 2026-11-10: only 'reseed' decides what is rendered
+    again - edited prompts, images or lengths do not). The key file still stores the full key; only its
+    'seed=…' part is compared. A missing file or key file -> render."""
     try:
         return (os.path.getsize(path) > 0
-                and open(path + ".key", encoding="utf-8").read().strip() == key)
+                and open(path + ".key", encoding="utf-8").read().strip().split(";")[0] == key.split(";")[0])
     except OSError:
         return False
 
