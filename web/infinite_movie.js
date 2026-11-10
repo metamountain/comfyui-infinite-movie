@@ -6,7 +6,7 @@ import { api } from "../../scripts/api.js";
 
 const IMG = "images.image";
 const PR = "shot_prompts.prompt";
-// 74: GPU-Vorabprüfung – min_free_mb ist eine Konstante (Python: MIN_FREE_MB), GPU-Übergabe fest.
+// 74: GPU pre-check – min_free_mb is a constant (Python: MIN_FREE_MB), GPU handover fixed.
 const MIN_FREE_MB = 20000;
 
 function slotKey(name) {
@@ -15,15 +15,15 @@ function slotKey(name) {
   return null;
 }
 
-// Gemutete/gebypasste LoadImage zählen nicht zur Kette (Nutzer 2026-11-04: "nur 1 von 7 Bildern
-// nutzen"): Ctrl+M auf ein Bild nimmt es aus dem Film, seine Auto-Prompts werden mitgemutet und
-// behalten ihren Text; Ent-muten stellt alles wieder her.
+// Muted/bypassed LoadImage nodes do not count towards the chain (user 2026-11-04: "only 1 of 7 images
+// used"): Ctrl+M on an image removes it from the film, its Auto Prompts get muted along with it and
+// keep their text; un-muting restores everything.
 const fcActive = (n) => (n?.mode ?? 0) === 0;
 
-// 2026-11-08 (Nutzer: „input images not working if wired via preview image or upscale universal“): Bildquelle der
-// Kette ist JEDER Node, der über einen IMAGE-Ausgang verbunden ist (Load Image, Upscale Crop Universal,
-// Assemble › last_frame …), nicht nur LoadImage. Reihenfolge nach der Wurzel der Bildkette (erster Node ohne
-// IMAGE-Eingang, meist das Load Image) – so bleibt die alte Ordnung „Load Image id aufsteigend“ erhalten.
+// 2026-11-08 (user: „input images not working if wired via preview image or upscale universal“): the image source of the
+// chain is EVERY node connected via an IMAGE output (Load Image, Upscale Crop Universal,
+// Assemble › last_frame …), not just LoadImage. Order by the root of the image chain (first node without
+// IMAGE input, usually the Load Image) – this keeps the old order "Load Image id ascending".
 const fcImgLink = (g, l) => !!l && (l.type === "IMAGE"
   || g.getNodeById(l.origin_id)?.outputs?.[l.origin_slot]?.type === "IMAGE");
 function fcImgRoot(g, n, depth = 0) {
@@ -34,7 +34,7 @@ function fcImgRoot(g, n, depth = 0) {
   return o ? fcImgRoot(g, o, depth + 1) : n;
 }
 const fcImgOrder = (g) => (a, b) => (fcImgRoot(g, a).id - fcImgRoot(g, b).id) || (a.id - b.id);
-// Bildquelle aktiv = sie selbst und die Wurzel ihrer Bildkette nicht gemutet/gebypasst
+// Image source active = itself and the root of its image chain not muted/bypassed
 const fcImgActive = (g, n) => fcActive(n) && fcActive(fcImgRoot(g, n));
 
 function getLink(graph, id) {
@@ -44,7 +44,7 @@ function getLink(graph, id) {
 }
 
 // 82: per-shot seconds – Director-Widget 'shot_seconds' parsen
-// ("2, 3,,4" -> [2, 3, 0, 4]; leer/ungültig -> 0 = globales 'seconds').
+// ("2, 3,,4" -> [2, 3, 0, 4]; empty/invalid -> 0 = global 'seconds').
 function fcParseShotSeconds(text) {
   if (text == null) return [];
   const out = [];
@@ -58,7 +58,7 @@ function fcParseShotSeconds(text) {
   return out;
 }
 
-// 82: aktuelle Länge eines Shots (1-basiert): Eintrag in 'shot_seconds' oder globales 'seconds'.
+// 82: current length of a shot (1-based): entry in 'shot_seconds' or global 'seconds'.
 function fcShotSecondsOf(director, shotNumber) {
   const g = parseFloat(director?.widgets?.find((w) => w.name === "seconds")?.value);
   const global = isNaN(g) || g <= 0 ? 1 : g;
@@ -71,7 +71,7 @@ function interleave(node) {
   // last wired image loops back to image 1 when "loop" is on
   const nImg = slots.filter((inp) => slotKey(inp.name)[1] === 0 && inp.link != null).length;
   const loop = node.widgets?.find((w) => w.name === "loop")?.value;
-  // 82: per-shot seconds aus dem 'shot_seconds'-Widget (statt scene_seconds.*)
+  // 82: per-shot seconds from the 'shot_seconds' widget (instead of scene_seconds.*)
   const shotSecs = fcParseShotSeconds(node.widgets?.find((w) => w.name === "shot_seconds")?.value);
   for (const inp of slots) {
     const [i, kind] = slotKey(inp.name);
@@ -86,14 +86,14 @@ function interleave(node) {
   node.setDirtyCanvas?.(true, true);
 }
 
-// Auto Prompt · Regenerate (2026-11-03): der Prompt entsteht IN ComfyUI mit dem lokalen Modell aus
-// Settings › prompt_model (autoprompt.py). Der Knopf queued NUR diesen Node (partial execution:
-// app.queuePrompt(0, 1, [id]) → partial_execution_targets; der Node ist darum ein Output-Node).
-// Das Ergebnis kommt als ui-Text zurück (onExecuted) und landet im prompt-Feld.
-// Stichworte: der Text im Feld beim ERSTEN Regenerate (prompt_hint); weitere Regenerates nehmen sie
-// wieder, bis der Nutzer den Text von Hand ändert.
+// Auto Prompt · Regenerate (2026-11-03): the prompt is created IN ComfyUI with the local model from
+// Settings › prompt_model (autoprompt.py). The button queues ONLY this node (partial execution:
+// app.queuePrompt(0, 1, [id]) → partial_execution_targets; the node is therefore an output node).
+// The result comes back as ui text (onExecuted) and lands in the prompt field.
+// Keywords: the text in the field at the FIRST Regenerate (prompt_hint); further regenerates take them
+// again, until the user changes the text by hand.
 
-// Settings-Kette rückwärts gehen (… → Prompt Style → Settings, auch durch Reroutes).
+// Walk the settings chain backwards (… → Prompt Style → Settings, also through reroutes).
 function settingsChainOf(node) {
   const res = { settings: null, style: null };
   let n = node, guard = 0;
@@ -127,17 +127,17 @@ function addRegenerateButton(node) {
     }
     node.properties = node.properties || {};
     const cur = String(promptW.value ?? "").trim();
-    // 2026-11-04 (Nutzer: „autoprompt writing dumb stuff“): ein vom Modell geschriebener Text ist kein Stichwort –
-    // sonst schreibt das Modell beim nächsten Regenerate nur sich selbst ab. _fcRegenWrote geht beim Neuladen
-    // verloren, darum zusätzlich properties.im_last_generated (wird mit dem Workflow gespeichert).
+    // 2026-11-04 (user: „autoprompt writing dumb stuff“): a text written by the model is not a keyword –
+    // otherwise the model just copies itself at the next Regenerate. _fcRegenWrote is lost on reload
+    // is lost, hence additionally properties.im_last_generated (saved with the workflow).
     const gen = node.properties.im_last_generated;
     if (gen && node.properties.prompt_hint === gen) node.properties.prompt_hint = null;
     if (cur && !node.properties.prompt_hint && cur !== gen && cur !== node._fcRegenWrote) node.properties.prompt_hint = cur;
     kwW.value = node.properties.prompt_hint ?? "";
     node._fcRegenWrote = "";
-    promptW.value = "";   // leer + regen = der Node erzeugt neu
+    promptW.value = "";   // empty + regen = the node generates anew
     const regenW = node.widgets?.find((w) => w.name === "regen");
-    if (regenW) regenW.value = String(Date.now());   // nur DIESER Node erzeugt
+    if (regenW) regenW.value = String(Date.now());   // only THIS node generates
     btn.name = "⏳ generating ...";
     node.setDirtyCanvas(true, true);
     try {
@@ -147,21 +147,21 @@ function addRegenerateButton(node) {
       btn.name = "⚠ failed – see console, click to retry";
       node.setDirtyCanvas(true, true);
     } finally {
-      if (regenW) regenW.value = "";   // der nächste Run erzeugt nichts
+      if (regenW) regenW.value = "";   // the next run generates nothing
     }
   });
   btn.serialize = false;
-  node._fcRegenBtn = btn; // Loop-Schalter triggert die Generierung des Schliess-Prompts
+  node._fcRegenBtn = btn; // the loop switch triggers generation of the closing prompt
   btn.tooltip = "Write the prompt for this transition now with the local prompt model (Settings › prompt_model). " +
     "Runs only this node. The result lands in 'prompt', where you can edit it; press again for a new version.";
-  // Nutzer ändert den Text von Hand -> prompt_hint zurücksetzen (nächster Regenerate nimmt den neuen Text).
+  // User changes the text by hand -> reset prompt_hint (next Regenerate takes the new text).
   const promptW = node.widgets?.find((w) => w.name === "prompt");
   if (promptW) {
     const origCb = promptW.callback;
     promptW.callback = function (...args) {
       const r = origCb?.apply(this, args);
-      // Der Text-Widget meldet Änderungen verzögert – darum mit dem selbst geschriebenen Wert vergleichen
-      // statt mit einem Flag. Leeren setzt die Stichworte nicht zurück.
+      // The text widget reports changes with a delay – hence compare with the self-written value
+      // instead of a flag. Clearing does not reset the keywords.
       const v = String(args[0] ?? promptW.value ?? "");
       if (v.trim() && v !== node._fcRegenWrote && v !== node.properties?.im_last_generated) {
         node.properties = node.properties || {};
@@ -170,7 +170,7 @@ function addRegenerateButton(node) {
       return r;
     };
   }
-  // keywords nur für Regenerate – im Node verborgen
+  // keywords only for Regenerate – hidden in the node
   setTimeout(() => {
     imToggleWidget(node.widgets?.find((w) => w.name === "keywords"), false);
     imToggleWidget(node.widgets?.find((w) => w.name === "regen"), false);
@@ -178,9 +178,9 @@ function addRegenerateButton(node) {
   }, 0);
 }
 
-// 73 (Nutzer 2026-11-03: „durch Start wurden sie mehrfach gerendert“): ein Teil-Lauf (Regenerate, ASSEMBLE)
-// darf keinen Seed weiterdrehen – sonst rendert der Director (control before generate: randomize) alle Shots
-// neu, statt sie aus dem Cache zu nehmen. Darum alle Seed-Steuerungen für diesen einen Queue auf „fixed“.
+// 73 (user 2026-11-03: „they got rendered multiple times on start“): a partial run (Regenerate, ASSEMBLE)
+// must not advance any seed – otherwise the director (control before generate: randomize) re-renders all shots
+// anew instead of taking them from the cache. Hence all seed controls for this one queue set to "fixed".
 async function fcQueueFixedSeeds(targets) {
   const saved = [];
   for (const n of app.graph?._nodes || []) {
@@ -195,7 +195,7 @@ async function fcQueueFixedSeeds(targets) {
   }
 }
 
-// Filme/Vorschauen eines alten Laufs entfernen (neuer Shot-Run oder Abbrechen): Film, Assemble, Choose.
+// Remove films/previews of an old run (new shot run or cancel): Film, Assemble, Choose.
 function fcClearFilms({ choose = false } = {}) {
   for (const n of app.graph?._nodes || []) {
     if (n.comfyClass === "InfiniteMovieFilm") { n._fc_film_info = null; fcFilmRender(n); }
@@ -212,8 +212,8 @@ function wrapQueue() {
   if (app._fcQueueWrapped || typeof app.queuePrompt !== "function") return;
   const orig = app.queuePrompt.bind(app);
   app.queuePrompt = async function (...args) {
-    // 73 (Nutzer 2026-11-03: „Film soll nicht automatisch gerendert werden“): Run rendert nur die Shots bis
-    // Choose. Den Film baut erst ASSEMBLE im Choose (Teil-Lauf auf Film/Assemble).
+    // 73 (user 2026-11-03: „the film must not be rendered automatically“): Run only renders the shots up to
+    // Choose. ASSEMBLE in Choose builds the film first (partial run on Film/Assemble).
     const userRun = !(Array.isArray(args[2]) && args[2].length);
     if (userRun) {
       const chooses = (app.graph?._nodes || []).filter((n) => n.comfyClass === "InfiniteMovieChooser"
@@ -223,8 +223,8 @@ function wrapQueue() {
         window.__fc_shots_run = true;
       }
     }
-    // 72 (Nutzer 2026-11-03: „prompts automatically filled – prefer manual“): ein voller Run erzeugt keine
-    // Prompts. Leere Auto Prompts -> Meldung, KEIN Queue. Regenerate (partial targets in args[2]) geht durch.
+    // 72 (user 2026-11-03: „prompts automatically filled – prefer manual“): a full run generates no
+    // prompts. Empty Auto Prompts -> message, NO queue. Regenerate (partial targets in args[2]) goes through.
     const partial = !userRun;
     if (!partial) {
       const empty = (app.graph?._nodes || []).filter((n) => n.comfyClass === "InfiniteMovieAutoPrompt"
@@ -235,11 +235,11 @@ function wrapQueue() {
         if (!window.confirm(`Empty prompt (nothing is generated on Run):\n${names}\n\nRender without prompt?`)) return false;
       }
     }
-    // 65 (Nutzer 2026-11-03: „Render darf nicht losgeschickt werden!“): GPU VOR dem Queue prüfen (eine Messung,
-    // fremde Programme werden nie angefasst). Nicht genug frei -> Meldung, KEIN Queue.
+    // 65 (user 2026-11-03: „the render must not be sent out!“): check the GPU BEFORE the queue (one measurement,
+    // foreign programs are never touched). Not enough free -> message, NO queue.
     const director = (app.graph?._nodes || []).find((n) => n.comfyClass === "InfiniteMovieRender" && (n.mode ?? 0) === 0);
     if (director && !window.__fc_skip_gpu_preflight) {
-      const min = MIN_FREE_MB;   // 74: Konstante (war Settings-Widget min_free_mb)
+      const min = MIN_FREE_MB;   // 74: constant (was the settings widget min_free_mb)
       fcReviewToast("Checking GPU memory ...");
       let res = null;
       try {
@@ -257,7 +257,7 @@ function wrapQueue() {
       if (res) console.log("[InfiniteMovie] gpu_preflight:", res.message);
     }
     const res = await orig(...args);
-    // Neuer Shot-Run: alter Film passt nicht mehr -> aus Film/Assemble/Choose entfernen
+    // New shot run: old film no longer fits -> remove from Film/Assemble/Choose
     if (userRun && window.__fc_shots_run) { window.__fc_shots_run = false; fcClearFilms({ choose: true }); }
     return res;
   };
@@ -284,7 +284,7 @@ app.registerExtension({
       const text = Array.isArray(message?.text) ? message.text.join("") : message?.text;
       const pw = this.widgets?.find((w) => w.name === "prompt");
       if (pw && typeof text === "string" && text.trim() && text !== pw.value) {
-        this._fcRegenWrote = text;   // prompt_hint behalten (Ergebnis, nicht Nutzer)
+        this._fcRegenWrote = text;   // keep prompt_hint (result, not user)
         this.properties = this.properties || {};
         this.properties.im_last_generated = text;
         pw.value = text;
@@ -296,9 +296,9 @@ app.registerExtension({
   },
 });
 
-// Settings: alles immer offen (Nutzer 2026-11-03: „settings always open, no all settings button“).
-// Größe = aspect + long_side (auf 32 gerundet, wie settings_nodes.resolve_size); das Ergebnis steht
-// im Label von long_side („long_side → 768×960“).
+// Settings: everything always open (user 2026-11-03: „settings always open, no all settings button“).
+// Size = aspect + long_side (rounded to 32, like settings_nodes.resolve_size); the result is shown
+// in the label of long_side („long_side → 768×960“).
 function imToggleWidget(w, show) {
   if (!w) return;
   if (w._imOrigComputeSize === undefined) w._imOrigComputeSize = w.computeSize ?? null;
@@ -314,7 +314,7 @@ function imToggleWidget(w, show) {
 }
 
 function imResolveSize(aspect, longSide) {
-  const m = /^(\d+):(\d+)/.exec(String(aspect ?? "")) || [0, 4, 5];   // alter/ungültiger Wert -> 4:5
+  const m = /^(\d+):(\d+)/.exec(String(aspect ?? "")) || [0, 4, 5];   // old/invalid value -> 4:5
   const rw = +m[1], rh = +m[2];
   const r32 = (v) => Math.max(32, Math.round(v / 32) * 32);
   const long = r32(longSide || 960);
@@ -325,7 +325,7 @@ function imSettingsSizeLabel(node) {
   const a = node.widgets?.find((w) => w.name === "aspect");
   const l = node.widgets?.find((w) => w.name === "long_side");
   if (!a || !l) return;
-  // 69: "from images" – das Verhältnis kommt vom ersten Bild des Directors, hier kein Rechnen.
+  // 69: "from images" – the ratio comes from the director's first image, no calculation here.
   if (a.value === "from images") {
     l.label = "long_side → from image 1";
     node.setDirtyCanvas?.(true, true);
@@ -361,8 +361,8 @@ app.registerExtension({
   },
 });
 
-// 66 (2026-11-03): Ordner-Browser als Dialog in der Seite. Server liefert nur Ordnernamen
-// (POST /infinite_movie/list_dirs, nur von diesem Rechner). Graustufen, ComfyUI-Farbvariablen.
+// 66 (2026-11-03): folder browser as an in-page dialog. The server only delivers folder names
+// (POST /infinite_movie/list_dirs, only from this machine). Grayscale, ComfyUI color variables.
 function fcPickFolder(start) {
   return new Promise((resolve) => {
     const bg = document.createElement("div");
@@ -418,7 +418,7 @@ function fcPickFolder(start) {
       }
       if (!j.ok) {
         err.textContent = j.error || "cannot open folder";
-        if (p) return go("");   // ungültiger Startordner -> Laufwerke
+        if (p) return go("");   // invalid start folder -> drives
         return;
       }
       path = j.path || "";
@@ -436,22 +436,22 @@ function fcPickFolder(start) {
 }
 window.fcPickFolder = fcPickFolder;
 
-// 63 (2026-11-03): Settings › output_folder – Knopf „📂 Choose folder“ öffnet einen
-// nativen Ordner-Dialog auf dem ComfyUI-Rechner (POST /infinite_movie/choose_folder)
-// und trägt den Pfad in das output_folder-Feld ein. Assemble schreibt den fertigen
-// Film dann nach <output_folder>/<save_name>.mp4.
-// Button-Widget wird NICHT serialisiert (serialize=false, Vorbild Regenerate-Knopf
-// in addRegenerateButton), damit die positionellen widgets_values gleich lang bleiben.
+// 63 (2026-11-03): Settings › output_folder – the "📂 Choose folder" button opens a
+// native folder dialog on the ComfyUI machine (POST /infinite_movie/choose_folder)
+// and enters the path into the output_folder field. Assemble writes the finished
+// film to <output_folder>/<save_name>.mp4 then.
+// The button widget is NOT serialized (serialize=false, model: the Regenerate button
+// in addRegenerateButton), so the positional widgets_values stay the same length.
 app.registerExtension({
   name: "InfiniteMovie.SettingsChooseFolder",
   nodeCreated(node) {
     if (node.comfyClass !== "InfiniteMovieSettings") return;
-    // Guard: Button nach einem configure() (Workflow-Load) neu anlegen, aber nicht doppelt.
+    // Guard: recreate the button after a configure() (workflow load), but not twice.
     if (node.widgets?.some((x) => x.name === "📂 Choose folder")) return;
     const w = node.widgets?.find((x) => x.name === "output_folder");
     if (!w) return;
     const btn = node.addWidget("button", "📂 Choose folder", null, async () => {
-      // 66: Ordner-Browser im Browser (der native Dialog blieb unsichtbar hinter dem Browser)
+      // 66: folder browser in the browser (the native dialog stayed invisible behind the browser)
       const path = await fcPickFolder(String(w.value ?? ""));
       if (path) {
         w.value = path;
@@ -465,9 +465,9 @@ app.registerExtension({
   },
 });
 
-// Layout-Knopf (Nutzer 2026-10-26: kein Schalter, Ordnen nur auf Klick): Bilder links, Prompts rechts dicht
-// gestapelt, jedes Bild mittig auf der Grenze zwischen seinen beiden Prompts. Groessen, die der Nutzer gezogen
-// hat, bleiben; die Gruppe um die Bilder wird angepasst.
+// Layout button (user 2026-10-26: no switch, arrange only on click): images left, prompts right tightly
+// stacked, each image centered on the boundary between its two prompts. Sizes the user has dragged
+// stay; the group around the images is adjusted.
 function sources(node, prefix) {
   return (node.inputs || [])
     .filter((i) => i.name?.startsWith(prefix) && i.link != null)
@@ -498,8 +498,8 @@ function layoutPrompts(node) {
   // (Nutzer 2026-11-01); a width the user dragged larger stays.
   for (const p of prs) {
     if (p.size[0] < PROMPT_W) p.setSize ? p.setSize([PROMPT_W, p.size[1]]) : (p.size[0] = PROMPT_W);
-    // 57d: Prompt-Node so hoch wie das Load-Image am image_from (min. computeSize),
-    // damit Prompt + Bild auf einer Höhe stehen (Nutzer 2026-11-01).
+    // 57d: prompt node as tall as the Load Image at image_from (min. computeSize),
+    // so prompt + image stand at the same height (user 2026-11-01).
     const fi = (p.inputs || []).findIndex((i) => i.name === "image_from");
     if (fi >= 0 && p.inputs[fi].link != null) {
       const l = getLink(g, p.inputs[fi].link);
@@ -517,7 +517,7 @@ function layoutPrompts(node) {
   const ih = Math.max(...imgs.map((n) => n.size[1])) + titleH;
   const px = x0 + iw + 40;
 
-  // Read mode switches (71: intro/outro entfernt – nur noch loop)
+  // Read mode switches (71: intro/outro removed – only loop left)
   const w = (name) => node.widgets?.find((x) => x.name === name)?.value;
   const hasLoop = !!w("loop");
   const nImgs = imgs.length;
@@ -554,16 +554,16 @@ function layoutPrompts(node) {
     y = bottom + gap;
   }
 
-  // 57c: Settings-Node ganz links in eigener Spalte VOR den Bildern (Nutzer 2026-11-02).
-  // Y-Position: Mitte der Prompt-Spalte, damit die Settings-Links nach rechts laufen
-  // und die LoadImage→AutoPrompt/Render-Links nicht kreuzen.
+  // 57c: settings node far left in its own column BEFORE the images (user 2026-11-02).
+  // Y position: middle of the prompt column, so the settings links run to the right
+  // and do not cross the LoadImage→AutoPrompt/Render links.
   const snode = prSorted.length ? settingsNodeOf(prSorted[0]) : null;
   if (snode) {
     const promptMidY = y0 + (promptPos.length ? (promptPos[promptPos.length - 1].bottom - y0) / 2 : 0);
     snode.pos = [x0 - (snode.size[0] || 340) - 40, promptMidY - (snode.size[1] || 600) / 2];
   }
 
-  // Position images by their real links (Nutzer 2026-11-01: every image the same way, incl. the first):
+  // Position images by their real links (user 2026-11-01: every image the same way, incl. the first):
   // image centre on the gap between the prompt it ends (image_to) and the prompt it starts (image_from).
   // Index-based placement broke with intro/outro (prompt k is not the pair k -> k+1 then).
   const edges = (im) => {
@@ -604,8 +604,8 @@ function layoutPrompts(node) {
   g.setDirtyCanvas(true, true);
 }
 
-// 57c: Segment-Schnitt der Link-Endpunkte (gerade Linien Ausgang→Eingang).
-// Auf window.__im_countCrossings für den Browser-Test.
+// 57c: segment intersection of link endpoints (straight lines output→input).
+// Exposed on window.__im_countCrossings for the browser test.
 function _fcSegmentsIntersect(p1, p2, p3, p4) {
   const d = (a, b, c) => (b[0] - a[0]) * (c[1] - a[1]) - (b[1] - a[1]) * (c[0] - a[0]);
   const d1 = d(p3, p4, p1), d2 = d(p3, p4, p2), d3 = d(p1, p2, p3), d4 = d(p1, p2, p4);
@@ -635,14 +635,14 @@ function countCrossings(graph) {
 }
 window.__im_countCrossings = countCrossings;
 
-// 57e: Auto-Layout platziert die Engine-Ketten (Engine Start → Modellkette →
-// 57c: Ein Knopf statt zwei – "🔗 AUTO LAYOUT" (Nutzer 2026-11-02).
-// Klick = (a) Prompt-Kette prüfen, (b) shots→Assemble verbinden, (c) Settings verbinden, (d) Layout.
-// Per Name gesucht (nicht Flag), damit er nach configure/Reload/Kopie nur EINMAL entsteht.
-// 92 (Nutzer 2026-11-09): Bildanzahl am Director. Mehr = gemutete Bilder (vom Zähler stummgeschaltet) zurückholen,
-// dann neue Load Image als Kopie des letzten Bildes („image N – replace“); Auto Prompts legt reconcileChain an,
-// danach AUTO LAYOUT. Weniger = Bilder von hinten muten (nie löschen), ihre Prompts mutet reconcileChain 1b mit.
-// Nur Bilder dieser Director-Kette. Widget nicht gespeichert (serialize) und nicht im Prompt (options.serialize),
+// 57e: auto layout places the engine chains (Engine Start → model chain →
+// 57c: one button instead of two – "🔗 AUTO LAYOUT" (user 2026-11-02).
+// Click = (a) check prompt chain, (b) connect shots→Assemble, (c) connect settings, (d) layout.
+// Looked up by name (not a flag), so it is created only ONCE after configure/reload/copy.
+// 92 (user 2026-11-09): image count on the director. More = reclaim muted images (silenced by the counter),
+// then new Load Image as a copy of the last image („image N – replace“); reconcileChain creates the Auto Prompts,
+// then AUTO LAYOUT. Fewer = mute images from the back (never delete), reconcileChain 1b mutes their prompts too.
+// Only images of this director chain. Widget not saved (serialize) and not in the prompt (options.serialize),
 // Name ≠ „images“ (Autogrow-Gruppe).
 function fcChainImages(chain) {
   const g = chain.graph;
@@ -670,7 +670,7 @@ function fcSetImageCount(chain, want) {
   want = Math.max(1, Math.min(12, Math.round(Number(want) || 1)));
   let imgs = fcChainImages(chain);
   if (want === imgs.length) return;
-  chain._fcReady = false;                                   // kein addPromptForNewImage dazwischen
+  chain._fcReady = false;                                   // no addPromptForNewImage in between
   try {
     if (want < imgs.length) {
       for (const n of imgs.slice(want).reverse()) {
@@ -682,7 +682,7 @@ function fcSetImageCount(chain, want) {
         root.properties.im_count_path = path.map((p) => p.id);
       }
     } else {
-      // 1) vom Zähler gemutete Bilder zurückholen (älteste zuerst)
+      // 1) reclaim images muted by the counter (oldest first)
       const muted = (g._nodes || []).filter((n) => n.properties?.im_count_muted === chain.id)
         .sort((a, b) => a.id - b.id);
       let have = imgs.length;
@@ -696,9 +696,9 @@ function fcSetImageCount(chain, want) {
         delete root.properties.im_count_path;
         have++;
       }
-      // Zurückgeholte hängen nur noch an ihren Auto Prompts → reconcile verdrahtet sie wieder an den Director
+      // Reclaimed ones only hang on their Auto Prompts → reconcile wires them back to the director
       if (have > imgs.length) { reconcileChain(chain); chain._fcReady = false; imgs = fcChainImages(chain); }
-      // 2) neue Load Image als Kopie des letzten Bildes
+      // 2) new Load Image as a copy of the last image
       const lastRoot = imgs.length ? fcImgRoot(g, imgs[imgs.length - 1]) : null;
       const tplFile = lastRoot?.comfyClass === "LoadImage"
         ? lastRoot.widgets?.find((w) => w.name === "image")?.value : null;
@@ -712,7 +712,7 @@ function fcSetImageCount(chain, want) {
         ni.properties = ni.properties || {};
         ni.properties.im_count_created = chain.id;
         const iw = ni.widgets?.find((w) => w.name === "image");
-        if (iw && tplFile) { iw.value = tplFile; iw.callback?.(tplFile); }   // callback lädt die Vorschau
+        if (iw && tplFile) { iw.value = tplFile; iw.callback?.(tplFile); }   // the callback loads the preview
         if (prev) {
           ni.size = [...prev.size];
           ni.pos = [prev.pos[0], prev.pos[1] + prev.size[1] + 60];
@@ -737,7 +737,7 @@ function fcSetImageCount(chain, want) {
   }
   reconcileChain(chain);
   removeStaleModeAPs(chain);
-  // AUTO LAYOUT wie per Knopf (verdrahtet Settings-Kette + ordnet alle Gruppen)
+  // AUTO LAYOUT like via the button (wires the settings chain + arranges all groups)
   chain.widgets?.find((w) => w.name === "🔗 AUTO LAYOUT")?.callback?.();
   g.setDirtyCanvas?.(true, true);
 }
@@ -752,7 +752,7 @@ function addImageCounter(node) {
   w.serialize = false;
   w.label = "images";
   w.tooltip = "Number of images. More: adds Load Image nodes (copy of the last image – replace them) with their Auto Prompts and tidies the layout. Fewer: mutes the last images and their prompts (nothing is deleted).";
-  // direkt über den AUTO-LAYOUT-Knopf (beide nicht gespeichert → gespeicherte Widget-Positionen bleiben gleich)
+  // directly via the AUTO LAYOUT button (both not saved → saved widget positions stay the same)
   const bi = node.widgets.findIndex((x) => x.name === "🔗 AUTO LAYOUT");
   if (bi >= 0 && bi < node.widgets.length - 1) {
     node.widgets.splice(node.widgets.indexOf(w), 1);
@@ -763,12 +763,12 @@ function addImageCounter(node) {
 function addLayoutButton(node) {
   if (node.widgets?.find((w) => w.name === "🔗 AUTO LAYOUT")) return;
   const w = node.addWidget("button", "🔗 AUTO LAYOUT", null, () => {
-    // (a) Prompt-Kette prüfen
+    // (a) check the prompt chain
     reconcileChain(node);
-    // (b) shots → Assemble.shots verbinden, falls Assemble da und Eingang frei
+    // (b) connect shots → Assemble.shots, if Assemble is there and the input is free
     const assemble = node.graph?._nodes?.find((n) => n.comfyClass === "InfiniteMovieAssemble");
     if (assemble) {
-      // Per TYP: der Ausgangsname ist der Display-Name ("shots ▶ Assemble"), nicht "shots".
+      // By TYPE: the output name is the display name ("shots ▶ Assemble"), not "shots".
       const shotsOutIdx = (node.outputs || []).findIndex((o) => o.type === "SHOTS");
       const shotsInIdx = (assemble.inputs || []).findIndex((i) => i.type === "SHOTS" || i.name === "shots");
       if (shotsOutIdx >= 0 && shotsInIdx >= 0 && assemble.inputs[shotsInIdx].link == null) {
@@ -778,12 +778,12 @@ function addLayoutButton(node) {
       console.warn("[InfiniteMovie] AUTO LAYOUT: kein Assemble-Node gefunden.");
       fcReviewToast("AUTO LAYOUT: kein Assemble-Node gefunden", "#d93025");
     }
-    // (c) 57e 14e: shots-Pipe gewinnt – redundante STRING-Links Director→Assemble
-    // (segment_paths/save_folder/save_name) entfernen, wenn shots verbunden ist.
+    // (c) 57e 14e: the shots pipe wins – redundant STRING links Director→Assemble
+    // (segment_paths/save_folder/save_name) are removed once shots is connected.
     if (assemble) {
       const g = node.graph;
-      // 73: segments/save_folder/save_name sind keine Assemble-Inputs mehr ->
-      // keine redundanten Links mehr möglich (Liste leer).
+      // 73: segments/save_folder/save_name are no longer Assemble inputs ->
+      // no redundant links possible anymore (list empty).
       const redundant = [];
       const toRemove = [];
       for (const lid of Object.keys(g.links || {})) {
@@ -800,10 +800,10 @@ function addLayoutButton(node) {
         g.removeLink(lid);
       }
     }
-    // (d) 57c2: Settings-Kette verdrahten (ersetzt die Stern-Verkabelung)
+    // (d) 57c2: wire the settings chain (replaces the star wiring)
     wireSettingsChain(node);
-    // (e) Layout des ganzen Workflows OHNE Engine (Nutzer 2026-11-03: „Engine excluden, aber den Rest“),
-    // web/infinite_movie_layout.js; Fallback alte Prompt-Anordnung. layoutEngines wird nicht mehr aufgerufen.
+    // (e) layout of the whole workflow WITHOUT the engine (user 2026-11-03: „exclude the engine, but the rest“),
+    // web/infinite_movie_layout.js; fallback the old prompt arrangement. layoutEngines is no longer called.
     if (window.fcWorkflowLayout) window.fcWorkflowLayout(node);
     else layoutPrompts(node);
     node.setDirtyCanvas?.(true, true);
@@ -815,18 +815,18 @@ function addLayoutButton(node) {
   w.computeSize = () => [node.size[0], 48];
 }
 
-// Neues Bild an InfiniteMovieRender -> Film Auto Prompt automatisch anlegen (Nutzer 2026-10-26, Auftrag 23 Paket A).
-// Verkabelung nur ueber Input-Namen. Loop: der schliessende Prompt (letztes Bild -> Bild 1) wandert auf den
-// neuen letzten Slot und bekommt das neue Bild als Start; der neue Prompt fuellt die Luecke davor.
-// 57c2: Settings-Kette – Settings → Auto Prompts (in Director-Eingangs-Reihenfolge,
-// Intro oben … Schluss unten) → Director → Assemble. Ersetzt die
-// Stern-Verkabelung (57d): jeder Konsument reicht die Settings an den nächsten weiter,
-// darum keine Kreuzungen mehr. Nur wenn GENAU EINE Settings-Node existiert, sonst
-// Toast + nichts anfassen. Idempotent: berechnet die Ziel-Kette und verdrahtet sie
-// (connect ersetzt vorhandene Settings-Links am Ziel). Neue/entfernte Prompts reihen
-// sich automatisch ein bzw. werden überbrückt (Vorgänger direkt mit Nachfolger).
-// 57c2: settings-Output-Index. Der Display-Name ist "settings ▶ chain" (nicht "settings"),
-// darum per Typ SETTINGS (oder Präfix) suchen, nie per exaktem Namen.
+// New image on InfiniteMovieRender -> automatically create a film Auto Prompt (user 2026-10-26, task 23 package A).
+// Wiring only via input names. Loop: the closing prompt (last image -> image 1) moves to the
+// new last slot and gets the new image as start; the new prompt fills the gap before it.
+// 57c2: settings chain – Settings → Auto Prompts (in director input order,
+// intro top … closing bottom) → Director → Assemble. Replaces the
+// star wiring (57d): every consumer passes the settings on to the next,
+// hence no more crossings. Only if EXACTLY ONE settings node exists, otherwise
+// toast + touch nothing. Idempotent: computes the target chain and wires it
+// (connect replaces existing settings links at the target). New/removed prompts slot in
+// automatically or are bridged (predecessor directly with successor).
+// 57c2: settings output index. The display name is "settings ▶ chain" (not "settings"),
+// hence look up by type SETTINGS (or prefix), never by exact name.
 function settingsOutIdx(node) {
   const outs = node.outputs || [];
   const byType = outs.findIndex((o) => o.type === "SETTINGS");
@@ -846,7 +846,7 @@ function wireSettingsChain(director) {
   const snode = snodes[0];
   const soi = settingsOutIdx(snode);
   if (soi < 0) return false;
-  // APs in Director-Eingangs-Reihenfolge (prompt-Ziel-Slot; unverbundene ans Ende nach pos).
+  // APs in director input order (prompt target slot; unconnected ones to the end by pos).
   const aps = [];
   for (const n of nodes) {
     if (n.comfyClass !== "InfiniteMovieAutoPrompt" || !fcActive(n)) continue;
@@ -879,7 +879,7 @@ function wireSettingsChain(director) {
     const ni = slotIndex(next, "settings");
     if (pi < 0 || ni < 0) continue;
     const cur = next.inputs[ni].link != null ? getLink(g, next.inputs[ni].link) : null;
-    if (cur && cur.origin_id === prev.id && cur.origin_slot === pi) continue; // schon korrekt
+    if (cur && cur.origin_id === prev.id && cur.origin_slot === pi) continue; // already correct
     prev.connect(pi, next, ni);
   }
   g.setDirtyCanvas?.(true, true);
@@ -898,9 +898,9 @@ function linkFrom(node, name) {
 
 function addPromptForNewImage(chain, imgName) {
   const g = chain.graph;
-  const n = parseInt(imgName.slice(IMG.length), 10);      // 0-basiert: neues Bild = Bild n+1
+  const n = parseInt(imgName.slice(IMG.length), 10);      // 0-based: new image = image n+1
   if (!(n >= 1)) return;
-  // nur fuer das hinterste Bild und nur wenn dessen Prompt-Slot noch frei ist
+  // only for the rearmost image and only if its prompt slot is still free
   const wired = (chain.inputs || []).filter((i) => i.name?.startsWith(IMG) && i.link != null)
     .map((i) => parseInt(i.name.slice(IMG.length), 10));
   if (Math.max(...wired) !== n) return;
@@ -910,8 +910,8 @@ function addPromptForNewImage(chain, imgName) {
   if (!prevImg || !newImg) return;
   const prompts = sources(chain, PR);
   const template = prompts[prompts.length - 1];
-  const [closing] = linkFrom(chain, PR + (n - 1));          // bei Loop: bisher "letztes -> 1"
-  if (!loop && closing) return;                              // Slot belegt -> nichts tun
+  const [closing] = linkFrom(chain, PR + (n - 1));          // with loop: so far "last -> 1"
+  if (!loop && closing) return;                              // slot occupied -> do nothing
   const ap = LiteGraph.createNode("InfiniteMovieAutoPrompt");
   if (!ap) return;
   const last = prompts.reduce((a, p) => (!a || p.pos[1] > a.pos[1] ? p : a), null);
@@ -922,47 +922,47 @@ function addPromptForNewImage(chain, imgName) {
   prevImg.connect(prevSlot, ap, slotIndex(ap, "image_from"));
   newImg.connect(newSlot, ap, slotIndex(ap, "image_to"));
   if (loop && closing) {
-    // schliessenden Prompt eins nach hinten: Start = neues Bild, Ausgang = neuer letzter Slot
+    // closing prompt one back: start = new image, output = new last slot
     newImg.connect(newSlot, closing, slotIndex(closing, "image_from"));
     const outIdx = closing.outputs.findIndex((o) => o.name === "prompt");
     if (slotIndex(chain, PR + n) >= 0) closing.connect(outIdx, chain, slotIndex(chain, PR + n));
     const ov = closing.widgets?.find((w) => w.name === "prompt");
-    if (ov) ov.value = "";                                   // alter Text passte zum alten Start
+    if (ov) ov.value = "";                                   // old text fit the old start
   }
   const target = slotIndex(chain, PR + (n - 1));
   if (target >= 0) ap.connect(ap.outputs.findIndex((o) => o.name === "prompt"), chain, target);
-  wireSettingsChain(chain);                                   // 57c2: neue AP in die Settings-Kette einreihen
+  wireSettingsChain(chain);                                   // 57c2: slot the new AP into the settings chain
   g.setDirtyCanvas(true, true);
 }
 
 // Stale-Input-Cleanup (2026-10-28, Nutzer: "remove seconds0 and seconds1 inputs"):
-// Gespeicherte Workflows koennen Inputs enthalten, die in der Node-Definition nicht mehr
-// existieren (z. B. scene_seconds.seconds0/1 nach der scene_seconds-Entfernung). Das
-// Frontend entfernt sie nicht selbst. Wir entfernen beim Laden (onConfigure) und beim
-// Erstellen alle NICHT VERKABELTEN Inputs, deren Gruppe/Name nicht in der Definition
-// steht. Verkabelte Inputs bleiben unangetastet (Slot-Indizes der Links duerfen sich
-// nicht verschieben).
+// Saved workflows can contain inputs that no longer exist in the node definition
+// (e.g. scene_seconds.seconds0/1 after the scene_seconds removal). The
+// frontend does not remove them itself. We remove them on load (onConfigure) and on
+// creation all UNWIRED inputs whose group/name is not in the definition
+//. Wired inputs stay untouched (slot indices of links must not
+// shift).
 function pruneStaleInputs(node) {
-  // 57b2: Def-Quelle ist LiteGraph.registered_node_types[comfyClass].nodeData.
-  // app.nodeDefs / LiteGraph.registeredNodes existieren im Frontend 1.57 NICHT
-  // (Browser-Check 2026-11-01: app.nodeDefs undefined) – vorher war `def` undefined,
-  // `known` leer, und JEDER unverbundene Eingang wurde beim Laden gelöscht
-  // (am Director auch `engine` + die prompt-Slots). nodeData (Gr-Klasse, aus
-  // /object_info) hat input.required/optional mit Top-Level-Keys (images,
+  // 57b2: the definition source is LiteGraph.registered_node_types[comfyClass].nodeData.
+  // app.nodeDefs / LiteGraph.registeredNodes do NOT exist in frontend 1.57
+  // (browser check 2026-11-01: app.nodeDefs undefined) – before, `def` was undefined,
+  // `known` empty, and EVERY unconnected input was deleted on load
+  // (on the director also `engine` + the prompt slots). nodeData (Gr class, from
+  // /object_info) has input.required/optional with top-level keys (images,
   // shot_prompts, folder, engine, …).
   const def = globalThis.LiteGraph?.registered_node_types?.[node.comfyClass]?.nodeData;
   const known = new Set([
     ...Object.keys(def?.input?.required || {}),
     ...Object.keys(def?.input?.optional || {}),
   ]);
-  // Guard: ohne Definition (oder leeres known) NICHTS löschen.
+  // Guard: without a definition (or empty known) delete NOTHING.
   if (!def || known.size === 0) return;
   let removed = 0;
   const inputs = node.inputs || [];
   for (let i = inputs.length - 1; i >= 0; i--) {
     const inp = inputs[i];
-    if (inp.link != null) continue; // verkabelt: nicht anfassen
-    if (inp.widget) continue; // Widget-Eingang: nie löschen
+    if (inp.link != null) continue; // wired: don't touch
+    if (inp.widget) continue; // widget input: never delete
     const name = String(inp.name || "");
     const group = name.split(".")[0];
     if (!known.has(group) && !known.has(name)) {
@@ -976,11 +976,11 @@ function pruneStaleInputs(node) {
   }
 }
 
-// Loop-Schalter (Nutzer 2026-10-28: "fuege im render Interface ein loopschalter hinzu, der
-// dazu fuegt, dass das letzte und das erste Bild verknuepft werden und der prompt dazu
-// generiert wird"): nach dem Umschalten reconcilet die Kette sofort - AN legt den Schliess-
-// Prompt (letztes -> erstes Bild) an und generiert seinen Text, sobald er noch leer ist.
-// Aufgerufen NUR vom loop-widget-callback, nie beim Laden eines Workflows.
+// Loop switch (user 2026-10-28: "add a loop switch to the render interface that
+// links the last and the first image and generates the prompt for it
+// "): after toggling the chain reconciles immediately - ON creates the closing
+// prompt (last -> first image) and generates its text as soon as it is still empty.
+// Called ONLY from the loop widget callback, never when loading a workflow.
 function genClosingPrompt(chain) {
   if (!chain.widgets?.find((w) => w.name === "loop")?.value) return;
   const g = chain.graph;
@@ -999,22 +999,22 @@ function genClosingPrompt(chain) {
   }
   if (!best) return;
   const ov = best.widgets?.find((w) => w.name === "prompt");
-  if (ov && String(ov.value ?? "").trim()) return;   // Text schon vorhanden
+  if (ov && String(ov.value ?? "").trim()) return;   // text already present
   const btn = best._fcRegenBtn;
   if (!btn || btn.name?.startsWith("⏳")) return;
   btn.callback?.();                                   // "🔄 Regenerate prompt" (async, LLM)
 }
 
-// Chain-Reconcile (2026-10-28): Das aktuelle ComfyUI-Frontend speichert in inputs[] nur noch
-// VERDRAHTETE Sockets (Widgets wandern nach widgets_values_named) und verschiebt beim Laden die
-// Autogrow-Slots - dadurch landen Links auf falschen Slots (z.B. negative -> image2) und
-// Prompt-Verdrahtungen gehen verloren. reconcileChain stellt die Kette semantisch wieder her:
-//   1. falsch verkabelte Slots loesen (image-Slot nur von LoadImage, prompt-Slot nur von AutoPrompt)
-//   2. Chain-Reihenfolge = LoadImage-Knoten (id aufsteigend), die an image-Slots oder an
-//      AutoPrompt image_from/image_to haengen; freie image-Slots neu verdrahten
-//   3. pro Bildpaar (i -> i+1, bei loop auch letzter -> erster) den AutoPrompt suchen; fehlt er,
-//      einen nicht passenden (freien) AutoPrompt umhaengen oder einen neuen anlegen
-//   4. shot_prompts.prompt0..T-1 anlegen; Link-Datensaetze mit out-of-range Ziel-Slot entfernen
+// Chain reconcile (2026-10-28): the current ComfyUI frontend only stores
+// WIRED sockets (widgets moved to widgets_values_named) and shifts the
+// autogrow slots on load - links end up on wrong slots (e.g. negative -> image2) and
+// prompt wiring is lost. reconcileChain restores the chain semantically:
+//   1. release wrongly wired slots (image slot only from LoadImage, prompt slot only from AutoPrompt)
+//   2. chain order = LoadImage nodes (id ascending) that hang on image slots or on
+//      AutoPrompt image_from/image_to; rewire free image slots
+//   3. per image pair (i -> i+1, with loop also last -> first) find the AutoPrompt; if missing,
+//      reattach a non-matching (free) AutoPrompt or create a new one
+//   4. create shot_prompts.prompt0..T-1; remove link data entries with out-of-range target slot
 function reconcileChain(chain) {
   const g = chain.graph;
   if (!g || chain._fcRec) return;
@@ -1033,7 +1033,7 @@ function reconcileChain(chain) {
       if (!ok) toDisconnect.push(inp.name);
     }
     for (const name of toDisconnect) _fcDisconnectByName(chain, name);
-    // --- 1b) Auto-Prompts an gemuteten Bildern mitmuten, sonst wieder einschalten ---
+    // --- 1b) mute Auto Prompts on muted images, otherwise switch them on again ---
     for (const ap of g._nodes || []) {
       if (ap.comfyClass !== "InfiniteMovieAutoPrompt") continue;
       const srcs = ["image_from", "image_to"]
@@ -1044,14 +1044,14 @@ function reconcileChain(chain) {
       ap.properties = ap.properties || {};
       if (off && fcActive(ap)) { ap.mode = 2; ap.properties.im_auto_muted = true; }
       else if (!off && ap.properties.im_auto_muted) { ap.mode = 0; delete ap.properties.im_auto_muted; }
-      // loop wieder an: gemuteten Schluss-AP (Text erhalten) zurückholen
+      // loop on again: reclaim the muted closing AP (text kept)
       if (ap.properties.im_loop_off && chain.widgets?.find((w) => w.name === "loop")?.value) {
         ap.mode = 0; delete ap.properties.im_loop_off;
       }
     }
-    // --- 2) Chain-Bilder bestimmen (Wurzel der Bildkette aufsteigend) ---
+    // --- 2) determine chain images (root of the image chain ascending) ---
     const chainIds = new Set();
-    const outSlot = new Map();   // Quelle -> verbundener IMAGE-Ausgang (Assemble › last_frame = 2)
+    const outSlot = new Map();   // source -> connected IMAGE output (Assemble › last_frame = 2)
     const addSrc = (l) => {
       if (!fcImgLink(g, l)) return;
       chainIds.add(l.origin_id);
@@ -1061,8 +1061,8 @@ function reconcileChain(chain) {
       if (!inp.name?.startsWith(IMG) || inp.link == null) continue;
       addSrc(getLink(g, inp.link));
     }
-    // Auto-Prompt-Quellen nur, wenn ihre Bildkette nicht schon am Director hängt (Load Image → Upscale → Director:
-    // die APs zeigen noch aufs Load Image – das ist dann KEIN zweites Bild, die APs werden unten umverdrahtet).
+    // Auto Prompt sources only if their image chain is not already on the director (Load Image → Upscale → Director:
+    // the APs still point at the Load Image – that is then NOT a second image, the APs get rewired below).
     const dirRoots = new Set([...chainIds].map((id) => fcImgRoot(g, g.getNodeById(id))?.id));
     for (const n of g._nodes || []) {
       if (n.comfyClass !== "InfiniteMovieAutoPrompt") continue;
@@ -1092,7 +1092,7 @@ function reconcileChain(chain) {
       return chain.inputs.length - 1;
     };
     if (N > 0) {
-      // --- 3) image-Slots sicherstellen und verdrahten ---
+      // --- 3) ensure image slots and wire them ---
       for (let i = 0; i < N; i++) {
         const idx = ensureSlot(IMG + i, imgTpl);
         const cur = getLink(g, chain.inputs[idx].link);
@@ -1106,8 +1106,8 @@ function reconcileChain(chain) {
       }
       // --- 4) Prompt-Slots + AutoPrompt-Paare ---
       const loop = !!chain.widgets?.find((w) => w.name === "loop")?.value;
-      // 71: intro/outro entfernt – T = (N-1) scenes + loop
-      // 1 Bild: offener Shot (Prompt ohne Endbild); mit Loop + Rück-Shot letztes Bild -> Bild (nodes.py n_segments)
+      // 71: intro/outro removed – T = (N-1) scenes + loop
+      // 1 image: open shot (prompt without end image); with loop + return shot last image -> image (nodes.py n_segments)
       const T = N === 1 ? (loop ? 2 : 1) : (N - 1) + (loop ? 1 : 0);
       const prTpl = (chain.inputs || []).find((i) => i.name?.startsWith(PR));
       const aps = () => (g._nodes || []).filter((n) => n.comfyClass === "InfiniteMovieAutoPrompt");
@@ -1132,9 +1132,9 @@ function reconcileChain(chain) {
         }
       };
       // Map slot index p → (fromImgIdx, toImgIdx)
-      // 71: intro/outro entfernt – nur Szenen + loop
+      // 71: intro/outro removed – only scenes + loop
       const pairFor = (p) => {
-        if (N === 1 && p === 0) return [0, -1];      // offener Shot: kein Endbild (1 Bild, auch mit Loop)
+        if (N === 1 && p === 0) return [0, -1];      // open shot: no end image (1 image, also with loop)
         if (loop && p === T - 1) return [N - 1, 0]; // loop: last → first
         return [p, p + 1];                          // scenes
       };
@@ -1153,7 +1153,7 @@ function reconcileChain(chain) {
         if (cur && cur.origin_id === ap.id) continue;
         wireAp(ap, chainNodes[fi], chainNodes[ti], idx);
       }
-      // fehlende Paare: freien AutoPrompt umhaengen oder neuen anlegen
+      // missing pairs: reattach a free AutoPrompt or create a new one
       const template = aps()[0] || null;
       for (let p = 0; p < T; p++) {
         const [fi, ti] = pairFor(p);
@@ -1168,22 +1168,22 @@ function reconcileChain(chain) {
           if (!ap) continue;
           g.add(ap);
           ap.properties = ap.properties || {};
-          ap.properties.im_auto_created = true;   // darf wieder weg, wenn er frei wird
+          ap.properties.im_auto_created = true;   // may go away again once it becomes free
           const last = aps().filter((a) => a !== ap)
             .reduce((acc, a) => (!acc || a.pos[1] > acc.pos[1] ? a : acc), null);
           const titleH = globalThis.LiteGraph?.NODE_TITLE_HEIGHT ?? 30;
           ap.pos = last && last !== ap
             ? [last.pos[0], last.pos[1] + last.size[1] + titleH + 20]
             : [chain.pos[0] - 420, chain.pos[1]];
-          if (last && last !== ap) ap.size = [last.size[0], ap.size[1]];   // 92: gleiche Breite wie die anderen
+          if (last && last !== ap) ap.size = [last.size[0], ap.size[1]];   // 92: same width as the others
         }
         matched.add(ap.id);
         wireAp(ap, fromN, toN, idx);
-        // Freier AP (z.B. alter Intro-AP) → Prompt leeren, damit genClosingPrompt neu generiert
+        // Free AP (e.g. old intro AP) → clear the prompt so genClosingPrompt regenerates
         const ovW = ap.widgets?.find((x) => x.name === "prompt");
         if (ovW) ovW.value = "";
       }
-      // --- 4b) APs von Slots >= T trennen (Intro/Outro/Loop OFF → AP bleibt frei erhalten)
+      // --- 4b) disconnect APs from slots >= T (intro/outro/loop OFF → AP kept free)
       const toDisc4b = [];
       for (const ap of aps()) {
         const oi = outIdxOf(ap);
@@ -1196,17 +1196,17 @@ function reconcileChain(chain) {
         }
       }
       for (const name of toDisc4b) _fcDisconnectByName(chain, name);
-      // --- 4c) selbst angelegte APs, die frei geworden sind, wieder entfernen (z. B. nach Ent-muten)
+      // --- 4c) remove self-created APs that became free again (e.g. after un-muting)
       for (const ap of [...aps()]) {
         if (!ap.properties?.im_auto_created || !fcActive(ap)) continue;
         if (!loop && srcOf(ap, "image_from") === chainNodes[N - 1].id
-            && srcOf(ap, "image_to") === chainNodes[0].id) continue;   // Schluss-AP: muten statt löschen
+            && srcOf(ap, "image_to") === chainNodes[0].id) continue;   // closing AP: mute instead of delete
         const oi = outIdxOf(ap);
         const used = oi >= 0 && (ap.outputs[oi].links || []).some((lid) => getLink(g, lid)?.target_id === chain.id);
         if (!used) g.remove(ap);
       }
     }
-    // --- 5) Link-Datensaetze mit out-of-range Ziel-Slot entfernen (Anti-Kreislauf) ---
+    // --- 5) remove link data entries with out-of-range target slot (anti-loop) ---
     const links = g.links;
     const entries = typeof links?.entries === "function" ? [...links.entries()] : Object.entries(links || {});
     for (const [id, l] of entries) {
@@ -1223,8 +1223,8 @@ function reconcileChain(chain) {
       }
     }
     interleave(chain);
-    wireSettingsChain(chain);                                 // 57c2: Kette nach Reconciliation neu verdrahten
-    const cw = chain.widgets?.find((w) => w.name === "image_count");   // 92: Zähler = aktive Bilder
+    wireSettingsChain(chain);                                 // 57c2: rewire the chain after reconciliation
+    const cw = chain.widgets?.find((w) => w.name === "image_count");   // 92: counter = active images
     if (cw && N > 0) cw.value = N;
     chain.setDirtyCanvas?.(true, true);
   } finally {
@@ -1233,16 +1233,16 @@ function reconcileChain(chain) {
   }
 }
 
-// 57c: Stale Mode-APs entfernen (71: nur noch loop/closing, intro/outro entfernt).
-// Nach reconcileChain: freie APs (nicht an Chain-Prompt-Slots) die zu deaktivierten Moden
-// gehören (closing) werden entfernt. Links werden per graph.remove automatisch
-// aufgeräumt (Fallstrick "graph.links Map" – graph.remove räumt alles auf).
+// 57c: remove stale mode APs (71: only loop/closing left, intro/outro removed).
+// After reconcileChain: free APs (not on chain prompt slots) belonging to disabled modes
+// (closing) are removed. Links are cleaned up automatically via graph.remove
+// (pitfall "graph.links Map" – graph.remove cleans up everything).
 function removeStaleModeAPs(chain) {
   const g = chain.graph;
   if (!g) return;
   const w = (name) => chain.widgets?.find((x) => x.name === name)?.value;
   const hasLoop = !!w("loop");
-  // Chain-Bilder bestimmen (wie reconcileChain Schritt 2)
+  // Determine chain images (like reconcileChain step 2)
   const chainIds = new Set();
   for (const inp of chain.inputs || []) {
     if (!inp.name?.startsWith(IMG) || inp.link == null) continue;
@@ -1267,19 +1267,19 @@ function removeStaleModeAPs(chain) {
   if (N < 2) return;
   const firstImg = chainNodes[0].id;
   const lastImg = chainNodes[N - 1].id;
-  // APs die an Chain-Prompt-Slots hängen (in Verwendung)
+  // APs hanging on chain prompt slots (in use)
   const connectedApIds = new Set();
   for (const inp of chain.inputs || []) {
     if (!inp.name?.startsWith(PR) || inp.link == null) continue;
     const l = getLink(g, inp.link);
     if (l) connectedApIds.add(l.origin_id);
   }
-  // Kopie iterieren, weil g.remove(ap) das Array verändert
+  // Iterate a copy, because g.remove(ap) modifies the array
   const apsToRemove = [];
   for (const ap of [...(g._nodes || [])]) {
     if (ap.comfyClass !== "InfiniteMovieAutoPrompt") continue;
-    if (connectedApIds.has(ap.id)) continue; // noch in Verwendung
-    if (!fcActive(ap)) continue;              // gemutet (Bild aus) – Prompt behalten
+    if (connectedApIds.has(ap.id)) continue; // still in use
+    if (!fcActive(ap)) continue;              // muted (image off) – keep the prompt
     const fromId = getLink(g, ap.inputs?.find((x) => x.name === "image_from")?.link)?.origin_id;
     const toId = getLink(g, ap.inputs?.find((x) => x.name === "image_to")?.link)?.origin_id;
     let role = null;
@@ -1288,18 +1288,18 @@ function removeStaleModeAPs(chain) {
     const disabled = role === "closing" && !hasLoop;
     if (disabled) apsToRemove.push({ap, role});
   }
-  // Nutzer 2026-11-04 ("when switching loop prompts are deleted"): muten statt löschen,
-  // der Text bleibt; loop an holt ihn in reconcileChain 1b zurück.
+  // user 2026-11-04 ("when switching loop prompts are deleted"): mute instead of delete,
+  // the text stays; loop on reclaims it in reconcileChain 1b.
   for (const {ap} of apsToRemove) {
     ap.mode = 2;
     ap.properties = ap.properties || {};
     ap.properties.im_loop_off = true;
   }
-  if (apsToRemove.length) wireSettingsChain(chain);           // 57c2: Kette über entfernnte APs überbrücken
+  if (apsToRemove.length) wireSettingsChain(chain);           // 57c2: bridge the chain over removed APs
   chain.setDirtyCanvas?.(true, true);
 }
 
-// Widget-Hook für loop (idempotent, nach configure)
+// Widget hook for loop (idempotent, after configure)
 function _fcSetupWidgetHooks(node) {
   if (node._fcWidgetsHooked) return;
   node._fcWidgetsHooked = true;
@@ -1323,7 +1323,7 @@ function _fcSetupWidgetHooks(node) {
   }
 }
 
-// Disconnect per Name (robust gegen Autogrow-Index-Shift)
+// Disconnect by name (robust against autogrow index shift)
 function _fcDisconnectByName(node, inputName) {
   const idx = (node.inputs || []).findIndex((i) => i.name === inputName);
   if (idx < 0) return;
@@ -1349,8 +1349,8 @@ app.registerExtension({
     nodeType.prototype.onConfigure = function (...args) {
       this._fcReady = false;
       const r = prevOnConf?.apply(this, args);
-      // 57b2-Korrektur: Warnung wenn erster Widget-Wert ein Preset-Name ist
-      // (Widget-Shift: gespeichertes ALT-Set vs. aktuelles NEU-Set).
+      // 57b2 fix: warning if the first widget value is a preset name
+      // (widget shift: saved OLD set vs. current NEW set).
       const wv = this.widgets?.[0]?.value;
       if (typeof wv === "string" && /^(ltx25|wan22|hunyuan_video)/.test(wv)) {
         console.warn(
@@ -1367,7 +1367,7 @@ app.registerExtension({
           _fcSetupWidgetHooks(this);
           addLayoutButton(this);
           addImageCounter(this);
-          // 82: shot_seconds wird in Choose (⏱) bearbeitet – im Node verborgen.
+          // 82: shot_seconds is edited in Choose (⏱) – hidden in the node.
           imToggleWidget(this.widgets?.find((w) => w.name === "shot_seconds"), false);
           this.setSize([this.size[0], this.computeSize()[1]]);
           this._fcReady = true;
@@ -1377,7 +1377,7 @@ app.registerExtension({
     };
   },
   setup() {
-    // Mute/Bypass eines LoadImage (Ctrl+M/B setzt node.mode direkt, kein Event) -> Reconcile.
+    // Mute/bypass of a LoadImage (Ctrl+M/B sets node.mode directly, no event) -> reconcile.
     let fcModeSig = "";
     setInterval(() => {
       const gr = app.graph;
@@ -1387,7 +1387,7 @@ app.registerExtension({
       if (sig === fcModeSig) return;
       const first = fcModeSig === "";
       fcModeSig = sig;
-      if (first) return;                      // beim Laden macht onConfigure den Reconcile
+      if (first) return;                      // on load, onConfigure does the reconcile
       for (const n of gr._nodes) {
         if (n.comfyClass === "InfiniteMovieRender" && n._fcReady) {
           reconcileChain(n);
@@ -1396,8 +1396,8 @@ app.registerExtension({
         }
       }
     }, 400);
-    // Paritaet nach manuellem Loeschen (Nutzer 2026-10-28: "wenn ich die manuell loesche, werden
-    // sie auto ersetzt"): entfernte AutoPrompt-/LoadImage-Knoten loesen den Reconcile aus.
+    // Parity after manual deletion (user 2026-10-28: "when I delete them manually, they
+    // get replaced automatically"): removed AutoPrompt/LoadImage nodes trigger the reconcile.
     const g = app.graph;
     if (g && !g._fcRemovedWrapped) {
       g._fcRemovedWrapped = true;
@@ -1420,7 +1420,7 @@ app.registerExtension({
     if (node.comfyClass !== "InfiniteMovieRender") return;
     addLayoutButton(node);
     addImageCounter(node);
-    // 82: shot_seconds wird in Choose (⏱) bearbeitet – im Node verborgen.
+    // 82: shot_seconds is edited in Choose (⏱) – hidden in the node.
     setTimeout(() => {
       imToggleWidget(node.widgets?.find((w) => w.name === "shot_seconds"), false);
       node.setSize([node.size[0], node.computeSize()[1]]);
@@ -1438,13 +1438,13 @@ app.registerExtension({
   },
 });
 
-// 57b: Lade-Migration movie -> shots. 57b2: zusätzlich Typ-Migration INFINITE_MOVIE -> SHOTS
-// (Nutzer-Entscheidung: Pipe heißt überall "shots" – ID, Anzeige UND Typ). Alte, geteilte/
-// heruntergeladene Workflows, die das Migrationsskript (tools/migrate_workflows.py) nicht
-// erreicht haben, speichern den Pipe-Input/-Output noch unter dem Namen "movie" und/oder mit
-// dem alten Typ. Links haengen am Slot-INDEX, nicht am Namen/Typ - daher nur Name UND Typ
-// umschreiben (inkl. link.type des verdrahteten Slots), Slot-Index und Link-IDs bleiben
-// unangetastet. Gleiche Muster-Kette (prevOnConf) wie InfiniteMovie.InterleavedPrompts oben
+// 57b: load migration movie -> shots. 57b2: additionally type migration INFINITE_MOVIE -> SHOTS
+// (user decision: the pipe is called "shots" everywhere – ID, display AND type). Old, shared/
+// downloaded workflows that the migration script (tools/migrate_workflows.py) did
+// not reach still store the pipe input/output under the name "movie" and/or with
+// the old type. Links hang on the slot INDEX, not on the name/type - hence only name AND type
+// are rewritten (incl. link.type of the wired slot), slot index and link IDs stay
+// untouched. Same pattern chain (prevOnConf) as InfiniteMovie.InterleavedPrompts above
 // (Vorbild :717-731).
 const FC_MIGRATE_MOVIE_CLASSES = new Set(["InfiniteMovieRender", "InfiniteMovieAssemble"]);
 function _fcMigrateMovieToShots(node) {
@@ -1456,7 +1456,7 @@ function _fcMigrateMovieToShots(node) {
     // 57b2: Typ INFINITE_MOVIE -> SHOTS.
     if (s.type === "INFINITE_MOVIE") {
       s.type = "SHOTS"; n++;
-      // link.type des verdrahteten Slots mitziehen (Input: s.link; Output: s.links[]).
+      // carry along link.type of the wired slot (input: s.link; output: s.links[]).
       const ids = s.links && s.links.length ? s.links : (s.link != null ? [s.link] : []);
       for (const lid of ids) {
         const link = getLink(graph, lid);
@@ -1482,21 +1482,21 @@ app.registerExtension({
   },
 });
 
-// Normalize Time: Grafik sofort neu zeichnen, wenn strength geaendert wird (Nutzer 2026-10-26:
-// "muss visualisiert werden, welche Normalisierung zum Tragen kommt"). Nutzt die Analyse des letzten Laufs
-// (POST /infinite_movie/normalize_graph, retime_nodes.py) - kein Render, kein Encode.
-// Die Grafik malt der Node selbst unter die Widgets: das Frontend zeigt bei Nodes mit Datei-Upload-Widget
-// die Ausgabe-Bilder nicht an (2026-10-26 geprueft: nodeOutputs gesetzt, node.imgs blieb leer).
+// Normalize Time: redraw the graph immediately when strength changes (user 2026-10-26:
+// "must be visualized which normalization takes effect"). Uses the analysis of the last run
+// (POST /infinite_movie/normalize_graph, retime_nodes.py) - no render, no encode.
+// The node itself draws the graph below the widgets: the frontend does not show output images
+// for nodes with a file upload widget (checked 2026-10-26: nodeOutputs set, node.imgs stayed empty).
 function viewUrl(im) {
   const q = new URLSearchParams({ filename: im.filename, subfolder: im.subfolder || "", type: im.type || "temp" });
   return api.apiURL(`/view?${q}&t=${Date.now()}`);
 }
 
-// 86 (Nutzer 2026-11-04: „mach mal alles … dann sehen wir“): Assemble-Viewer statt Canvas-Grafik.
-// Tabs Graph | Timeline | Heatmap | Frames; Frames mit Slider, ▶ und Onion Skin (3 Geister, im Browser
-// gerechnet). Daten: ui.im_viz aus retime_nodes._viz_shot/_viz_timeline (Temp-Ordner, max. 64 Frames je Shot).
+// 86 (user 2026-11-04: „just make everything … then we'll see“): Assemble viewer instead of the canvas graph.
+// Tabs Graph | Timeline | Heatmap | Frames; Frames with slider, ▶ and Onion Skin (3 ghosts, in the browser
+// computed). Data: ui.im_viz from retime_nodes._viz_shot/_viz_timeline (temp folder, max. 64 frames per shot).
 const IMV_TABS = ["Graph", "Timeline", "Heatmap", "Frames", "Particles", "Sheet"];
-// Partikel-Farbe nach Geschwindigkeit (gleiche Skala wie die Heatmap, ohne das fast schwarze Ende)
+// Particle color by speed (same scale as the heatmap, without the nearly black end)
 const IMV_LUT = [[0.0, [66, 10, 104]], [0.33, [147, 38, 103]], [0.6, [221, 81, 58]], [0.85, [252, 165, 10]], [1.0, [252, 255, 164]]];
 function imvLut(v) {
   v = Math.max(0, Math.min(1, v));
@@ -1556,23 +1556,23 @@ function imvShot(node) {
   return v?.shots?.[node._imv?.seg ?? 0] || null;
 }
 
-// 2026-11-09 (Nutzer: „Assemble window auf 3×3 … alle Analyzer auf eine Größe“): feste Fläche = 3×3 Load-Image-Kacheln
-// (160×160) -> 480×480, quadratisch (Nutzer 2026-11-09: Hoch- und Querformat passen, Bilder contain);
-// jeder Tab füllt genau diese Fläche. Director bekommt dieselbe Breite (IMV_NODE_W).
+// 2026-11-09 (user: „Assemble window to 3×3 … all analyzers to one size“): fixed area = 3×3 Load Image tiles
+// (160×160) -> 480×480, square (user 2026-11-09: portrait and landscape fit, images contain);
+// every tab fills exactly this area. Director gets the same width (IMV_NODE_W).
 const IMV_W = 480, IMV_H = 480, IMV_NODE_W = IMV_W + 24;
 function imvFixWidth(node) {
   if (!node?.size || Math.abs(node.size[0] - IMV_NODE_W) < 1) return;
   node.setSize([IMV_NODE_W, Math.max(node.size[1], node.computeSize()[1])]);
 }
 
-// Bild eingepasst (contain) und mittig in ein Rechteck zeichnen
+// Draw an image fitted (contain) and centered into a rectangle
 function imvFit(ctx, img, x, y, w, h) {
   const s = Math.min(w / img.naturalWidth, h / img.naturalHeight);
   const dw = img.naturalWidth * s, dh = img.naturalHeight * s;
   ctx.drawImage(img, x + (w - dw) / 2, y + (h - dh) / 2, dw, dh);
 }
 
-// Sheet (3×3 … 8×8 per Slider): N×N gleichmäßig verteilte Frames des Shots (höchstens so viele, wie es gibt)
+// Sheet (3×3 … 8×8 per slider): N×N evenly distributed frames of the shot (at most as many as exist)
 function imvSheetPicks(n, grid) {
   const want = Math.min(grid * grid, n);
   const out = [];
@@ -1603,7 +1603,7 @@ function imvEnsure(node) {
   canvas.style.cssText = `display:block;flex:none;width:${IMV_W}px;height:${IMV_H}px;margin:0 auto;` +
     "background:#121212;border-radius:3px;";
   canvas.addEventListener("click", (e) => {
-    // Sheet: Klick auf eine Kachel öffnet diesen Frame im Tab Frames
+    // Sheet: clicking a tile opens this frame in the Frames tab
     if (st.tab !== "Sheet" || !st._sheet) return;
     const r = canvas.getBoundingClientRect();
     const g = st._sheet.grid;
@@ -1655,9 +1655,9 @@ function imvEnsure(node) {
   info.style.cssText = "height:14px;line-height:14px;flex:none;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;";
   el.appendChild(tabRow); el.appendChild(segRow); el.appendChild(canvas); el.appendChild(ctlRow); el.appendChild(info);
   Object.assign(st, { el, segRow, canvas, ctlRow, slider, play, onionLbl, gridLbl, trailLbl, trailIn: trail, info });
-  // feste Höhe: Fläche 480×480 + 4 Zeilen (22+22+22+14) + 4 Abstände -> springt nicht beim Tab-Wechsel.
-  // +20: das Frontend zieht vom Widget oben/unten je 10 px Rand ab (el = Höhe - 20); ohne die 20 ragten
-  // Regler- und Infozeile unten aus dem Rahmen (Nutzer 2026-11-09 „passen nicht in frame“).
+  // fixed height: area 480×480 + 4 rows (22+22+22+14) + 4 gaps -> does not jump on tab switch.
+  // +20: the frontend subtracts 10 px margin top/bottom from the widget (el = height - 20); without the 20 the
+  // slider and info row would stick out below the frame (user 2026-11-09 "don't fit in frame").
   node.addDOMWidget("im_viz", "div", el, {
     serialize: false,
     getMinHeight: () => IMV_H + 96 + 20,
@@ -1676,7 +1676,7 @@ function imvDraw(node) {
     b.style.background = on ? "#2ea043" : "#333";
     b.style.borderColor = on ? "#2ea043" : "#555";
   });
-  // Zeilen bleiben immer da (visibility statt display), damit die Höhe gleich bleibt
+  // Rows always stay (visibility instead of display) so the height stays the same
   const perShot = st.tab !== "Graph" && st.tab !== "Timeline";
   const needSeg = perShot && shots.length > 1;
   st.segRow.style.visibility = needSeg ? "visible" : "hidden";
@@ -1751,8 +1751,8 @@ function imvDraw(node) {
     st.info.appendChild(tag);
     text = null;
   } else if (st.tab === "Particles" && sh) {
-    // erkannte Bildpunkte ziehen Spuren: Schweif über die letzten `trail` Quell-Frames, ältere Teile blasser
-    // (Ghosting), Farbe = Tempo (hell = schnell). Bild darunter abgedunkelt.
+    // detected image points pull trails: a trail over the last `trail` source frames, older parts dimmer
+    // (ghosting), color = speed (bright = fast). Image below dimmed.
     const n = sh.frames.length;
     if (st.k >= n) st.k = 0;
     st.slider.min = "0"; st.slider.max = String(Math.max(0, n - 1)); st.slider.step = "1";
@@ -1769,26 +1769,26 @@ function imvDraw(node) {
     let shown = 0, gain = 1;
     if (tj?.tracks) {
       const L = st.trail, t = f.src;
-            // Tempo-Skala: 95. Perzentil der Schrittweiten im Shot (einmal je Datei)
+            // Speed scale: 95th percentile of the step widths in the shot (once per file)
       if (tj._vmax === undefined) {
         const sp = [];
         for (const r of tj.tracks) for (let i = 2; i < r.p.length; i += 2) sp.push(Math.hypot(r.p[i] - r.p[i - 2], r.p[i + 1] - r.p[i - 1]));
         sp.sort((a, b) => a - b);
         tj._vmax = Math.max(1, sp[Math.floor(sp.length * 0.95)] || 1);
-        // Netto-Tempo je Spur (Start→Ende / Frames) – ohne Zittern; 90. Perzentil für die Verstärkung
+        // Net speed per trail (start→end / frames) – without jitter; 90th percentile for the boost
         const dv = tj.tracks.map((r) => {
           const k = r.p.length / 2 - 1;
           return Math.hypot(r.p[2 * k] - r.p[0], r.p[2 * k + 1] - r.p[1]) / Math.max(1, k);
         }).sort((a, b) => a - b);
         tj._dv = Math.max(0.05, dv[Math.floor(dv.length * 0.9)] || 1);
       }
-      // Leuchtschleifen (Nutzer 2026-11-04): additiv ("lighter"), je Teilstück breiter Glow + dünner Kern,
-      // ältere Teile blasser (Ghosting); Kopf = kleiner Spark mit Mikro-Glow.
+      // Glow trails (user 2026-11-04): additive ("lighter"), per segment a wider glow + thin core,
+      // older parts dimmer (ghosting); head = small spark with micro glow.
       ctx.lineCap = "round";
       ctx.globalCompositeOperation = "lighter";
       const heads = [];
-      // kleine Bewegung sichtbar machen: Schweif um den Kopf herum vergrößert, bis die schnellen Spuren
-      // netto etwa 5 % der Bildbreite lang sind (höchstens ×12, im Info-Text angezeigt)
+      // make small motion visible: trail around the head enlarged until the fast trails
+      // are net about 5 % of the image width long (at most ×12, shown in the info text)
       gain = Math.max(1, Math.min(12, 50 / (tj._dv * L)));
       for (const r of tj.tracks) {
         const len = r.p.length / 2, end = t - r.s;
@@ -1833,7 +1833,7 @@ function imvDraw(node) {
     st.gridLbl.textContent = `${g}×${g}`;
     const picks = imvSheetPicks(sh.frames.length, g);
     st._sheet = { grid: g, picks };
-    // Kacheln im Seitenverhältnis der Fläche (quadratisch): 3×3 = 160×160, Bilder contain
+    // Tiles in the aspect ratio of the area (square): 3×3 = 160×160, images contain
     const T = W / g, TH = H / g, gap = 2, bar = 3;
     ctx.font = `${Math.max(9, Math.round(T / 9))}px sans-serif`;
     ctx.textBaseline = "top";
@@ -1879,7 +1879,7 @@ app.registerExtension({
       const viz = d.output?.im_viz?.[0];
       if (viz) {
         node.properties = node.properties || {};
-        node.properties.im_viz = viz;   // überlebt Neuladen der Seite (Dateien bis zum ComfyUI-Neustart)
+        node.properties.im_viz = viz;   // survives reloading the page (files until ComfyUI restart)
         const st = imvEnsure(node);
         st.liveTimeline = null; st.k = 0; imvStop(st);
       }
@@ -1909,7 +1909,7 @@ app.registerExtension({
           body: JSON.stringify({ node_id: String(node.id), strength: get("strength"), keep: get("keep") }),
         });
         const j = await r.json();
-        if (!r.ok) return; // noch kein Lauf: nichts zu zeichnen
+        if (!r.ok) return; // no run yet: nothing to draw
         setGraph(node, j);
       } catch (e) {
         console.warn("[InfiniteMovie] normalize graph:", e);
@@ -1926,22 +1926,22 @@ app.registerExtension({
         return res;
       };
     }
-    // nach dem Laden des Workflows: Grafik des letzten Laufs holen (falls der Server sie noch kennt)
+    // after loading the workflow: fetch the graph of the last run (if the server still knows it)
     setTimeout(redraw, 1500);
   },
 });
 
-// 57d: Assemble `loop`-Widget ist verborgen, solange `shots` verbunden ist
-// (der Wert kommt dann aus der Pipe; in Python gewinnt shots["loop"]).
+// 57d: the Assemble `loop` widget is hidden as long as `shots` is connected
+// (the value then comes from the pipe; in Python shots["loop"] wins).
 app.registerExtension({
   name: "InfiniteMovie.AssembleLoopHide",
   nodeCreated(node) {
     if (node.comfyClass !== "InfiniteMovieAssemble") return;
-    // 57c: Wenn `shots` verbunden ist, file/video_path/fps/loop + Upload-Knopf ausblenden
-    // (Python ignoriert sie dann ohnehin, Vorrang retime_nodes.py:299). Werte NICHT löschen.
+    // 57c: if `shots` is connected, hide file/video_path/fps/loop + the upload button
+    // (Python ignores them anyway, precedence retime_nodes.py:299). Do NOT delete the values.
     const HIDDEN_WHEN_SHOTS = ["file", "video_path", "fps", "loop"];
-    // 58 (2026-11-02): Widgets NICHT aus node.widgets nehmen – widgets_values sind positionell, und graphToPrompt
-    // ließ die Pflicht-Eingänge file/loop weg (Nacht-Debug 58: strength=24 > max 1.0). Nur verstecken,
+    // 58 (2026-11-02): do NOT take widgets from node.widgets – widgets_values are positional, and graphToPrompt
+    // left out the required inputs file/loop (night debug 58: strength=24 > max 1.0). Only hide,
     // Vorbild ComfyUI-LTXVideo/web/js/guider_parameters_advanced.js:22-45 (hidden + computeSize).
     const toggle = (w, show) => {
       if (!w) return;
@@ -1956,35 +1956,35 @@ app.registerExtension({
         w.computedHeight = 0;
       }
     };
-    // 73: copy_to ist kein Widget mehr (Input gestrichen) -> kein Toggle nötig.
+    // 73: copy_to is no longer a widget (input removed) -> no toggle needed.
     const setHidden = (visible) => {
       for (const name of HIDDEN_WHEN_SHOTS) toggle(node.widgets?.find((x) => x.name === name), visible);
-      // Upload-Knopf (DOM-Widget, gehört zu `file`) ausblenden
+      // hide the upload button (DOM widget, belongs to `file`)
       toggle(node.widgets?.find((x) => x._isFileUpload || x.name === "upload"), visible);
       node.setSize([node.size[0], node.computeSize()[1]]);
       node.setDirtyCanvas(true, true);
     };
-    // 57c: Tooltip für `file` (Nutzer 2026-11-01)
+    // 57c: tooltip for `file` (user 2026-11-01)
     const fileW = node.widgets?.find((x) => x.name === "file");
     if (fileW) fileW.tooltip = "Only for re-timing an existing video without the Director. Hidden while 'shots' is connected.";
-    // 2026-11-09: ungültige Werte (verrutschte widgets_values nach Schema-Änderung, z. B. interpolate=24,
-    // fps='') auf den Standard setzen – sonst scheitert die Validierung an Feldern, die verborgen und damit
-    // für den Nutzer nicht korrigierbar sind. Gültige Werte bleiben unangetastet.
-    // Standardwerte wie retime_nodes.py InfiniteMovieAssemble.define_schema (das Frontend kennt sie hier nicht).
+    // 2026-11-09: invalid values (shifted widgets_values after a schema change, e.g. interpolate=24,
+    // fps='') reset to the default – otherwise validation fails on fields that are hidden and thus
+    // not correctable by the user. Valid values stay untouched.
+    // Defaults as in retime_nodes.py InfiniteMovieAssemble.define_schema (the frontend does not know them here).
     const DEFAULTS = { fps: 24, strength: 0.8, keep: 1, interpolate: "RIFE x2", even_motion: true, loop: true };
     const sanitize = () => {
       for (const w of node.widgets || []) {
         const vals = w.options?.values;
         const def = DEFAULTS[w.name];
         if (w.type === "combo" && Array.isArray(vals) && vals.length && !vals.includes(w.value)) {
-          if (w.name === "file") continue; // Datei-Liste: unbekannte Datei bleibt sichtbar als Fehler
+          if (w.name === "file") continue; // file list: an unknown file stays visible as an error
           w.value = vals.includes(def) ? def : vals[0];
         } else if (w.type === "number" && (w.value === "" || w.value === null || !Number.isFinite(Number(w.value)))) {
           w.value = def ?? w.options?.min ?? 0;
         } else if (w.type === "toggle" && typeof w.value !== "boolean") {
           w.value = def ?? true;
         } else if (w.name === "video_path" && w.value === "as rendered") {
-          w.value = ""; // Rest des gestrichenen output_size-Combos (verrutscht)
+          w.value = ""; // leftover of the removed output_size combo (shifted)
         }
       }
     };
@@ -1993,7 +1993,7 @@ app.registerExtension({
       const inp = (node.inputs || []).find((i) => i.name === "shots");
       setHidden(inp?.link == null);
     };
-    setTimeout(update, 100); // nach Link-Restore (Load) bzw. sofort (neu)
+    setTimeout(update, 100); // after link restore (load) or immediately (new)
     const onConn = node.onConnectionsChange;
     node.onConnectionsChange = function (type, slot, connected, ...rest) {
       const r = onConn?.apply(this, [type, slot, connected, ...rest]);
@@ -2003,10 +2003,10 @@ app.registerExtension({
   },
 });
 
-// Render-Fortschritt am Film-Chain-Render-Node (Nutzer 2026-10-26: "Film x Frame ... Zeitschaetzung bis Ende").
-// Liest die Ereignisse der aufgeklappten Segment-Nodes (IDs "<render>_s<i>_...", display_node = Render-Node):
-// welches Segment laeuft, Sampler-Schritt, Restzeit aus der mittleren Segmentdauer (vor dem ersten fertigen
-// Segment aus dem Sampler-Fortschritt geschaetzt).
+// Render progress on the film chain render node (user 2026-10-26: "Film x Frame ... time estimate until end").
+// Reads the events of the expanded segment nodes (IDs "<render>_s<i>_...", display_node = render node):
+// which segment is running, sampler step, remaining time from the mean segment duration (before the first finished
+// segment estimated from the sampler progress).
 function fmtTime(s) {
   if (!isFinite(s) || s < 0) return "–";
   s = Math.round(s);
@@ -2015,7 +2015,7 @@ function fmtTime(s) {
 }
 
 function chainInfo(node) {
-  // 2026-11-10: Plan vom Server (infinite_movie.render_plan: echte Shot-Zahl, Frames im Raster der Engine)
+  // 2026-11-10: plan from the server (infinite_movie.render_plan: real shot count, frames on the engine grid)
   const plan = node._fcProg?.plan;
   if (plan) return { segs: plan.segments, frames: plan.frames };
   const imgs = (node.inputs || []).filter((i) => i.name?.startsWith(IMG) && i.link != null).length;
@@ -2040,8 +2040,8 @@ function chainOf(detail) {
   return dn != null ? { node: progressFor(dn), seg: null, kind: "" } : null;
 }
 
-// Fortschritt + Restzeit eines Directors (auch für Choose, Nutzer 2026-11-03: „Restzeit!“).
-// Restzeit aus der mittleren Segmentdauer; vor dem ersten fertigen Segment aus dem Sampler-Fortschritt.
+// Progress + remaining time of a director (also for Choose, user 2026-11-03: „remaining time!“).
+// Remaining time from the mean segment duration; before the first finished segment from the sampler progress.
 function renderEstimate(director) {
   const p = director?._fcProg;
   const { segs, frames } = chainInfo(director);
@@ -2053,7 +2053,7 @@ function renderEstimate(director) {
   else if (segs > 0 && p.seg >= 0) {
     const inSeg = (now - p.segStart) / 1000;
     const stepFrac = p.steps ? p.step / p.steps : 0;
-    // vor dem ersten fertigen Shot: gemessene Dauer gleicher Shots auf DIESER Maschine (timing.py), sonst Sampler
+    // before the first finished shot: measured duration of identical shots ON THIS machine (timing.py), otherwise sampler
     const est = Number(p.plan?.seg_seconds);
     const avg = p.done.length ? p.done.reduce((a, b) => a + b, 0) / p.done.length
       : est > 0 ? Math.max(est, inSeg) : stepFrac > 0.05 ? inSeg / stepFrac : NaN;
@@ -2069,7 +2069,7 @@ app.registerExtension({
     api.addEventListener("executing", (e) => {
       const d = e.detail;
       if (d == null || (typeof d === "object" && d.node == null)) {
-        // Lauf vorbei: alle laufenden Ketten abschliessen
+        // run finished: close all running chains
         for (const n of app.graph?._nodes || []) {
           const p = n._fcProg;
           if (p?.t0 && !p.end) { p.end = Date.now(); p.phase = "done"; n.setDirtyCanvas(true, true); }
@@ -2107,7 +2107,7 @@ app.registerExtension({
   },
   nodeCreated(node) {
     if (node.comfyClass !== "InfiniteMovieRender") return;
-    // 2026-11-09 (Nutzer: „ebenso Director“): gleiche Breite wie der Assemble-Viewer (3×3 Kacheln)
+    // 2026-11-09 (user: „director likewise“): same width as the Assemble viewer (3×3 tiles)
     setTimeout(() => imvFixWidth(node), 0);
     const onCfg = node.onConfigure;
     node.onConfigure = function (...a) { const r = onCfg?.apply(this, a); setTimeout(() => imvFixWidth(this), 0); return r; };
@@ -2129,7 +2129,7 @@ app.registerExtension({
       ctx.save();
       ctx.fillStyle = "rgba(0,0,0,0.55)";
       ctx.fillRect(x - 2, y - 2, w + 4, h + 4);
-      // 2026-11-05 (Nutzer): Fortschrittsbalken ganz unten, Text darüber
+      // 2026-11-05 (user): progress bar at the very bottom, text above it
       const by = y + h - 8;
       ctx.fillStyle = "#333";
       ctx.fillRect(x, by, w, 8);
@@ -2148,21 +2148,21 @@ app.registerExtension({
 // ---------------------------------------------------------------------------
 // InfiniteMovie.OutputSuggestions (Auftrag 28)
 //
-// Zieht man einen Ausgang ins Leere, zeigt das Kontextmenue
-// `LiteGraph.slot_types_default_out[TYPE]`. Die Liste fuehlt sich in
-// Ladereihenfolge (erste 5, `Comfy.NodeSuggestions.number`) – unsere
-// sinnvollen Ziel-Nodes fehlen da oft oder sind vergraben. Wir haengen pro
-// Typ eine kuratierte Liste VORNE an (nur Nodes, die in
-// `LiteGraph.registered_node_types` existieren), Duplikate raus, Rest dahinter.
-// `slot_types_default_in` wird fuer unsere Eingaege genauso gezaehmt.
-// Nutzer-Settings werden NICHT veraendert.
+// If you drag an output into empty space, the context menu shows
+// `LiteGraph.slot_types_default_out[TYPE]`. The list is padded in
+// load order (first 5, `Comfy.NodeSuggestions.number`) – our
+// useful target nodes are often missing there or buried. We prepend per
+// type a curated list AT THE FRONT (only nodes that exist in
+// `LiteGraph.registered_node_types`), duplicates out, the rest behind.
+// `slot_types_default_in` is padded for our inputs the same way.
+// User settings are NOT modified.
 //
-// Hinweis: `Comfy.NodeSuggestions.number` kann die sichtbare Laenge kappen –
-// die kuratierten Eintraege stehen VORNE und ueberleben jede Kappung.
+// Note: `Comfy.NodeSuggestions.number` can cap the visible length –
+// the curated entries stand AT THE FRONT and survive any cap.
 //
-// Pfad-Ausgaenge (segment_paths, film_path, save_folder, save_name, ...) sind
-// plain STRING, daher stehen die nuetzlichen Pfad-Verbraucher
-// (InfiniteMovieAssemble, VHS_LoadVideoPath) unter STRING.
+// Path outputs (segment_paths, film_path, save_folder, save_name, ...) are
+// plain STRING, hence the useful path consumers
+// (InfiniteMovieAssemble, VHS_LoadVideoPath) are under STRING.
 // ---------------------------------------------------------------------------
 
 const FC_PREFERRED_OUT = {
@@ -2170,14 +2170,14 @@ const FC_PREFERRED_OUT = {
            "InfiniteMovieAssemble", "VHS_LoadVideoPath"],
   IMAGE:  ["PreviewImage", "SaveImage",
            "UpscaleCropUniversal", "InfiniteMovieAssemble"],
-  // Save/Preview/Source-Nodes (nur wenn registriert, fcPrependUnique filtert):
+  // Save/Preview/Source nodes (only if registered, fcPrependUnique filters):
   // SaveVideo (Speichern), PreviewVideo (Vorschau), GetVideoComponents (Frames),
   // VHS_VideoCombine (Encode). Beleg /object_info 2026-10-26.
   VIDEO:  ["SaveVideo", "PreviewVideo", "GetVideoComponents", "VHS_VideoCombine",
             "InfiniteMovieAssemble"],
-  // SHOTS: der "Pipe" (Auftrag 32) – Render → (Review) → Assemble. 57b2: Typ SHOTS.
+  // SHOTS: the "pipe" (task 32) – Render → (Review) → Assemble. 57b2: type SHOTS.
   SHOTS: ["InfiniteMovieAssemble"],
-  // Jeder weitere Typ, den ein InfiniteMovieRender-Node ausgibt, bekommt mind. 1 Anzeige-Node.
+  // Every further type an InfiniteMovieRender node outputs gets at least 1 display node.
   MASK:    ["PreviewAny"],
   INT:     ["PreviewAny"],
   FLOAT:   ["PreviewAny"],
@@ -2201,10 +2201,10 @@ function fcPrependUnique(list, preferred) {
 
 app.registerExtension({
   name: "InfiniteMovie.OutputSuggestions",
-  // setup() laeuft GARANTIERT nach dem /object_info-Load und der Registrierung
-  // aller Node-Typen; da sind LiteGraph.registered_node_types UND
-  // slot_types_default_out/_in schon gefuellt (statisch, nicht lazy).
-  // ("registeredNodes" ist KEIN gueltiger ComfyUI-Hook – wird still ignoriert,
+  // setup() runs GUARANTEED after the /object_info load and the registration
+  // of all node types; by then LiteGraph.registered_node_types AND
+  // slot_types_default_out/_in are already filled (static, not lazy).
+  // ("registeredNodes" is NOT a valid ComfyUI hook – silently ignored,
   // Beleg: comfyui-pitfalls.md, 2026-10-26.)
   setup() {
     const out = LiteGraph.slot_types_default_out;
@@ -2224,7 +2224,7 @@ app.registerExtension({
 });
 
 // ---------------------------------------------------------------------------
-// Gemeinsame Helfer: Toast + "Rerender marked" (Choose). Der Review-Node ist seit 75 entfernt.
+// Shared helpers: toast + "Rerender marked" (Choose). The review node has been removed since 75.
 // ---------------------------------------------------------------------------
 
 const FC_REVIEW_LINE_COLORS = ["transparent", "#e6c229", "#e68929", "#d93025"];  // Verdachts-Linie (Choose)
@@ -2239,13 +2239,13 @@ function fcReviewToast(msg, color) {
   setTimeout(() => t.remove(), 3500);
 }
 
-// Auftrag 61: GEMEINSAME Logik fuer "Rerender marked" (Review- UND Chooser-Node).
-// Schreibt die markierten Nummern in das `reseed`-Widget des Directors und
-// queue-t den Prompt. Beide Varianten (A/B) bekommen damit neue Seeds.
-// rerenderFn: Node-spezifischer Re-Render (Kacheln/Button aktualisieren).
+// Task 61: SHARED logic for "Rerender marked" (review AND chooser node).
+// Writes the marked numbers into the `reseed` widget of the director and
+// queues the prompt. Both variants (A/B) get new seeds with that.
+// rerenderFn: node-specific re-render (update tiles/button).
 // 2026-11-08 (Nutzer: „picked one image to rerender but both turned black … should only new black out“):
-// was RERENDER neu rendert – ganzer Shot (✗ REDO) = "3", nur eine abgewählte Variante = "3a"/"3b"
-// (die andere bleibt stehen, ihr Segment wird wiederverwendet).
+// what RERENDER re-renders – whole shot (✗ REDO) = "3", only one rejected variant = "3a"/"3b"
+// (the other stays, its segment is reused).
 function fcChooseRedoTokens(node) {
   const marked = (node.properties?.marked || []).slice().sort((a, b) => a - b);
   const out = marked.map(String);
@@ -2262,8 +2262,8 @@ function fcChooseRedoTokens(node) {
 function fcRerenderMarked(node, rerenderFn) {
   const marked = fcChooseRedoTokens(node);
   if (!marked.length) return;
-  // 57c: Director über `shots` ODER `segments` finden, auch durch Reroute/Zwischen-Nodes
-  // (Link rückwärts verfolgen bis comfyClass === "InfiniteMovieRender").
+  // 57c: find the director via `shots` OR `segments`, also through reroute/intermediate nodes
+  // (follow the link backwards until comfyClass === "InfiniteMovieRender").
   const g = app.graph;
   const findDirector = (inputName) => {
     const input = (node.inputs || []).find((i) => i.name === inputName);
@@ -2274,7 +2274,7 @@ function fcRerenderMarked(node, rerenderFn) {
       const origin = g.getNodeById(link.origin_id);
       if (!origin) return null;
       if (origin.comfyClass === "InfiniteMovieRender") return origin;
-      // Durch Reroute/Zwischen-Node: den Ausgang verfolgen, der an den Eingang des Zwischen-Nodes geht
+      // Through a reroute/intermediate node: follow the output going into the intermediate node's input
       const inSlot = link.origin_slot;
       const out = origin.outputs?.[inSlot];
       if (!out || !out.links?.length) return null;
@@ -2287,16 +2287,16 @@ function fcRerenderMarked(node, rerenderFn) {
   if (!renderNode) {
     fcReviewToast("kein Director über shots/segments gefunden", "#d93025"); return;
   }
-  // reseed-Widget um die markierten Nummern ergaenzen.
+  // extend the reseed widget by the marked numbers.
   const reseedIdx = (renderNode.widgets || []).findIndex((w) => w.name === "reseed");
   if (reseedIdx < 0) { fcReviewToast("no reseed widget on the render node", "#d93025"); return; }
   const old = renderNode.widgets[reseedIdx].value || "";
   const parts = old ? old.split(/[,;\s]+/).filter(Boolean) : [];
   const newParts = parts.concat(marked);
-  // Was neu kommt (für die Anzeige während des Renders): nur diese Kacheln „re-rendering…“, der Rest bleibt.
+  // What is new (for the display during the render): only these tiles "re-rendering…", the rest stays.
   node._fc_redo_pending = {};
-  // Nutzer 2026-11-08: „nach rerender immer noch rejected aktiviert – eher nicht“: neu gerenderte Shots wieder
-  // auf AUTO (keine erzwungene Wahl der alten Variante), Abwahl/Markierung weg.
+  // user 2026-11-08: „after rerender rejected is still active – rather not“: newly rendered shots back
+  // to AUTO (no forced choice of the old variant), rejection/marking gone.
   const ch = fcChooseGetChoices(node);
   for (const t of marked) {
     const n = parseInt(t, 10), v = t.replace(/^\d+/, "");
@@ -2309,11 +2309,11 @@ function fcRerenderMarked(node, rerenderFn) {
   node.properties.marked = [];
   node.properties.rejected = {};
   rerenderFn(node);
-  // Queue + Toast (Testflag ueberspringt queuePrompt fuer den Browser-Test).
+  // Queue + toast (test flag skips queuePrompt for the browser test).
   if (window.__fc_review_test_skip_queue) {
     console.log(`[InfiniteMovie] test: skipped queuePrompt, reseed=${newParts.join(",")}`);
   } else {
-    // Seeds fest: nur die markierten Shots (reseed) rendern neu, der Rest kommt aus dem Cache. Ziel = Choose.
+    // Seeds fixed: only the marked shots (reseed) render anew, the rest comes from the cache. Target = Choose.
     fcQueueFixedSeeds([String(node.id)]);
   }
   fcReviewToast(`Re-rendering ${marked.map((t) => `shot ${t.toUpperCase()}`).join(", ")}`);
@@ -2322,40 +2322,40 @@ function fcRerenderMarked(node, rerenderFn) {
 // 75: InfiniteMovie.Review extension removed (node deleted).
 
 // ---------------------------------------------------------------------------
-// InfiniteMovie.Chooser (Auftrag 61): Variants-Builder. Je Uebergang die
+// InfiniteMovie.Chooser (task 61): variants builder. Per transition the
 // Varianten A/B nebeneinander + Vergleichskachel (B per clip-path, Trennlinie
-// folgt der Maus, wie rgthree Image Comparer). Ein Algorithmus waehlt vorab
-// die bessere Variante (AUTO-Badge mit Score-Tooltip); der Nutzer kann pro
-// Uebergang ueberschreiben (Radio A/B, Klick auf die gewaehlte Variante =
-// zurueck zu AUTO). Nur EINE Spalte ist animiert (Maus, sonst zuletzt
-// beruehrt, anfangs die erste); alle anderen zeigen das Standbild
-// (..._still.webp) – A+B+Vergleich der aktiven Spalte starten im selben Frame.
-// "Rerender marked (n)" teilt sich die Logik mit dem Review-Node
-// (fcRerenderMarked) – beide Varianten bekommen neue Seeds.
+// follows the mouse, like rgthree Image Comparer). An algorithm pre-selects
+// the better variant (AUTO badge with score tooltip); the user can per
+// transition override (radio A/B, click on the chosen variant =
+// back to AUTO). Only ONE column is animated (mouse, otherwise last
+// touched, initially the first); all others show the still image
+// (..._still.webp) – A+B+comparison of the active column start in the same frame.
+// "Rerender marked (n)" shares the logic with the review node
+// (fcRerenderMarked) – both variants get new seeds.
 // ---------------------------------------------------------------------------
 
-// Nutzer 2026-11-03 („Choose ist ein Dreckshaufen“): Layout neu.
-// - Alle Shots in EINER Reihe, keine Scrollleiste: Spaltenbreite = Node-Breite / Shot-Zahl,
-//   Bilder fest 256×256 (quadratisch, contain): Hoch- und Querformat passen ohne Beschnitt, UI bleibt gleich groß;
-//   die Node wird mit der Shot-Zahl breiter (2–20 Shots). Rand minimal (4 px). (Nutzer 2026-11-09)
-// - Je Shot: Kopf (Nummer, ✓/✗), A (und B darunter), eine Messwert-Zeile je Variante.
-//   Klick aufs Bild oder A/B-Knopf wählt; Knöpfe GRAU, wenn keine Wahl möglich ist
-//   (vor dem Run, variants = 1, während ComfyUI rendert).
-// - Statuszeile unten: Director fehlt / Warte auf Run / Rendert … / Bitte auswählen / Fertig.
-// - Großer Button NUR, wenn er etwas tut: ASSEMBLE (Wahl seit dem letzten Run geändert)
-//   oder RERENDER n (✗ markiert); nie während eines Runs.
-const FC_CHOOSE_COL = 256;           // feste quadratische Kachel je Shot (Bild contain); Node wird breiter, nie Bilder kleiner
+// user 2026-11-03 („Choose is a mess“): new layout.
+// - all shots in ONE row, no scrollbar: column width = node width / shot count,
+//   images fixed 256×256 (square, contain): portrait and landscape fit without cropping, UI stays the same size;
+//   the node gets wider with the shot count (2–20 shots). Margin minimal (4 px). (user 2026-11-09)
+// - per shot: header (number, ✓/✗), A (and B below it), one metric row per variant.
+//   click on the image or the A/B button selects; buttons GREY when no choice is possible
+//   (before the run, variants = 1, while ComfyUI is rendering).
+// - status row at the bottom: director missing / waiting for run / rendering … / please select / done.
+// - big button ONLY when it does something: ASSEMBLE (choice changed since the last run)
+//   or RERENDER n (✗ marked); never during a run.
+const FC_CHOOSE_COL = 256;           // fixed square tile per shot (image contain); node gets wider, never images smaller
 const FC_CHOOSE_GAP = 4;
-const FC_CHOOSE_PAD = 20;            // DOM-Widget-Rand links+rechts in der Node
+const FC_CHOOSE_PAD = 20;            // DOM widget margin left+right in the node
 const FC_CHOOSE_HEAD_H = 20, FC_CHOOSE_STAT_H = 24, FC_CHOOSE_BTNROW_H = 34;
-// Wirksame Wahl eines Shots: A/B aus dem Widget zählt nur, wenn der Shot beide Varianten hat (sonst steht nach
-// einem Lauf mit variants=1 ein altes „b“ im Widget und Sheet/Naht suchen eine Variante, die es nicht gibt).
+// Effective choice of a shot: A/B from the widget only counts if the shot has both variants (otherwise after
+// a run with variants=1 an old „b“ sits in the widget and sheet/seam look for a variant that does not exist).
 function fcChooseEff(e, c) { return (e?.has_variants && (c === "a" || c === "b")) ? c : (e?.auto || "a"); }
-// Befund einer Variante in Klartext (Schwellen wie review_nodes.JERK_HARD / LEVEL_STRONG).
-// 78: e = Shot-Eintrag; q.seam = rote Naht-Zeile zu naechstem Shot (nur wenn e.seam_bad).
+// Finding of a variant in plain text (thresholds like review_nodes.JERK_HARD / LEVEL_STRONG).
+// 78: e = shot entry; q.seam = red seam row to the next shot (only if e.seam_bad).
 function fcChooseQuality(v, e) {
   const jerk = +v.jerk || 0, level = +v.level || 0, flags = v.flags || [];
-  // 2026-11-09: Fehler (Sheet/Standbild/Prüfung gescheitert, Datei fehlt) rot zeigen statt still schwarz.
+  // 2026-11-09: show errors (sheet/still/check failed, file missing) in red instead of silently black.
   if (v.errors?.length) return { text: `✗ ${v.errors.join(" · ")}`, color: "#fff", bg: "#b3261e" };
   const names = flags.map((f) => ({ CUT: "HARD CUT", FLICKER: "FLICKER", PARTICLES: "FROZEN PARTICLES" }[f] || f));
   if (jerk >= 7 && !names.includes("HARD CUT")) names.unshift("HARD JUMP");
@@ -2367,10 +2367,10 @@ function fcChooseQuality(v, e) {
   return q;
 }
 const FC_CHOOSE_STATUS_H = 26, FC_CHOOSE_BIG_H = 44;
-const FC_CHOOSE_SEAM_H = 84;   // 2026-11-08: Naht-Zeile (letztes Bild dieses Shots | erstes Bild des nächsten)
+const FC_CHOOSE_SEAM_H = 84;   // 2026-11-08: seam row (last image of this shot | first image of the next)
 
-// 2026-11-08 (Nutzer: Chooser + Assemble koppeln): Shot im Assemble-Viewer zeigen (Klick auf den Shot-Kopf
-// im Chooser) bzw. im Chooser hervorheben (seg-Knopf im Assemble-Viewer). number = Shot-Nummer (1-basiert).
+// 2026-11-08 (user: couple chooser + Assemble): show the shot in the Assemble viewer (click on the shot header
+// in the chooser) or highlight it in the chooser (seg button in the Assemble viewer). number = shot number (1-based).
 function fcAsmFocus(number) {
   for (const a of app.graph?._nodes || []) {
     if (a.comfyClass !== "InfiniteMovieAssemble" || !a._imv) continue;
@@ -2392,12 +2392,12 @@ function fcChooseFocus(number) {
   }
 }
 
-// Laufzustand von ComfyUI (für Status + Ausgrauen), global aus den api-Ereignissen.
+// Run state of ComfyUI (for status + greying out), global from the api events.
 const fcRun = { running: false, node: "", value: 0, max: 0 };
 function fcChooseAll() { return (app.graph?._nodes || []).filter((n) => n.comfyClass === "InfiniteMovieChooser"); }
 function fcChooseRefreshAll() { for (const n of fcChooseAll()) fcChooseRender(n); }
-// Auto-Layout (web/infinite_movie_layout.js) frischt Choose VOR dem Messen auf – sonst alte Breite,
-// weil Choose sich sonst nur beim Zeichnen (onDrawForeground) anpasst.
+// Auto layout (web/infinite_movie_layout.js) refreshes Choose BEFORE measuring – otherwise the old width,
+// because Choose otherwise only adapts when drawing (onDrawForeground).
 window.fcChooseRefreshAll = fcChooseRefreshAll;
 api.addEventListener("status", (e) => {
   const busy = (e.detail?.exec_info?.queue_remaining || 0) > 0;
@@ -2410,7 +2410,7 @@ api.addEventListener("executing", (e) => {
   const top = String(id).split(":")[0].split(".")[0];
   const n = app.graph?.getNodeById?.(top);
   fcRun.node = n ? (n.title || n.type) : String(id);
-  // Nur Prompt erzeugen (Regenerate) ist kein Render: Choose bleibt bedienbar (Nutzer 2026-11-03)
+  // Only generating a prompt (Regenerate) is not a render: Choose stays operable (user 2026-11-03)
   fcRun.promptOnly = n?.comfyClass === "InfiniteMovieAutoPrompt" ? (fcRun.promptOnly ?? true) : false;
   fcRun.max = 0;
   for (const c of fcChooseAll()) fcChooseStatus(c);
@@ -2419,7 +2419,7 @@ api.addEventListener("progress", (e) => {
   fcRun.value = e.detail?.value || 0; fcRun.max = e.detail?.max || 0;
   for (const c of fcChooseAll()) fcChooseStatus(c);
 });
-// Film gebaut (Film oder Assemble lief) -> die benutzte Wahl merken („Film assembled“)
+// Film built (Film or Assemble ran) -> remember the used choice („Film assembled“)
 api.addEventListener("executed", (e) => {
   const n = app.graph?.getNodeById?.(String(e.detail?.node ?? "").split(":")[0]);
   if (n?.comfyClass !== "InfiniteMovieFilm" && n?.comfyClass !== "InfiniteMovieAssemble") return;
@@ -2427,7 +2427,7 @@ api.addEventListener("executed", (e) => {
 });
 function fcAsmClear() { for (const c of fcChooseAll()) if (c._fc_asm_t0) { c._fc_asm_t0 = null; fcChooseStatus(c); } }
 api.addEventListener("execution_error", () => { fcAsmClear(); });
-// Abbrechen: halbe/alte Filme entfernen, Fortschritt beenden (Nutzer 2026-11-03)
+// Cancel: remove half/old films, end the progress (user 2026-11-03)
 api.addEventListener("execution_interrupted", () => {
   for (const n of app.graph?._nodes || []) {
     const p = n._fcProg;
@@ -2435,20 +2435,20 @@ api.addEventListener("execution_interrupted", () => {
   }
   fcRun.running = false; fcRun.node = ""; fcRun.max = 0;
   fcAsmClear();
-  fcClearFilms({ choose: true });   // halbe Shots nicht als „bereit“ stehen lassen
+  fcClearFilms({ choose: true });   // do not leave half shots standing as „ready“
   fcReviewToast("Cancelled – film removed.");
 });
-// Restzeit im Choose jede Sekunde nachführen (Ereignisse kommen nur bei Sampler-Schritten)
+// Update the remaining time in Choose every second (events only come on sampler steps)
 setInterval(() => {
   for (const c of fcChooseAll()) {
-    // Nie gestartet (z. B. Validierungsfehler) -> Wartezustand nach 15 s lösen
+    // Never started (e.g. validation error) -> release the waiting state after 15 s
     if (c._fc_asm_t0 && !fcRun.running && Date.now() - c._fc_asm_t0 > 15000) c._fc_asm_t0 = null;
     if (fcRun.running || c._fc_asm_t0 != null) fcChooseStatus(c);
   }
 }, 1000);
 
-// Choose passt sich VOR dem Lauf an die Filmlänge an. Spaltenzahl aus dem verbundenen
-// Director (verbundene Bilder, loop, intro/outro, variants – gleiche Zählung wie
+// Choose adapts to the film length BEFORE the run. Column count from the connected
+// director (connected images, loop, intro/outro, variants – same counting as
 // total_segments in nodes.py).
 function fcChooseDirectorOf(node) {
   let n = node, guard = 0;
@@ -2461,8 +2461,8 @@ function fcChooseDirectorOf(node) {
   return null;
 }
 
-// 80: Auto-Prompt-Node für einen Shot finden: Director-Input `shot_prompts.prompt{k-1}`
-// (Shot-Nummer 1-basiert), Link auch durch Reroutes folgen – Vorbild fcChooseDirectorOf.
+// 80: find the Auto Prompt node for a shot: director input `shot_prompts.prompt{k-1}`
+// (shot number 1-based), also follow the link through reroutes – model fcChooseDirectorOf.
 function fcChoosePromptNodeOf(node, shotNumber) {
   const d = fcChooseDirectorOf(node);
   if (!d) return null;
@@ -2479,10 +2479,10 @@ function fcChoosePromptNodeOf(node, shotNumber) {
   return null;
 }
 
-// 80: „✎ prompt" je Choose-Spalte: klappt ein Textfeld mit dem Prompt dieses Übergangs auf
-// (Quelle: prompt-Widget des Auto-Prompt-Nodes am Director-Input). Speichern schreibt den Text
-// ins Widget (callback wie manuelle Änderung) und markiert den Shot REDO (setMarked) – RERENDER
-// rendert dann nur diesen Shot, weil der geänderte Prompt den Segment-Key ändert (Reuse-Logik).
+// 80: „✎ prompt" per Choose column: expands a text field with the prompt of this transition
+// (source: prompt widget of the Auto Prompt node at the director input). Saving writes the text
+// into the widget (callback like a manual change) and marks the shot REDO (setMarked) – RERENDER
+// then only renders this shot, because the changed prompt changes the segment key (reuse logic).
 function fcChooseEditPrompt(node, col, e, setMarked) {
   const ap = fcChoosePromptNodeOf(node, e.number);
   const w = ap?.widgets?.find((x) => x.name === "prompt");
@@ -2493,7 +2493,7 @@ function fcChooseEditPrompt(node, col, e, setMarked) {
   const ov = document.createElement("div");
   ov.style.cssText = "position:absolute;inset:0;z-index:20;background:rgba(12,12,12,0.96);" +
     "display:flex;flex-direction:column;gap:6px;padding:8px;border-radius:3px;";
-  // Textfeld-Ereignisse NICHT an das Canvas durchreichen (Pointer-Drag/Pan + Canvas-Tastaturkürzel).
+  // Do NOT pass text field events through to the canvas (pointer drag/pan + canvas keyboard shortcuts).
   for (const t of ["pointerdown", "pointerup", "pointermove", "wheel", "mousedown", "mouseup",
     "dblclick", "contextmenu", "keydown", "keyup", "dragstart"]) {
     ov.addEventListener(t, (ev) => ev.stopPropagation());
@@ -2523,8 +2523,8 @@ function fcChooseEditPrompt(node, col, e, setMarked) {
   const save = () => {
     const text = ta.value;
     const old = w.value;
-    // Wie Frontend-setValue: unveränderter Text triggert keine Änderung (keine REDO-Markierung,
-    // kein incrementVersion/dirty), weil der Segment-Key ohnehin gleich bleibt.
+    // Like the frontend setValue: unchanged text triggers no change (no REDO marking,
+    // no incrementVersion/dirty), because the segment key stays the same anyway.
     if (text === old) {
       ov.remove();
       fcReviewToast(`Shot ${e.number}: prompt unchanged – nothing to re-render.`);
@@ -2532,8 +2532,8 @@ function fcChooseEditPrompt(node, col, e, setMarked) {
     }
     w.value = text;
     w.callback?.(text);
-    // Frontend-eigener Programmierpfad (wie setValue im Frontend, nodeDefStore): onWidgetChanged
-    // + incrementVersion, damit Modified-Flag und fremde onWidgetChanged-Hooks die Änderung sehen.
+    // Frontend's own programmatic path (like setValue in the frontend, nodeDefStore): onWidgetChanged
+    // + incrementVersion, so the Modified flag and foreign onWidgetChanged hooks see the change.
     ap.onWidgetChanged?.(w.name, text, old, w);
     ap.graph?.incrementVersion?.();
     setMarked(true);
@@ -2556,10 +2556,10 @@ function fcChooseEditPrompt(node, col, e, setMarked) {
   ta.select();
 }
 
-// 82: „⏱ X s“ je Choose-Spalte: Overlay mit Zahl-Feld (step 0.5, min 0.5, max 20)
-// + „save“ / „global“ (= Eintrag 0). Speichern schreibt den Eintrag (Index e.number - 1)
-// ins Director-Widget 'shot_seconds' und markiert den Shot REDO (setMarked) – die Länge
-// ist Teil des Segment-Keys, darum rendert RERENDER nur diesen Shot (Reuse-Logik).
+// 82: „⏱ X s“ per Choose column: overlay with a number field (step 0.5, min 0.5, max 20)
+// + „save“ / „global“ (= entry 0). Saving writes the entry (index e.number - 1)
+// into the director widget 'shot_seconds' and marks the shot REDO (setMarked) – the length
+// is part of the segment key, hence RERENDER only renders this shot (reuse logic).
 function fcChooseEditSeconds(node, col, e, setMarked) {
   const d = fcChooseDirectorOf(node);
   const w = d?.widgets?.find((x) => x.name === "shot_seconds");
@@ -2570,7 +2570,7 @@ function fcChooseEditSeconds(node, col, e, setMarked) {
   const ov = document.createElement("div");
   ov.style.cssText = "position:absolute;inset:0;z-index:20;background:rgba(12,12,12,0.96);" +
     "display:flex;flex-direction:column;gap:6px;padding:8px;border-radius:3px;";
-  // Zahl-Feld-Ereignisse NICHT an das Canvas durchreichen (Pointer-Drag/Pan + Canvas-Tastaturkürzel).
+  // Do NOT pass number field events through to the canvas (pointer drag/pan + canvas keyboard shortcuts).
   for (const t of ["pointerdown", "pointerup", "pointermove", "wheel", "mousedown", "mouseup",
     "dblclick", "contextmenu", "keydown", "keyup", "dragstart"]) {
     ov.addEventListener(t, (ev) => ev.stopPropagation());
@@ -2610,7 +2610,7 @@ function fcChooseEditSeconds(node, col, e, setMarked) {
     while (list.length && list[list.length - 1] === 0) list.pop();
     const text = list.join(", ");
     const old = w.value;
-    // Wie fcChooseEditPrompt: unveränderter Text triggert keine Änderung (keine REDO-Markierung).
+    // Like fcChooseEditPrompt: unchanged text triggers no change (no REDO marking).
     if (text === old) {
       ov.remove();
       fcReviewToast(`Shot ${e.number}: length unchanged – nothing to re-render.`);
@@ -2618,8 +2618,8 @@ function fcChooseEditSeconds(node, col, e, setMarked) {
     }
     w.value = text;
     w.callback?.(text);
-    // Frontend-eigener Programmierpfad (wie fcChooseEditPrompt): onWidgetChanged
-    // + incrementVersion, damit Modified-Flag und fremde Hooks die Änderung sehen.
+    // Frontend's own programmatic path (like fcChooseEditPrompt): onWidgetChanged
+    // + incrementVersion, so the Modified flag and foreign hooks see the change.
     d.onWidgetChanged?.("shot_seconds", text, old, w);
     d.graph?.incrementVersion?.();
     setMarked(true);
@@ -2661,8 +2661,8 @@ function fcChoosePlan(node) {
   return { n, variants: String(wv("variants")) === "2", director: d, nImg };
 }
 
-// Echte Einträge (nach dem Lauf) oder Platzhalter aus dem Plan; veraltete Einträge
-// (Spaltenzahl oder Varianten passen nicht mehr zum Director) weichen den Platzhaltern.
+// Real entries (after the run) or placeholders from the plan; stale entries
+// (column count or variants no longer fit the director) yield to the placeholders.
 function fcChooseEntries(node) {
   const real = node._fc_choose_entries || [];
   const plan = fcChoosePlan(node);
@@ -2675,12 +2675,12 @@ function fcChooseEntries(node) {
 
 function fcChooseSig(e) { return e.length + (e[0]?.placeholder ? "p" : "r") + (e[0]?.has_variants ? "v" : ""); }
 
-// Kachel quadratisch: Höhe = Spaltenbreite (Seitenverhältnis des Films egal).
+// Tile square: height = column width (film aspect ratio irrelevant).
 function fcChooseLayout(node, entries) {
   const colW = FC_CHOOSE_COL;
   const tileH = colW;
   const v = entries[0]?.has_variants ? 2 : 1;
-  // 78: Naht-Zeile reservieren, wenn irgendein Shot seam_bad hat (sonst Clipping).
+  // 78: reserve the seam row if any shot has seam_bad (otherwise clipping).
   const seamH = entries.some((e) => !e.placeholder && e.seam_next) ? FC_CHOOSE_SEAM_H + FC_CHOOSE_GAP : 0;
   const colH = FC_CHOOSE_HEAD_H + v * (tileH + FC_CHOOSE_GAP + FC_CHOOSE_STAT_H) + seamH + (entries[0]?.placeholder ? 0 : FC_CHOOSE_BTNROW_H + FC_CHOOSE_GAP);
   const sheet = fcChooseSheetSize(entries);
@@ -2688,9 +2688,9 @@ function fcChooseLayout(node, entries) {
     + (sheet ? FC_CHOOSE_GAP + sheet[1] : 0);
   return { colW, tileH, domH, sheet };
 }
-// 2026-11-08 (Nutzer: „dont like 3x3 in same window … put them to bottom“, dann „2x 3x3 unten nebeneinander, also
-// unter jedes Bild“): unten im Chooser eine Reihe 3×3-Sheets, je Shot genau unter seiner Spalte (gleiche Breite).
-// Gezeigt wird die gewählte Variante; Maus über Kachel A/B zeigt deren Sheet.
+// 2026-11-08 (user: „dont like 3x3 in same window … put them to bottom“, then „2x 3x3 at the bottom side by side, i.e.
+// under each image“): at the bottom of the chooser a row of 3×3 sheets, per shot exactly under its column (same width).
+// The chosen variant is shown; mouse over tile A/B shows its sheet.
 function fcChooseSheetSize(entries) {
   if (!entries.some((e) => !e.placeholder && (e.a?.sheet || e.b?.sheet))) return null;
   return [FC_CHOOSE_COL, FC_CHOOSE_COL];
@@ -2719,12 +2719,12 @@ function fcChooseUpdateSheet(node, only = -1) {
 function fcChooseWidth(n) { return Math.max(420, FC_CHOOSE_PAD + n * FC_CHOOSE_COL + (n - 1) * FC_CHOOSE_GAP); }
 
 function fcChooseStableUrl(im) {
-  // Stabile URL OHNE Cache-Buster: beim Umschalten still<->animiert kommt die Datei aus dem Cache.
+  // Stable URL WITHOUT cache buster: when switching still<->animated the file comes from the cache.
   const q = new URLSearchParams({ filename: im.filename, subfolder: im.subfolder || "", type: im.type || "temp" });
   return api.apiURL(`/view?${q}`);
 }
 
-// choices-Widget lesen/schreiben (Format 'auto,b,auto', wie _parse_choices in review_nodes.py).
+// Read/write the choices widget (format 'auto,b,auto', like _parse_choices in review_nodes.py).
 function fcChooseGetChoices(node) {
   const w = node.widgets?.find((x) => x.name === "choices");
   const parts = String(w?.value || "").split(",").map((s) => s.trim().toLowerCase());
@@ -2735,13 +2735,13 @@ function fcChooseSetChoices(node, arr) {
   const w = node.widgets?.find((x) => x.name === "choices");
   if (w) w.value = arr.join(",");
 }
-// Effektive Wahl je Shot ('a'/'b'), AUTO aufgelöst.
+// Effective choice per shot ('a'/'b'), AUTO resolved.
 function fcChooseEffective(node) {
   const c = fcChooseGetChoices(node);
   return (node._fc_choose_entries || []).map((e, i) => fcChooseEff(e, c[i]));
 }
 
-// Live-Vorschau: nur die Spalte unter der Maus ist animiert, alle anderen zeigen das Standbild.
+// Live preview: only the column under the mouse is animated, all others show the still image.
 function fcChooseApplyActive(node) {
   const el = node._fc_choose_el;
   if (!el) return;
@@ -2760,14 +2760,14 @@ function fcChooseApplyActive(node) {
   });
 }
 
-// Zustand für Statuszeile + Button.
+// State for the status row + button.
 function fcChooseState(node) {
   const entries = fcChooseEntries(node);
   const plan = fcChoosePlan(node);
   const marked = node.properties?.marked || [];
   if (!plan) return { text: "Connect the Director's shots output to this node.", tone: "warn", btn: null };
   if (!plan.n) return { text: "Connect at least 1 image to the Director.", tone: "warn", btn: null };
-  // 2026-11-05 (Nutzer: „man braucht sofortiges Feedback bei Press“): ab dem Klick sichtbar, bis der Film da ist.
+  // 2026-11-05 (user: „you need immediate feedback on press“): visible from the click until the film is there.
   if (node._fc_asm_t0) {
     const sec = Math.round((Date.now() - node._fc_asm_t0) / 1000);
     const where = fcRun.running && fcRun.node ? ` · ${fcRun.node}` : " · queued";
@@ -2841,7 +2841,7 @@ function fcChooseStatus(node) {
     const col = { warn: "#e3b341", busy: "#4fc3f7", idle: "#aaa", act: "#fff", ok: "#7ee787" }[st.tone] || "#aaa";
     const sText = node._fc_choose_status_text;
     if (sText) { sText.textContent = st.text; sText.style.color = col; }
-    // Fortschrittsbalken im Hintergrund der Statuszeile (Nutzer 2026-11-03: „es fehlt progress bar“)
+    // Progress bar in the background of the status row (user 2026-11-03: „missing progress bar“)
     const pct = st.frac != null ? Math.round(Math.max(0, Math.min(1, st.frac)) * 100) : null;
     s.style.background = pct == null ? "#202020"
       : `linear-gradient(90deg, #1f6feb 0%, #1f6feb ${pct}%, #202020 ${pct}%, #202020 100%)`;
@@ -2864,7 +2864,7 @@ function fcChooseStatus(node) {
     }
     b._fc_mode = st.btn;
   }
-  // A/B-Knöpfe + Bild-Klick sperren, solange gerendert wird
+  // Lock the A/B buttons + image click while rendering
   node._fc_choose_el?.querySelectorAll(".fc-keep").forEach((x) => { x.style.opacity = fcRun.running ? "0.35" : "1"; });
 }
 
@@ -2873,7 +2873,7 @@ function fcChoosePick(node, i, letter) {
   const e = (node._fc_choose_entries || [])[i];
   if (!e || e.placeholder || !e.has_variants) return;
   const c = fcChooseGetChoices(node);
-  // Wahl = Auto-Gewinner → wieder AUTO (Badge bleibt sichtbar), sonst feste Wahl.
+  // Choice = auto winner → AUTO again (badge stays visible), otherwise a fixed choice.
   c[i] = letter === e.auto ? "auto" : letter;
   fcChooseSetChoices(node, c);
   fcChooseRender(node);
@@ -2889,14 +2889,14 @@ function fcChooseRender(node) {
       getMinHeight: () => fcChooseLayout(node, fcChooseEntries(node)).domH,
       getMaxHeight: () => fcChooseLayout(node, fcChooseEntries(node)).domH,
     });
-    // 79 (Nutzer 2026-11-03: Choose „halbiert“): das Frontend nimmt die Rahmenbreite aus widget.width
-    // (DomWidgets updateWidgets: (n.width ?? node.width) - 2*margin). widget.width blieb auf einem alten,
-    // kleineren Wert (624) stehen, als Choose wuchs -> rechte Shots abgeschnitten. Immer die Node-Breite.
+    // 79 (user 2026-11-03: Choose „halved“): the frontend takes the frame width from widget.width
+    // (DomWidgets updateWidgets: (n.width ?? node.width) - 2*margin). widget.width stayed at an old,
+    // smaller value (624) when Choose grew -> right shots cut off. Always the node width.
     if (domW) Object.defineProperty(domW, "width", { get: () => node.size[0], set() {}, configurable: true });
     node._fc_choose_el = el;
-    // 77 (Nutzer 2026-11-03: „halb verdeckt … war ok bis ich Render gedrückt hab“): das Frontend schneidet
-    // DOM-Widgets dort aus, wo das AUSGEWÄHLTE Element liegt (Comfy.DOMClippingEnabled, useDomClipping) –
-    // eine ausgewählte Gruppe/Node über Choose ließ die rechten Shots verschwinden. Für Choose aus.
+    // 77 (user 2026-11-03: „half covered … was ok until I pressed Render“): the frontend clips
+    // DOM widgets where the SELECTED element is (Comfy.DOMClippingEnabled, useDomClipping) –
+    // a selected group/node over Choose made the right shots disappear. Off for Choose.
     const unclip = () => {
       const w = el.parentElement;
       if (w && w.style.clipPath && w.style.clipPath !== "none") w.style.clipPath = "none";
@@ -2941,7 +2941,7 @@ function fcChooseRender(node) {
         });
       }
       col.appendChild(head);
-      // 74 (Nutzer 2026-11-03: „deutlich, wo hop oder top“): KEEP/REDO groß unter den Bildern, Klick aufs Bild.
+      // 74 (user 2026-11-03: „clearly where hop or top“): KEEP/REDO big below the images, click on the image.
       const isMarked = !e.placeholder && marked.includes(e.number);
       const toggleRedo = () => {
         if (fcRun.running || e.placeholder) return;
@@ -2949,7 +2949,7 @@ function fcChooseRender(node) {
         const k = m.indexOf(e.number);
         if (k >= 0) m.splice(k, 1); else m.push(e.number);
         node.properties.marked = m;
-        if (k >= 0) setRejected([]);   // wieder KEEP: Abwahl vergessen
+        if (k >= 0) setRejected([]);   // KEEP again: forget the rejection
         fcChooseRender(node);
       };
       const rej = (node.properties.rejected ||= {});
@@ -3007,13 +3007,13 @@ function fcChooseRender(node) {
           ev.stopPropagation();
           if (fcRun.running) return;
           if (!canPick) return toggleRedo();
-          // Nutzer 2026-11-03: „bei 2 müssen auch 2 abgewählt werden können, dann rerender“
+          // user 2026-11-03: „with 2, both must be rejectable, then rerender“
           if (isMarked) { setRejected([]); setMarked(false); fcChoosePick(node, i, k); return; }
-          if (eff === k) {                       // gewählte Variante abwählen
+          if (eff === k) {                       // reject the chosen variant
             const other = k === "a" ? "b" : "a";
             if (rejected.includes(other)) { setRejected(["a", "b"]); setMarked(true); fcChooseRender(node); }
             else { setRejected([...rejected, k]); fcChoosePick(node, i, other); }
-          } else {                               // andere/abgewählte Variante wählen
+          } else {                               // choose the other/rejected variant
             setRejected(rejected.filter((x) => x !== k));
             fcChoosePick(node, i, k);
           }
@@ -3023,7 +3023,7 @@ function fcChooseRender(node) {
           : "Hover: play · click: keep / redo") + (v.info ? "\n" + v.info : "");
         col.appendChild(t);
         const st = document.createElement("div");
-        // 75 (Nutzer 2026-11-03: „Merkmale größer, dass man es erkennen kann“): Befund in Klartext + Farbe
+        // 75 (user 2026-11-03: „features bigger so you can recognize them“): finding in plain text + color
         const q = fcChooseQuality(v, e);
         st.style.cssText = `height:${FC_CHOOSE_STAT_H}px;font:bold 13px/${FC_CHOOSE_STAT_H}px sans-serif;white-space:nowrap;` +
           `overflow:hidden;text-overflow:ellipsis;padding:0 4px;border-radius:3px;color:${q.color};background:${q.bg};`;
@@ -3033,9 +3033,9 @@ function fcChooseRender(node) {
         st.title = (e.auto_reason || "") + (v.info ? "\n" + v.info : "");
         col.appendChild(st);
       }
-      // 2026-11-08: Naht zum nächsten Shot sichtbar machen – letztes Bild der gewählten Variante dieses Shots
-      // neben dem ersten Bild der gewählten Variante des nächsten (Loop: Shot 1). Folgt der Wahl A/B sofort;
-      // der Messwert stammt aus dem letzten Run (rot ab JERK_HARD, wie früher die Zeile 78).
+      // 2026-11-08: make the seam to the next shot visible – last image of the chosen variant of this shot
+      // next to the first image of the chosen variant of the next one (loop: shot 1). Follows the A/B choice immediately;
+      // the metric comes from the last run (red from JERK_HARD, like the row 78 before).
       if (!e.placeholder && e.seam_next) {
         const ni = e.seam_next - 1, ne = entries[ni];
         const pick = (en, idx) => fcChooseEff(en, choices[idx]);
@@ -3060,7 +3060,7 @@ function fcChooseRender(node) {
         col.appendChild(sr);
       }
       if (!e.placeholder) {
-        // Button-Zeile: ✓ KEEP / ✗ REDO (groß) + „✎ prompt" (80: Prompt dieses Übergangs editieren)
+        // Button row: ✓ KEEP / ✗ REDO (big) + „✎ prompt" (80: edit the prompt of this transition)
         const krow = document.createElement("div");
         krow.style.cssText = `display:flex;gap:${FC_CHOOSE_GAP}px;height:${FC_CHOOSE_BTNROW_H}px;`;
         const kb = document.createElement("div");
@@ -3073,18 +3073,18 @@ function fcChooseRender(node) {
         kb.title = isMarked ? "Marked: re-render this shot with new seeds (RERENDER below)" : "Mark this shot to re-render it with new seeds";
         kb.addEventListener("click", (ev) => { ev.stopPropagation(); toggleRedo(); });
         const pb = document.createElement("div");
-        pb.className = "fc-keep";   // wird wie KEEP/REDO während eines Runs ausgegraut
+        pb.className = "fc-keep";   // greyed out like KEEP/REDO during a run
         pb.textContent = "✎ prompt";
         pb.style.cssText = `flex:0 0 auto;min-width:62px;display:flex;align-items:center;justify-content:center;` +
           `font:bold 12px sans-serif;color:#ccc;background:#333;border:1px solid #555;border-radius:4px;cursor:pointer;user-select:none;`;
         pb.style.opacity = fcRun.running ? "0.35" : "1";
         pb.title = "Edit this shot's prompt (its Auto Prompt node) – saving marks ✗ REDO so RERENDER re-renders it";
         pb.addEventListener("click", (ev) => { ev.stopPropagation(); if (fcRun.running) return; fcChooseEditPrompt(node, col, e, setMarked); });
-        // 82: „⏱ X s“ – Länge dieses Shots (Eintrag in shot_seconds oder globales seconds)
+        // 82: „⏱ X s“ – length of this shot (entry in shot_seconds or global seconds)
         const dir = fcChooseDirectorOf(node);
         const secs = fcShotSecondsOf(dir, e.number);
         const sb = document.createElement("div");
-        sb.className = "fc-keep";   // wird wie KEEP/REDO während eines Runs ausgegraut
+        sb.className = "fc-keep";   // greyed out like KEEP/REDO during a run
         sb.textContent = `⏱ ${secs % 1 === 0 ? secs.toFixed(0) : secs.toFixed(1)} s`;
         sb.style.cssText = `flex:0 0 auto;min-width:62px;display:flex;align-items:center;justify-content:center;` +
           `font:bold 12px sans-serif;color:#ccc;background:#333;border:1px solid #555;border-radius:4px;cursor:pointer;user-select:none;`;
@@ -3121,13 +3121,13 @@ function fcChooseRender(node) {
     if (btn._fc_mode === "assemble") {
       node._fc_asm_t0 = Date.now();
       fcChooseStatus(node);
-      // Nur Film bauen: Teil-Lauf auf Film (sonst Assemble), Seeds fest -> Director/Choose aus dem Cache
+      // Only build the film: partial run on Film (else Assemble), seeds fixed -> director/Choose from the cache
       const all = app.graph?._nodes || [];
       const on = (t) => all.filter((n) => n.comfyClass === t && (n.mode ?? 0) === 0).map((n) => String(n.id));
       const targets = on("InfiniteMovieFilm").length ? on("InfiniteMovieFilm") : on("InfiniteMovieAssemble");
-      // 2026-11-08 (Nutzer: „last frame klappt nicht“): Ausgabe-Nodes HINTER Assemble (Preview Image an
-      // last_frame, Movie to GIF, Save …) gehören mit in den Teil-Lauf – sonst laufen sie nie. Director/Choose
-      // ausgenommen: ein zweiter Director an last_frame rendert erst mit Run.
+      // 2026-11-08 (user: „last frame does not work“): output nodes BEHIND Assemble (Preview Image on
+      // last_frame, Movie to GIF, Save …) belong to the partial run too – otherwise they never run. Director/Choose
+      // excluded: a second director on last_frame only renders with Run.
       for (const id of fcDownstreamOutputs(on("InfiniteMovieAssemble"))) if (!targets.includes(id)) targets.push(id);
       if (window.__fc_review_test_skip_queue) console.log("[InfiniteMovie] test: skipped queuePrompt (ASSEMBLE)", JSON.stringify(targets));
       else Promise.resolve(fcQueueFixedSeeds(targets)).catch((err) => {
@@ -3142,8 +3142,8 @@ function fcChooseRender(node) {
   });
   el.appendChild(btn);
   node._fc_choose_btn = btn;
-  el.appendChild(status);   // 2026-11-05 (Nutzer): Status/Fortschritt ganz unten
-  // 3×3-Sheets ganz unten, je Shot unter seiner Spalte
+  el.appendChild(status);   // 2026-11-05 (user): status/progress at the very bottom
+  // 3×3 sheets at the very bottom, per shot under its column
   const sz = fcChooseLayout(node, entries).sheet;
   node._fc_sheet_cells = [];
   if (sz) {
@@ -3167,7 +3167,7 @@ function fcChooseRender(node) {
 
   fcChooseStatus(node);
   fcChooseApplyActive(node);
-  // Breite = alle Shots (feste Bildgröße), Höhe = Inhalt.
+  // Width = all shots (fixed image size), height = content.
   const want = [fcChooseWidth(entries.length), node.computeSize()[1]];
   if (Math.abs(node.size[0] - want[0]) > 1 || Math.abs(node.size[1] - want[1]) > 1) node.setSize(want);
   node.setDirtyCanvas(true, true);
@@ -3184,20 +3184,20 @@ app.registerExtension({
       if (!this.properties.marked) this.properties.marked = [];
       return r;
     };
-    // onExecuted: Einträge nach jedem Lauf; die dabei benutzte Wahl merken (für „geändert?“).
+    // onExecuted: entries after each run; remember the choice used (for „changed?“).
     const origExecuted = nodeType.prototype.onExecuted;
     nodeType.prototype.onExecuted = function (message) {
       origExecuted?.apply(this, arguments);
       this._fc_choose_entries = (message && message.infinite_movie_choose) || [];
       this._fc_choose_active = -1;
-      this._fc_redo_pending = null;   // neue Varianten sind da
-      // Live-Lauf: Film noch nicht gebaut (setzt erst Film/Assemble). Wiederhergestellt beim Laden der Seite
-      // (kein Lauf aktiv): der Film dazu existiert schon -> nicht wieder grün „ASSEMBLE“.
+      this._fc_redo_pending = null;   // new variants are there
+      // Live run: film not built yet (set by Film/Assemble first). Restored on page load
+      // (no run active): the film already exists -> not green „ASSEMBLE“ again.
       this._fc_choose_ran = fcRun.running ? null : fcChooseEffective(this).join(",");
-      if (this.properties) this.properties.rejected = {};   // neue Shots: Abwahl vergessen   // Film noch nicht gebaut – setzt erst Film/Assemble (executed-Ereignis)
+      if (this.properties) this.properties.rejected = {};   // new shots: forget the rejection   // film not built yet – set by Film/Assemble first (executed event)
       fcChooseRender(this);
     };
-    // onConfigure: choices-Widget verstecken (vom Frontend geschrieben) + Reihe aufbauen.
+    // onConfigure: hide the choices widget (written by the frontend) + build the row.
     const origConfigure = nodeType.prototype.onConfigure;
     nodeType.prototype.onConfigure = function (...args) {
       const r = origConfigure ? origConfigure.apply(this, args) : undefined;
@@ -3210,14 +3210,14 @@ app.registerExtension({
       setTimeout(() => fcChooseRender(this), 0);
       return r;
     };
-    // Director-Änderungen (Bild verbunden/getrennt, loop, variants) → Signatur je Zeichnen prüfen.
+    // Director changes (image connected/disconnected, loop, variants) → check the signature per draw.
     const origFg = nodeType.prototype.onDrawForeground;
     nodeType.prototype.onDrawForeground = function (...args) {
       const r = origFg ? origFg.apply(this, args) : undefined;
       if (fcChooseSig(fcChooseEntries(this)) !== this._fc_choose_sig) fcChooseRender(this);
       return r;
     };
-    // Feste Größe: Breite aus der Shot-Zahl, Höhe aus dem Inhalt (Ziehen an der Ecke wird zurückgesetzt).
+    // Fixed size: width from the shot count, height from the content (dragging the corner is reset).
     const origResize = nodeType.prototype.onResize;
     nodeType.prototype.onResize = function (size) {
       const r = origResize ? origResize.apply(this, arguments) : undefined;
@@ -3231,8 +3231,8 @@ app.registerExtension({
 });
 
 // ---------------------------------------------------------------------------
-// InfiniteMovie.AutoBatch (Auftrag 39D): Statuszeile auf FramesCollect-Node,
-// holt Video-Info aus /infinite_movie/video_info, berechnet frames_per_batch.
+// InfiniteMovie.AutoBatch (task 39D): status row on the FramesCollect node,
+// fetches video info from /infinite_movie/video_info, computes frames_per_batch.
 // ---------------------------------------------------------------------------
 
 app.registerExtension({
@@ -3266,7 +3266,7 @@ app.registerExtension({
       ctx.restore();
       return r;
     };
-    // Video-Info holen, wenn ein Pfad-Widget vorhanden ist
+    // Fetch video info if a path widget is present
     const refresh = async () => {
       const paths = node.widgets?.find((w) => w.name === "paths")?.value ?? "";
       const first = paths.split("\n").map((s) => s.trim()).filter(Boolean)[0];
@@ -3297,21 +3297,21 @@ app.registerExtension({
 });
 
 // ---------------------------------------------------------------------------
-// InfiniteMovie.SceneSeconds (Auftrag 41A+D): Sekunden-Feld je Szene + Tail-Prompt
-// + Statuszeile (Länge schätzen) am Render-Node.
+// InfiniteMovie.SceneSeconds (task 41A+D): seconds field per scene + tail prompt
+// + status row (estimate length) on the render node.
 // ---------------------------------------------------------------------------
 
 app.registerExtension({
   name: "InfiniteMovie.SceneSeconds",
   nodeCreated(node) {
     if (node.comfyClass !== "InfiniteMovieRender") return;
-    // 2026-11-04: reseed füllt Choose (Neu-Render einzelner Shots) – im Director verborgen.
+    // 2026-11-04: reseed fills Choose (re-render of single shots) – hidden in the director.
     setTimeout(() => {
       imToggleWidget(node.widgets?.find((w) => w.name === "reseed"), false);
       node.setSize([node.size[0], node.computeSize()[1]]);
     }, 0);
-    // Statuszeile „Film: 7 shots · 14.0 s · 337 frames“ (2026-11-04: lokal gerechnet aus seconds +
-    // shot_seconds (⏱ in Choose); die alte Server-Schätzung aus der One-Pass-Zeit ist entfernt).
+    // Status row „Film: 7 shots · 14.0 s · 337 frames“ (2026-11-04: computed locally from seconds +
+    // shot_seconds (⏱ in Choose); the old server estimate from the one-pass time is removed).
     const estWidget = node.addWidget("text", "Film:", null, "");
     estWidget.serialize = false;
     estWidget._fc_est = true;
@@ -3321,7 +3321,7 @@ app.registerExtension({
       const seconds = Number(val("seconds")) || 2.0;
       const loop = !!val("loop");
       const nImg = (node.inputs || []).filter((i) => i.name?.startsWith(IMG) && i.link != null).length;
-      const nShots = nImg < 1 ? 0 : nImg === 1 ? (loop ? 2 : 1) : (loop ? nImg : nImg - 1);   // 1 Bild: offener Shot (+ Rück-Shot)
+      const nShots = nImg < 1 ? 0 : nImg === 1 ? (loop ? 2 : 1) : (loop ? nImg : nImg - 1);   // 1 image: open shot (+ return shot)
       if (nShots < 1) { estWidget.value = "Film: needs at least 1 image"; node.setDirtyCanvas?.(true, true); return; }
       const per = String(val("shot_seconds") || "").split(",").map((x) => parseFloat(x) || 0);
       let total = 0;
@@ -3342,7 +3342,7 @@ app.registerExtension({
         return res;
       };
     }
-    // Bilder an/ab (auch Mute über reconcileChain) -> neu rechnen
+    // images added/removed (also mute via reconcileChain) -> recompute
     const origConn = node.onConnectionsChange;
     node.onConnectionsChange = function (...args) {
       const res = origConn?.apply(this, args);
@@ -3355,11 +3355,11 @@ app.registerExtension({
 });
 
 // ---------------------------------------------------------------------------
-// InfiniteMovie.Film (2026-11-03): fertigen Film anzeigen + „Saved: …“-Status.
-// Vor dem Run: „Waiting for the film…“; während ComfyUI rendert: „Rendering…“.
+// InfiniteMovie.Film (2026-11-03): show the finished film + „Saved: …“ status.
+// Before the run: „Waiting for the film…“; while ComfyUI renders: „Rendering…“.
 // ---------------------------------------------------------------------------
 const FC_FILM_W = 360, FC_FILM_H = 450, FC_FILM_STATUS_H = 40, FC_FILM_RECENT_H = 26;
-// 79: aktueller Film = gewählter Eintrag aus im_recent (Index) oder _fc_film_info (Fallback).
+// 79: current film = chosen entry from im_recent (index) or _fc_film_info (fallback).
 function fcFilmCurrentInfo(node) {
   const recent = node.properties?.im_recent || [];
   const idx = node._fc_film_recent_idx ?? 0;
@@ -3387,7 +3387,7 @@ function fcFilmRender(node) {
         if (!r.ok) fcReviewToast("Open folder failed (run the workflow first)");
       } catch (e) { fcReviewToast("Open folder failed"); }
     });
-    // 79: letzte 3 Filme – Knöpfe neu / -1 / -2 schalten die Vorschau um.
+    // 79: last 3 films – buttons new / -1 / -2 switch the preview.
     const recentRow = document.createElement("div");
     recentRow.style.cssText = `height:${FC_FILM_RECENT_H}px;display:flex;align-items:center;gap:4px;`;
     const btns = [];
@@ -3403,7 +3403,7 @@ function fcFilmRender(node) {
       btns.push(b);
       recentRow.appendChild(b);
     }
-    el.appendChild(video); el.appendChild(open); el.appendChild(recentRow); el.appendChild(status);  // Status ganz unten (Nutzer 2026-11-05)
+    el.appendChild(video); el.appendChild(open); el.appendChild(recentRow); el.appendChild(status);  // status at the very bottom (user 2026-11-05)
     node._fc_film_open = open;
     node._fc_film_recent_btns = btns;
     node.addDOMWidget("fc_film", "div", el, {
@@ -3415,8 +3415,8 @@ function fcFilmRender(node) {
   }
   const info = fcFilmCurrentInfo(node);
   const v = node._fc_film_video, s = node._fc_film_status;
-  // 2026-11-05 (Nutzer: „Open folder ausgegraut, Rendering wait obwohl gerade Director“): sagen, WER läuft;
-  // der letzte Film bleibt sichtbar und bedienbar.
+  // 2026-11-05 (user: „Open folder greyed out, Rendering wait although the director is running“): say WHO is running;
+  // the last film stays visible and operable.
   const runNode = fcRun.running ? (fcRun.node || "queued") : "";
   const filmRuns = /film|assemble/i.test(runNode);
   if (fcRun.running && filmRuns) { s.textContent = "⏳ Building film…"; s.style.color = "#4fc3f7"; }
@@ -3430,7 +3430,7 @@ function fcFilmRender(node) {
     s.textContent = "✓ " + info.status + (info.view ? "" : "  (outside the ComfyUI output folder – no preview)");
     s.style.color = "#7ee787";
   }
-  // 79: Knöpfe neu/-1/-2 – aktiv nur wenn Eintrag vorhanden, grün wenn gewählt.
+  // 79: buttons new/-1/-2 – active only if an entry exists, green if chosen.
   const recent = node.properties?.im_recent || [];
   const idx = node._fc_film_recent_idx ?? 0;
   for (let i = 0; i < (node._fc_film_recent_btns || []).length; i++) {
@@ -3454,7 +3454,7 @@ function fcFilmRender(node) {
   if (Math.abs(node.size[0] - need[0]) > 1 || Math.abs(node.size[1] - need[1]) > 1) node.setSize(need);
   node.setDirtyCanvas(true, true);
 }
-// Aktive Ausgabe-Nodes (output_node) hinter den Start-Nodes, ohne Director/Choose (die rendern nur mit Run).
+// Active output nodes (output_node) behind the start nodes, without director/Choose (they only render with Run).
 function fcDownstreamOutputs(startIds) {
   const g = app.graph;
   if (!g) return [];
@@ -3476,11 +3476,11 @@ function fcDownstreamOutputs(startIds) {
   return out;
 }
 
-window.fcDownstreamOutputs = fcDownstreamOutputs;   // für Browser-Tests
+window.fcDownstreamOutputs = fcDownstreamOutputs;   // for browser tests
 
 function fcFilmRefreshAll() { for (const n of (app.graph?._nodes || [])) if (n.comfyClass === "InfiniteMovieFilm") fcFilmRender(n); }
 api.addEventListener("status", fcFilmRefreshAll);
-api.addEventListener("executing", () => setTimeout(fcFilmRefreshAll, 0));   // laufenden Node nachführen
+api.addEventListener("executing", () => setTimeout(fcFilmRefreshAll, 0));   // update the running node
 app.registerExtension({
   name: "InfiniteMovie.Film",
   async beforeRegisterNodeDef(nodeType, nodeData) {
@@ -3490,7 +3490,7 @@ app.registerExtension({
       const r = origCreated ? origCreated.apply(this, args) : undefined;
       this.properties = this.properties || {};
       if (!this.properties.im_recent) this.properties.im_recent = [];
-      // 79: nach Seite-Reload _fc_film_info ist weg (ad-hoc), aber im_recent überlebt (serialisiert).
+      // 79: after page reload _fc_film_info is gone (ad-hoc), but im_recent survives (serialized).
       if (this.properties.im_recent.length > 0) this._fc_film_info = this.properties.im_recent[0];
       setTimeout(() => fcFilmRender(this), 0);
       return r;
@@ -3500,7 +3500,7 @@ app.registerExtension({
       origExecuted?.apply(this, arguments);
       const info = (message && message.infinite_movie_film && message.infinite_movie_film[0]) || null;
       this._fc_film_info = info;
-      // 79: letzte 3 Filme in node.properties.im_recent merken (überlebt Seite-Reload).
+      // 79: remember the last 3 films in node.properties.im_recent (survives page reload).
       if (info?.exists) {
         this.properties = this.properties || {};
         const recent = (this.properties.im_recent || []).slice();
@@ -3514,9 +3514,9 @@ app.registerExtension({
   },
 });
 
-// 2026-11-09 (Nutzer: „pos prompt immer grün. Farbigkeit logifizieren“): feste Farbe nach Aufgabe für die eigenen
-// Nodes, auch für neu angelegte (z. B. automatisch erzeugte Auto Prompts). LiteGraph-Standardpalette:
-// grün = positiver Prompt, cyan = Engine-Schnittstelle. Gespeicherte Farben (Workflow) gewinnen.
+// 2026-11-09 (user: „pos prompt always green. make the coloring logical“): fixed color by task for the own
+// nodes, also for newly created ones (e.g. automatically generated Auto Prompts). LiteGraph default palette:
+// green = positive prompt, cyan = engine interface. Saved colors (workflow) win.
 const IM_ROLE_COLORS = {
   InfiniteMovieAutoPrompt: ["#232", "#353"],
   InfiniteMovieStyle: ["#232", "#353"],
@@ -3533,8 +3533,8 @@ app.registerExtension({
   },
 });
 
-// 93 (Nutzer 2026-11-09): Update-Hinweis am Director. Server vergleicht pyproject-Version mit der neuesten
-// freigegebenen Registry-Version (version_check.py, 6-h-Cache). Nur Hinweis – aktualisiert wird über den Manager.
+// 93 (user 2026-11-09): update hint on the director. The server compares the pyproject version with the newest
+// released registry version (version_check.py, 6-h cache). Only a hint – updating happens via the manager.
 let imVersionP = null;
 const imVersion = () => (imVersionP ??= api.fetchApi("/infinite_movie/version")
   .then((r) => (r.ok ? r.json() : null)).catch(() => null));
