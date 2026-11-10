@@ -202,7 +202,7 @@ def _picks_for(curves: list, fps: float, strength: float, rendered_seconds, keep
         k = (n - 1) / max(nf - 1, 1)
         lines.append(f"seg {i + 1}: {len(c)} -> {n} frames (keep {k:.2f}{' auto' if keep <= 0 else ''}), "
                      f"{still} still frames before"
-                     + (f", {dup} DUPLICATES (lower keep or use 0 = auto)" if dup else ""))
+                     + (f", {dup} DUPLICATES (try interpolate RIFE x2)" if dup else ""))
     return picks, n_out_list, "\n".join(lines)
 
 

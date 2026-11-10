@@ -1051,7 +1051,7 @@ function reconcileChain(chain) {
     }
     // --- 2) determine chain images (root of the image chain ascending) ---
     const chainIds = new Set();
-    const outSlot = new Map();   // source -> connected IMAGE output (Assemble › last_frame = 2)
+    const outSlot = new Map();   // source -> connected IMAGE output (Assemble › last_frame = 1 since 109)
     const addSrc = (l) => {
       if (!fcImgLink(g, l)) return;
       chainIds.add(l.origin_id);
