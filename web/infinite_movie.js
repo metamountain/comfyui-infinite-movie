@@ -2015,10 +2015,13 @@ function fmtTime(s) {
 }
 
 function chainInfo(node) {
+  // 2026-11-10: Plan vom Server (infinite_movie.render_plan: echte Shot-Zahl, Frames im Raster der Engine)
+  const plan = node._fcProg?.plan;
+  if (plan) return { segs: plan.segments, frames: plan.frames };
   const imgs = (node.inputs || []).filter((i) => i.name?.startsWith(IMG) && i.link != null).length;
   const get = (n) => node.widgets?.find((w) => w.name === n)?.value;
-  const segs = get("loop") ? imgs : Math.max(imgs - 1, 0);
-  const frames = Math.floor((Number(get("seconds") || 1) * 24) / 8 + 0.5) * 8 + 1; // LTX 24 fps, 8n+1
+  const segs = imgs === 1 ? (get("loop") ? 2 : 1) : get("loop") ? imgs : Math.max(imgs - 1, 0);
+  const frames = Math.round(Number(get("seconds") || 1) * 24) + 1;
   return { segs, frames };
 }
 
@@ -2050,8 +2053,10 @@ function renderEstimate(director) {
   else if (segs > 0 && p.seg >= 0) {
     const inSeg = (now - p.segStart) / 1000;
     const stepFrac = p.steps ? p.step / p.steps : 0;
+    // vor dem ersten fertigen Shot: gemessene Dauer gleicher Shots auf DIESER Maschine (timing.py), sonst Sampler
+    const est = Number(p.plan?.seg_seconds);
     const avg = p.done.length ? p.done.reduce((a, b) => a + b, 0) / p.done.length
-      : stepFrac > 0.05 ? inSeg / stepFrac : NaN;
+      : est > 0 ? Math.max(est, inSeg) : stepFrac > 0.05 ? inSeg / stepFrac : NaN;
     frac = Math.min((p.seg + (isFinite(avg) ? Math.min(inSeg / avg, 0.99) : stepFrac)) / segs, 1);
     eta = avg * (segs - p.seg) - inSeg;
   }
@@ -2075,7 +2080,7 @@ app.registerExtension({
       if (!c?.node) return;
       const p = c.node._fcProg;
       const now = Date.now();
-      if (!p.t0 || p.end) Object.assign(p, { t0: now, seg: -1, segStart: 0, done: [], step: 0, steps: 0, end: 0 });
+      if (!p.t0 || p.end) Object.assign(p, { t0: now, seg: -1, segStart: 0, done: [], step: 0, steps: 0, end: 0, plan: null });
       if (c.kind === "acquire") p.phase = "waiting for GPU";
       else if (c.kind === "collector") p.phase = "collecting";
       else if (c.seg != null && c.seg !== p.seg) {
@@ -2083,6 +2088,14 @@ app.registerExtension({
         p.seg = c.seg; p.segStart = now; p.step = 0; p.steps = 0; p.phase = "render";
       }
       c.node.setDirtyCanvas(true, true);
+    });
+    api.addEventListener("infinite_movie.render_plan", (e) => {
+      const node = progressFor(e.detail?.node);
+      if (!node) return;
+      const p = node._fcProg;
+      if (!p.t0 || p.end) Object.assign(p, { t0: Date.now(), seg: -1, segStart: 0, done: [], step: 0, steps: 0, end: 0 });
+      p.plan = e.detail;
+      node.setDirtyCanvas(true, true);
     });
     api.addEventListener("progress", (e) => {
       const c = chainOf(e.detail);
@@ -2107,7 +2120,8 @@ app.registerExtension({
       const lines = p.phase === "done"
         ? [`done: ${segs} × ${frames} frames in ${fmtTime(el)}`]
         : p.seg < 0
-          ? [`${p.phase || "starting"} … ${fmtTime(el)}`]
+          ? [`${p.phase || "starting"} … ${fmtTime(el)}`
+             + (p.plan?.seg_seconds > 0 ? ` · ~${fmtTime(p.plan.seg_seconds * segs)} for ${segs} shots` : "")]
           : [`segment ${p.seg + 1}/${segs} · ${frames} frames · step ${p.step}/${p.steps || "?"}`,
              `${fmtTime(el)} elapsed · ~${fmtTime(eta)} left`];
       const x = 8, w = this.size[0] - 16, h = 14 + lines.length * 16;

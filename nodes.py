@@ -642,6 +642,33 @@ def _send_progress(text: str, node_id: str) -> None:
         pass
 
 
+def _send_render_plan(node_id, segments: int, width: int, height: int, frames: int, preset: str) -> dict:
+    """Render plan for the progress bar on the Render node (Nutzer 2026-11-10: „mach progressbar“).
+
+    Sends `infinite_movie.render_plan` {node, segments, frames, width, height, seg_seconds, n, match}; seg_seconds is
+    the per-shot estimate from the recorded timings of THIS machine (timing.estimate, Auftrag 88) or None (no history
+    yet -> the bar falls back to sampler progress). Never raises. Returns the payload (for tests).
+    """
+    est = None
+    try:
+        from . import timing
+        est = timing.estimate("segment", width, height, frames, preset=preset)
+    except Exception:  # noqa: BLE001
+        est = None
+    data = {"node": str(node_id), "segments": int(segments), "frames": int(frames),
+            "width": int(width), "height": int(height),
+            "seg_seconds": (est or {}).get("seconds"), "n": (est or {}).get("n", 0),
+            "match": (est or {}).get("match", "")}
+    try:
+        from server import PromptServer
+        inst = PromptServer.instance
+        if inst is not None:
+            inst.send_sync("infinite_movie.render_plan", data)
+    except Exception:  # noqa: BLE001
+        pass
+    return data
+
+
 def _display_node_id(cls) -> str | None:
     """Return the VISIBLE node id to send in-node text to.
 
@@ -1051,6 +1078,7 @@ class InfiniteMovieRender(io.ComfyNode):
             # 88: Marke nach dem GPU-Warten neu setzen – die Wartezeit gehört nicht zur Segmentdauer
             if str(unique_id) in _SEG_MARK:
                 _SEG_MARK[str(unique_id)] = time.time()
+            _send_render_plan(_display_node_id(cls) or unique_id, total_segments, width, height, length, preset)
         elif not _skip_render:
             print("[InfiniteMovie] all segments reused -> no GPU acquire")
 

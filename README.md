@@ -164,9 +164,27 @@ VHS Load Video  →  Upscale Crop Universal (×1.3334, multiple of 64)  →  Inf
   (CC-BY-NC-SA-4.0) – [download](https://raw.githubusercontent.com/jcj83429/upscaling/f73a3a02874360ec6ced18f8bdd8e43b5d7bba57/2xLiveActionV1_SPAN/2xLiveActionV1_SPAN_490000.pth)
   (9 MB) into `models/upscale_models/`. *Upscale Crop Universal* ships with this pack.
 
+## Render time
+
+Measured on an RTX 4090 (24 GB) with the default MiniMax H3 group (8-step LoRA), RIFE x2 and the film step, format 4:5,
+**per shot** (wall clock incl. loading the text encoder and joining). A film with *n* images and `loop` has *n* shots
+(one image + `loop`: 2).
+
+| long side (size) | 2 s | 4 s | 6 s | 8 s | 10 s |
+|---|---|---|---|---|---|
+| 512 (416×512) | 1.5 min | 1.9 min | 2.2 min | 2.7 min | 3.3 min |
+| 768 (608×768) | 1.8 min | 2.8 min | 3.5 min | 4.8 min | 6.3 min |
+| 960 (768×960) | 2.3 min | 4.0 min | 5.4 min | 7.9 min | 10.6 min |
+| 1152 (928×1152) | 3.2 min | 6.1 min | 8.4 min | 12.7 min | – |
+
+Time grows faster than the pixel count (attention is quadratic): doubling both the long side and the length costs about 5×.
+While rendering, the Director shows a progress bar with the remaining time – from the first second on, using the
+durations of earlier shots **on your machine** (stored in `ComfyUI/user/infinite_movie_timings.jsonl`), then from the
+shots of the running film.
+
 ## Requirements and troubleshooting
 
-- ComfyUI with the V3 node API, a recent frontend, an NVIDIA GPU (tested on 24 GB, 768×960).
+- ComfyUI with the V3 node API, a recent frontend, an NVIDIA GPU (tested on 24 GB, 768×960 … 928×1152).
 - **ffmpeg:** comes with VideoHelperSuite (`imageio-ffmpeg`); otherwise install it
   ([Windows builds](https://www.gyan.dev/ffmpeg/builds/), [ffmpeg.org](https://ffmpeg.org/download.html)) and put it on PATH.
 - **Run does not start and names another program:** that program holds too much GPU memory; close it and press Run again.
