@@ -57,7 +57,7 @@ Put the files into the folders under `ComfyUI/models/`. You only need **one** en
 | **MiniMax H3** (default engine, with sound) | 5 files | **42.0 GB** |
 | Prompt writer `qwen3vl_4b_bf16` (optional: writes the prompts) | 1 file | **8.9 GB** |
 | LTX 2.5 (other engine, 🔒 gated) | 4 files | 38.7 GB |
-| Wan 2.2 (other engine, no sound) | 6 files | 38.0 GB |
+| Wan 2.2 (other engine, no sound) | 6 files | 36.9 GB |
 | Upscale model (group 8) | 1 file | 0.01 GB |
 
 **MiniMax H3**
@@ -166,25 +166,25 @@ VHS Load Video  →  Upscale Crop Universal (×1.3334, multiple of 64)  →  Inf
 
 ## Render time
 
-Measured on an RTX 4090 (24 GB) with the default MiniMax H3 group (8-step LoRA), RIFE x2 and the film step, format 4:5,
-**per shot** (wall clock incl. loading the text encoder and joining). A film with *n* images and `loop` has *n* shots
-(one image + `loop`: 2).
+Measured on an RTX 4090 (24 GB) with the default MiniMax H3 group (8-step LoRA), format 4:5. Time **per shot**; a film
+adds about 40 s once (loading, RIFE x2, joining). A film with *n* images and `loop` has *n* shots (one image + `loop`: 2).
 
 | long side (size) | 2 s | 4 s | 6 s | 8 s | 10 s |
 |---|---|---|---|---|---|
-| 512 (416×512) | 1.5 min | 1.9 min | 2.2 min | 2.7 min | 3.3 min |
-| 768 (608×768) | 1.8 min | 2.8 min | 3.5 min | 4.8 min | 6.3 min |
-| 960 (768×960) | 2.3 min | 4.0 min | 5.4 min | 7.9 min | 10.6 min |
-| 1152 (928×1152) | 3.2 min | 6.1 min | 8.4 min | 12.7 min | – |
+| 512 (416×512) | – | 0.6 min | 0.8 min | 1.0 min | 1.3 min |
+| 768 (608×768) | 0.6 min | 1.1 min | 1.4 min | 2.1 min | 2.8 min |
+| 960 (768×960) | 0.8 min | 1.7 min | 2.4 min | 3.6 min | 5.0 min |
+| 1152 (928×1152) | 1.3 min | 2.7 min | 3.9 min | 6.0 min | 9.3 min |
+| 1344 (1088×1344) | 1.9 min | 4.2 min | 6.2 min | 9.5 min | out of memory |
 
-Time grows faster than the pixel count (attention is quadratic): doubling both the long side and the length costs about 5×.
-While rendering, the Director shows a progress bar with the remaining time – from the first second on, using the
-durations of earlier shots **on your machine** (stored in `ComfyUI/user/infinite_movie_timings.jsonl`), then from the
-shots of the running film.
+Example: 4 images, `loop`, 5 s per shot at 768×960 = 9 min. Time grows faster than the pixel count (attention is
+quadratic). On 24 GB, 1088×1344 is the practical limit (up to 8 s per shot). While rendering, the Director shows a
+progress bar with the remaining time – from the first second on, using the durations of earlier shots **on your
+machine** (stored in `ComfyUI/user/infinite_movie_timings.jsonl`), then from the shots of the running film.
 
 ## Requirements and troubleshooting
 
-- ComfyUI with the V3 node API, a recent frontend, an NVIDIA GPU (tested on 24 GB, 768×960 … 928×1152).
+- ComfyUI with the V3 node API, a recent frontend, an NVIDIA GPU (tested on 24 GB, up to 1088×1344).
 - **ffmpeg:** comes with VideoHelperSuite (`imageio-ffmpeg`); otherwise install it
   ([Windows builds](https://www.gyan.dev/ffmpeg/builds/), [ffmpeg.org](https://ffmpeg.org/download.html)) and put it on PATH.
 - **Run does not start and names another program:** that program holds too much GPU memory; close it and press Run again.
