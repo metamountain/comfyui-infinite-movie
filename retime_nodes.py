@@ -229,18 +229,14 @@ class InfiniteMovieAssemble(io.ComfyNode):
                          tooltip="Pipe mit allen Shots (Segment-Pfade, Ordner, Name, fps, loop …) von "
                                  "Infinite Movie · Director (highest priority). When connected, "
                                  "segments/save_folder/save_name/fps/loop come from the pipe; otherwise "
-                                 "connect video/images/video_path/file directly."),
+                                 "connect video_path/file directly."),
                 # 73: segments/save_folder/save_name removed as socket inputs
                 # ("less is more") - they now always come from the shots pipe
                 # (or Settings › output_folder). shots has the highest priority.
                 io.Combo.Input("file", advanced=True, options=_input_videos(), upload=io.UploadType.video,
                                tooltip="direct load from ComfyUI/input (used when nothing is connected); "
                                        "a single video is treated as one segment"),
-                io.Image.Input("images", optional=True, tooltip="frame batch (priority 4)"),
-                io.Video.Input("video", optional=True, tooltip="VIDEO (priority 3)"),
-                io.String.Input("video_path", advanced=True, default="", optional=True, tooltip="file path (priority 5)"),
-                io.Float.Input("fps", advanced=True, default=24.0, min=1.0, max=120.0, optional=True,
-                               tooltip="only for the images input"),
+                io.String.Input("video_path", advanced=True, default="", optional=True, tooltip="file path"),
                 io.Float.Input("strength", advanced=True, default=0.8, min=0.0, max=1.0, step=0.05,
                                tooltip="1 = fully even change per frame, 0 = unchanged timing. 0.8 keeps a short "
                                        "rest on the key images. Only effective when even_motion=true."),
@@ -276,14 +272,12 @@ class InfiniteMovieAssemble(io.ComfyNode):
                                        "come from the pipe; otherwise the built-in defaults apply."),
             ],
             outputs=[
-                # 73: outputs slim - only video_path + video left.
+                # 73: outputs slim; 109: video output removed (not used in any workflow).
                 # segments/graph/report/images/fps/check/settings-chain are gone;
                 # graph + report remain as a ui= display (preview.as_dict()).
                 io.String.Output("video_path",
                                  tooltip="Path to the final assembled film (film_path, VHS-compatible). Same as the "
                                          "film written to <save_folder>/<save_name>.mp4."),
-                io.Video.Output("video",
-                                tooltip="The final assembled film as VIDEO (VHS-compatible)."),
                 # 2026-11-08 (user: "last frame … to get longer videos, restart or loop")
                 io.Image.Output("last_frame",
                                 tooltip="The last frame of the finished film as IMAGE – connect it to the Director's "
@@ -299,7 +293,7 @@ class InfiniteMovieAssemble(io.ComfyNode):
 
     @classmethod
     def execute(cls, shots=None, file="",
-                images=None, video=None, video_path="", fps=24.0,
+                video_path="",
                 strength=0.8, interpolate="off",
                 even_motion=True, loop=True, keep=1.0,
                 settings=None) -> io.NodeOutput:
@@ -313,9 +307,10 @@ class InfiniteMovieAssemble(io.ComfyNode):
         import folder_paths
         uid = getattr(getattr(cls, "hidden", None), "unique_id", None)
         out_dir = tempfile.mkdtemp(prefix="normalize_", dir=_temp_dir())
-        # Source: shots > video > images > video_path > file
+        # Source: shots > video_path > file
         # 73: segments/save_folder/save_name removed as inputs - paths/sf/sn
         # now only come from the shots pipe (or Settings › output_folder).
+        # 109: images/video inputs removed (not used in any workflow).
         paths = []
         sf = ""
         sn = "film"
@@ -326,33 +321,19 @@ class InfiniteMovieAssemble(io.ComfyNode):
             paths = list(shots.get("segments", []))
             sf = shots.get("save_folder", sf) or sf
             sn = shots.get("save_name", sn) or sn
-            if shots.get("fps"):
-                fps = float(shots["fps"])
             if "loop" in shots:
                 loop = bool(shots["loop"])
             # Auftrag 41A: per-scene frames from the film dict
             scene_frames_list = list(shots.get("scene_frames", []) or [])
         if not paths:
-            if video is not None:
-                src = video.get_stream_source()
-                if isinstance(src, _io.BytesIO):
-                    src = os.path.join(out_dir, "source.mp4")
-                    video.save_to(src)
-                paths = [src]
-            elif images is not None:
-                arr = (images[..., :3].clamp(0, 1) * 255).byte().cpu().numpy()
-                src = os.path.join(out_dir, "source.mp4")
-                _encode(arr, np.arange(len(arr)), f"{fps:g}", src)
-                paths = [src]
-            else:
-                # Auftrag 48B: "(none)"/"" = no file (shots/segments/video connected)
-                # 2026-11-04: check video_path BEFORE file - otherwise a set video_path with
-                # file="(none)" (the default) was ignored ("no source connected").
-                _file = (file or "").strip()
-                _vp = (video_path or "").strip().strip('"')
-                if not _vp and _file in ("", "(none)"):
-                    raise ValueError("InfiniteMovieAssemble: no source connected (shots, video, images, video_path, or file)")
-                paths = [_vp or folder_paths.get_annotated_filepath(_file)]
+            # Auftrag 48B: "(none)"/"" = no file (shots connected)
+            # 2026-11-04: check video_path BEFORE file - otherwise a set video_path with
+            # file="(none)" (the default) was ignored ("no source connected").
+            _file = (file or "").strip()
+            _vp = (video_path or "").strip().strip('"')
+            if not _vp and _file in ("", "(none)"):
+                raise ValueError("InfiniteMovieAssemble: no source connected (shots, video_path, or file)")
+            paths = [_vp or folder_paths.get_annotated_filepath(_file)]
         for p in paths:
             if not os.path.exists(p):
                 raise ValueError(f"InfiniteMovieAssemble: not found: {p}")
@@ -427,7 +408,7 @@ class InfiniteMovieAssemble(io.ComfyNode):
         out_seconds = [max(n - 1, 1) / fps_f for n in n_out]
         graph = draw_graph(curves, picks, fps_f, strength, out_seconds, fps_in, interpolate)
         print(f"[InfiniteMovieAssemble]\n{report}")
-        from comfy_api.latest import ui, InputImpl
+        from comfy_api.latest import ui
         preview = ui.PreviewImage(graph, cls=cls)
         # 73: images/fps/check/segments/graph/report/chain are no longer outputs;
         # graph + report only remain as a ui= display (preview.as_dict()).
@@ -467,13 +448,12 @@ class InfiniteMovieAssemble(io.ComfyNode):
             free_vram, free_ram, metadata=meta or None, audio=bool(get_setting(settings, "audio")))
         # video_path = film_path (the final film, not the first segment)
         vp = film_path
-        video_out = InputImpl.VideoFromFile(film_path)
         fps_f = out_fps
         ui_out = {"images": preview.as_dict()["images"], "text": [report], "film_path": [vp]}
         if viz is not None:
             ui_out["im_viz"] = [viz]
-        # 73: outputs only video_path + video left (graph/report as ui=).
-        return io.NodeOutput(vp, video_out, last_frame(film_path), first_frame(film_path), ui=ui_out)
+        # 109: outputs video_path + last/first frame (graph/report as ui=).
+        return io.NodeOutput(vp, last_frame(film_path), first_frame(film_path), ui=ui_out)
 
 
 def first_frame(video_path: str) -> torch.Tensor:

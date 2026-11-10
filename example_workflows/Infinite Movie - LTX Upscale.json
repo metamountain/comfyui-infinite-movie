@@ -1000,13 +1000,6 @@
           "link": 10
         },
         {
-          "localized_name": "video",
-          "name": "video",
-          "shape": 7,
-          "type": "VIDEO",
-          "link": null
-        },
-        {
           "localized_name": "images",
           "name": "images",
           "shape": 7,
@@ -1187,12 +1180,6 @@
       ],
       "outputs": [
         {
-          "localized_name": "video",
-          "name": "video",
-          "type": "VIDEO",
-          "links": null
-        },
-        {
           "localized_name": "video_path",
           "name": "video_path",
           "type": "STRING",
@@ -1344,7 +1331,7 @@
       9,
       0,
       10,
-      5,
+      4,
       "IMAGE"
     ],
     [
@@ -1352,7 +1339,7 @@
       6,
       2,
       10,
-      6,
+      5,
       "AUDIO"
     ],
     [
@@ -1360,7 +1347,7 @@
       7,
       0,
       10,
-      23,
+      22,
       "FLOAT"
     ]
   ],

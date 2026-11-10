@@ -658,20 +658,6 @@
           "link": 2109
         },
         {
-          "localized_name": "images",
-          "name": "images",
-          "shape": 7,
-          "type": "IMAGE",
-          "link": null
-        },
-        {
-          "localized_name": "video",
-          "name": "video",
-          "shape": 7,
-          "type": "VIDEO",
-          "link": null
-        },
-        {
           "localized_name": "settings",
           "name": "settings",
           "shape": 7,
@@ -743,16 +729,6 @@
           "link": null
         },
         {
-          "localized_name": "fps",
-          "name": "fps",
-          "shape": 7,
-          "type": "FLOAT",
-          "widget": {
-            "name": "fps"
-          },
-          "link": null
-        },
-        {
           "localized_name": "interpolate",
           "name": "interpolate",
           "shape": 7,
@@ -794,13 +770,6 @@
           ]
         },
         {
-          "localized_name": "video",
-          "name": "video",
-          "type": "VIDEO",
-          "slot_index": 1,
-          "links": []
-        },
-        {
           "localized_name": "last_frame",
           "name": "last_frame",
           "type": "IMAGE",
@@ -828,7 +797,6 @@
         true,
         true,
         "",
-        24,
         "RIFE x2",
         "image",
         ""
@@ -1380,13 +1348,6 @@
           "shape": 7,
           "type": "STRING",
           "link": 2110
-        },
-        {
-          "localized_name": "video",
-          "name": "video",
-          "shape": 7,
-          "type": "VIDEO",
-          "link": null
         }
       ],
       "outputs": [],
@@ -2663,13 +2624,6 @@
           "link": 2131
         },
         {
-          "localized_name": "video",
-          "name": "video",
-          "shape": 7,
-          "type": "VIDEO",
-          "link": null
-        },
-        {
           "localized_name": "images",
           "name": "images",
           "shape": 7,
@@ -2850,12 +2804,6 @@
       ],
       "outputs": [
         {
-          "localized_name": "video",
-          "name": "video",
-          "type": "VIDEO",
-          "links": []
-        },
-        {
           "localized_name": "video_path",
           "name": "video_path",
           "type": "STRING",
@@ -2936,13 +2884,6 @@
           "shape": 7,
           "type": "STRING",
           "link": 2137
-        },
-        {
-          "localized_name": "video",
-          "name": "video",
-          "shape": 7,
-          "type": "VIDEO",
-          "link": null
         }
       ],
       "outputs": [],
@@ -4155,7 +4096,7 @@
       81,
       0,
       82,
-      5,
+      4,
       "IMAGE"
     ],
     [
@@ -4163,7 +4104,7 @@
       78,
       2,
       82,
-      6,
+      5,
       "AUDIO"
     ],
     [
@@ -4171,7 +4112,7 @@
       79,
       0,
       82,
-      23,
+      22,
       "FLOAT"
     ],
     [
@@ -4185,7 +4126,7 @@
     [
       2137,
       82,
-      1,
+      0,
       83,
       0,
       "STRING"
@@ -4195,7 +4136,7 @@
       8,
       0,
       82,
-      24,
+      23,
       "STRING"
     ],
     [
@@ -4451,7 +4392,7 @@
       4,
       1,
       8,
-      3,
+      1,
       "SETTINGS"
     ]
   ],

@@ -27,7 +27,7 @@ import subprocess
 import numpy as np
 import torch
 
-from comfy_api.latest import InputImpl, io, ui
+from comfy_api.latest import io, ui
 
 from . import vram
 from .nodes import _count_frames, _ffmpeg, _no_window, _probe_size, _send_progress
@@ -207,19 +207,14 @@ def _images_to_file(images, audio, fps: float, tmp: str) -> str:
     return path
 
 
-def _resolve_source(video, video_path: str, tmp: str, images=None, audio=None, fps: float = 0.0) -> str:
-    if video is None and images is not None:
+def _resolve_source(video_path: str, tmp: str, images=None, audio=None, fps: float = 0.0) -> str:
+    # 109: video input removed (not used in any workflow). Priority: images > video_path.
+    if images is not None:
         return _images_to_file(images, audio, fps or 24.0, tmp)
-    if video is not None:
-        src = video.get_stream_source()
-        if not isinstance(src, str):
-            src = os.path.join(tmp, "source.mp4")
-            video.save_to(src)
-        return src
     p = (video_path or "").strip().strip('"')
     if p and os.path.isfile(p):
         return p
-    raise ValueError("LTX Refine: video, images oder video_path anschließen.")
+    raise ValueError("LTX Refine: images oder video_path anschließen.")
 
 
 class InfiniteMovieLTXRefine(io.ComfyNode):
@@ -270,18 +265,17 @@ class InfiniteMovieLTXRefine(io.ComfyNode):
                 io.String.Input("filename_prefix", default="infinite_movie/refine",
                                 tooltip="Only without video_path. With video_path the film is saved next to it "
                                         "as <name>_upscale.mp4."),
-                io.Video.Input("video", optional=True, tooltip="Film to upscale (priority 1)."),
-                io.Image.Input("images", optional=True, tooltip="Frames, e.g. VHS Load Video (priority 2). Whole film in RAM."),
+                io.Image.Input("images", optional=True, tooltip="Frames, e.g. VHS Load Video (priority 1). Whole film in RAM."),
                 io.Audio.Input("audio", optional=True, tooltip="Sound for images, e.g. VHS Load Video audio."),
                 io.Float.Input("fps", optional=True, default=0.0, min=0.0, max=120.0, step=0.001,
                                tooltip="Frame rate for images (0 = 24). VHS Video Info fps."),
                 io.String.Input("video_path", optional=True, default="",
-                                tooltip="File path (priority 3). Also names the result: same folder, "
+                                tooltip="File path (priority 2). Also names the result: same folder, "
                                         "<name>_upscale.mp4 (e.g. from Assemble › video_path)."),
             ],
             hidden=[io.Hidden.unique_id],
             outputs=[
-                io.Video.Output("video"),
+                # 109: video output removed (not used in any workflow).
                 io.String.Output("video_path"),
             ],
         )
@@ -289,7 +283,7 @@ class InfiniteMovieLTXRefine(io.ComfyNode):
     @classmethod
     def execute(cls, model, mode, latent_downscale_factor, vae, positive, negative, target_mode, multiple_of, scale_factor,
                 scale_percent, shortest_side, longest_side, megapixels, chunk_frames, overlap, sigmas, seed, loop,
-                crf, filename_prefix, video=None, images=None, audio=None, fps=0.0, video_path="") -> io.NodeOutput:
+                crf, filename_prefix, images=None, audio=None, fps=0.0, video_path="") -> io.NodeOutput:
         import comfy.utils
         import folder_paths
 
@@ -308,7 +302,7 @@ class InfiniteMovieLTXRefine(io.ComfyNode):
         cache_root = os.path.join(folder_paths.get_output_directory(), "_chunk_upscale_cache")
         os.makedirs(cache_root, exist_ok=True)
 
-        src = _resolve_source(video, video_path, cache_root, images, audio, fps)
+        src = _resolve_source(video_path, cache_root, images, audio, fps)
         n_src = _count_frames(src)
         if n_src <= 0:
             raise ValueError(f"LTX Refine: keine Frames in {src}")
@@ -410,11 +404,11 @@ class InfiniteMovieLTXRefine(io.ComfyNode):
         outd = os.path.abspath(folder_paths.get_output_directory())
         if os.path.abspath(out_path).lower().startswith(outd.lower() + os.sep):
             sub_ = os.path.relpath(os.path.dirname(os.path.abspath(out_path)), outd)
-            return io.NodeOutput(InputImpl.VideoFromFile(out_path), out_path,
+            return io.NodeOutput(out_path,
                                  ui=ui.PreviewVideo([ui.SavedResult(os.path.basename(out_path),
                                                                     "" if sub_ == "." else sub_,
                                                                     io.FolderType.output)]))
-        return io.NodeOutput(InputImpl.VideoFromFile(out_path), out_path)
+        return io.NodeOutput(out_path)
 
 
 CHUNK_UPSCALE_NODE_LIST = [InfiniteMovieLTXRefine]

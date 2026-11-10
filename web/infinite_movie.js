@@ -3369,10 +3369,11 @@ function fcFilmRender(node) {
   let el = node._fc_film_el;
   if (!el) {
     el = document.createElement("div");
-    el.style.cssText = "width:100%;display:flex;flex-direction:column;gap:4px;";
+    el.style.cssText = "width:100%;height:100%;box-sizing:border-box;display:flex;flex-direction:column;gap:4px;";
     const video = document.createElement("video");
     video.loop = true; video.muted = true; video.autoplay = true; video.controls = true; video.playsInline = true;
-    video.style.cssText = `width:100%;height:${FC_FILM_H}px;object-fit:contain;background:#111;border-radius:3px;`;
+    // The video takes all free height, so a larger node shows a larger film (user 2026-11-10); FC_FILM_H is the minimum.
+    video.style.cssText = `width:100%;flex:1 1 0;min-height:${FC_FILM_H}px;object-fit:contain;background:#111;border-radius:3px;`;
     const status = document.createElement("div");
     status.style.cssText = `min-height:${FC_FILM_STATUS_H}px;padding:4px 8px;box-sizing:border-box;background:#202020;` +
       "border-radius:3px;font:12px sans-serif;word-break:break-all;";
@@ -3409,7 +3410,6 @@ function fcFilmRender(node) {
     node.addDOMWidget("fc_film", "div", el, {
       serialize: false,
       getMinHeight: () => FC_FILM_H + FC_FILM_STATUS_H + FC_FILM_RECENT_H + 48,
-      getMaxHeight: () => FC_FILM_H + FC_FILM_STATUS_H + FC_FILM_RECENT_H + 48,
     });
     node._fc_film_el = el; node._fc_film_video = video; node._fc_film_status = status;
   }
@@ -3450,7 +3450,7 @@ function fcFilmRender(node) {
     const src = api.apiURL(`/view?${q}`);
     if (v.getAttribute("src") !== src) { v.setAttribute("src", src); v.play?.().catch(() => {}); }
   } else if (v.getAttribute("src")) { v.removeAttribute("src"); v.load(); }
-  const need = [Math.max(node.size[0], FC_FILM_W + 20), node.computeSize()[1]];
+  const need = [Math.max(node.size[0], FC_FILM_W + 20), Math.max(node.size[1], node.computeSize()[1])];  // only grow to the minimum, never shrink a user-enlarged node
   if (Math.abs(node.size[0] - need[0]) > 1 || Math.abs(node.size[1] - need[1]) > 1) node.setSize(need);
   node.setDirtyCanvas(true, true);
 }

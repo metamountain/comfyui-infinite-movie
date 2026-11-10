@@ -2,7 +2,7 @@
 
 Last node of the chain: shows the finished film as a video in the node (loop, muted, controls) and a
 status line "Saved: <path> · 6.0 s · 1080x1350 · 12.3 MB · 14:32". No outputs, display only.
-Inputs universal (AGENTS "nodes universal"): video (VIDEO) > video_path (STRING).
+Input: video_path (STRING) – 109: the video (VIDEO) input was removed (not used in any workflow).
 Preview via /view: only files in the ComfyUI output folder are reachable; otherwise only the status line.
 """
 
@@ -40,17 +40,6 @@ def _probe(path: str) -> dict:
     if m:
         out["fps"] = float(m.group(1))
     return out
-
-
-def _video_to_path(video) -> str:
-    """VIDEO object -> file path, if it comes from a file (VideoFromFile)."""
-    if video is None:
-        return ""
-    try:
-        src = video.get_stream_source()
-        return src if isinstance(src, str) else ""
-    except Exception:  # noqa: BLE001
-        return ""
 
 
 def film_info(path: str) -> dict:
@@ -121,16 +110,15 @@ class InfiniteMovieFilm(io.ComfyNode):
             description="Shows the finished film (looping preview) and confirms where it was saved.",
             inputs=[
                 io.String.Input("video_path", optional=True, force_input=True,
-                                tooltip="Path of the finished film, e.g. Assemble → video_path (priority 2)."),
-                io.Video.Input("video", optional=True, tooltip="VIDEO from a file (priority 1)."),
+                                tooltip="Path of the finished film, e.g. Assemble → video_path."),
             ],
             outputs=[],
             is_output_node=True,
         )
 
     @classmethod
-    def execute(cls, video_path="", video=None) -> io.NodeOutput:
-        path = _video_to_path(video) or (video_path or "").strip()
+    def execute(cls, video_path="") -> io.NodeOutput:
+        path = (video_path or "").strip()
         info = film_info(path)
         if info.get("exists"):
             _SHOWN.add(os.path.abspath(path).lower())
