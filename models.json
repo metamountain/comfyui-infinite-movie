@@ -90,18 +90,18 @@
       "gated": false
     },
     {
-      "name": "wan2.2_i2v_lightx2v_4steps_lora_v1_high_noise.safetensors",
-      "url": "https://huggingface.co/Comfy-Org/Wan-2.2/resolve/main/split_files/loras/wan2.2_i2v_lightx2v_4steps_lora_v1_high_noise.safetensors",
+      "name": "wan2.2_i2v_A14b_high_noise_lora_rank64_lightx2v_4step_1022.safetensors",
+      "url": "https://huggingface.co/lightx2v/Wan2.2-Distill-Loras/resolve/main/wan2.2_i2v_A14b_high_noise_lora_rank64_lightx2v_4step_1022.safetensors",
       "directory": "loras",
-      "size": 1230000000,
+      "size": 634645944,
       "engine": "Wan 2.2",
       "gated": false
     },
     {
-      "name": "wan2.2_i2v_lightx2v_4steps_lora_v1_low_noise.safetensors",
-      "url": "https://huggingface.co/Comfy-Org/Wan-2.2/resolve/main/split_files/loras/wan2.2_i2v_lightx2v_4steps_lora_v1_low_noise.safetensors",
+      "name": "wan2.2_i2v_A14b_low_noise_lora_rank64_lightx2v_4step_1022.safetensors",
+      "url": "https://huggingface.co/lightx2v/Wan2.2-Distill-Loras/resolve/main/wan2.2_i2v_A14b_low_noise_lora_rank64_lightx2v_4step_1022.safetensors",
       "directory": "loras",
-      "size": 1230000000,
+      "size": 739472104,
       "engine": "Wan 2.2",
       "gated": false
     },

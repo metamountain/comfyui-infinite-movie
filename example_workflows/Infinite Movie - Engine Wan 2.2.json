@@ -67,10 +67,6 @@
         "wan2.2_i2v_high_noise_14B_fp8_scaled.safetensors",
         "default"
       ],
-      "widgets_values_named": {
-        "unet_name": "wan2.2_i2v_high_noise_14B_fp8_scaled.safetensors",
-        "weight_dtype": "default"
-      },
       "color": "#223",
       "bgcolor": "#335"
     },
@@ -128,9 +124,6 @@
       "widgets_values": [
         "wan_2.1_vae.safetensors"
       ],
-      "widgets_values_named": {
-        "vae_name": "wan_2.1_vae.safetensors"
-      },
       "color": "#223",
       "bgcolor": "#335"
     },
@@ -197,10 +190,6 @@
         "wan2.2_i2v_low_noise_14B_fp8_scaled.safetensors",
         "default"
       ],
-      "widgets_values_named": {
-        "unet_name": "wan2.2_i2v_low_noise_14B_fp8_scaled.safetensors",
-        "weight_dtype": "default"
-      },
       "color": "#223",
       "bgcolor": "#335"
     },
@@ -279,11 +268,6 @@
         "wan",
         "default"
       ],
-      "widgets_values_named": {
-        "clip_name": "umt5_xxl_fp8_e4m3fn_scaled.safetensors",
-        "type": "wan",
-        "device": "default"
-      },
       "color": "#223",
       "bgcolor": "#335"
     },
@@ -439,20 +423,16 @@
         },
         "models": [
           {
-            "name": "wan2.2_i2v_lightx2v_4steps_lora_v1_high_noise.safetensors",
-            "url": "https://huggingface.co/Comfy-Org/Wan-2.2/resolve/main/split_files/loras/wan2.2_i2v_lightx2v_4steps_lora_v1_high_noise.safetensors",
+            "name": "wan2.2_i2v_A14b_high_noise_lora_rank64_lightx2v_4step_1022.safetensors",
+            "url": "https://huggingface.co/lightx2v/Wan2.2-Distill-Loras/resolve/main/wan2.2_i2v_A14b_high_noise_lora_rank64_lightx2v_4step_1022.safetensors",
             "directory": "loras"
           }
         ]
       },
       "widgets_values": [
-        "wan2.2_i2v_lightx2v_4steps_lora_v1_high_noise.safetensors",
+        "wan2.2_i2v_A14b_high_noise_lora_rank64_lightx2v_4step_1022.safetensors",
         1
       ],
-      "widgets_values_named": {
-        "lora_name": "Wan\\wan2.2_i2v_lightx2v_4steps_lora_v1_high_noise.safetensors",
-        "strength_model": 1
-      },
       "color": "#223",
       "bgcolor": "#335"
     },
@@ -515,20 +495,16 @@
         },
         "models": [
           {
-            "name": "wan2.2_i2v_lightx2v_4steps_lora_v1_low_noise.safetensors",
-            "url": "https://huggingface.co/Comfy-Org/Wan-2.2/resolve/main/split_files/loras/wan2.2_i2v_lightx2v_4steps_lora_v1_low_noise.safetensors",
+            "name": "wan2.2_i2v_A14b_low_noise_lora_rank64_lightx2v_4step_1022.safetensors",
+            "url": "https://huggingface.co/lightx2v/Wan2.2-Distill-Loras/resolve/main/wan2.2_i2v_A14b_low_noise_lora_rank64_lightx2v_4step_1022.safetensors",
             "directory": "loras"
           }
         ]
       },
       "widgets_values": [
-        "wan2.2_i2v_lightx2v_4steps_lora_v1_low_noise.safetensors",
+        "wan2.2_i2v_A14b_low_noise_lora_rank64_lightx2v_4step_1022.safetensors",
         1
       ],
-      "widgets_values_named": {
-        "lora_name": "Wan\\wan2.2_i2v_lightx2v_4steps_lora_v1_low_noise.safetensors",
-        "strength_model": 1
-      },
       "color": "#223",
       "bgcolor": "#335"
     },
@@ -586,9 +562,6 @@
       "widgets_values": [
         ""
       ],
-      "widgets_values_named": {
-        "text": ""
-      },
       "color": "#232",
       "bgcolor": "#353"
     },
@@ -646,9 +619,6 @@
       "widgets_values": [
         ""
       ],
-      "widgets_values_named": {
-        "text": ""
-      },
       "color": "#322",
       "bgcolor": "#533"
     },
@@ -795,13 +765,7 @@
         480,
         81,
         1
-      ],
-      "widgets_values_named": {
-        "width": 1,
-        "height": 480,
-        "length": 81,
-        "batch_size": 1
-      }
+      ]
     },
     {
       "id": 44,
@@ -854,10 +818,7 @@
       },
       "widgets_values": [
         5
-      ],
-      "widgets_values_named": {
-        "shift": 5
-      }
+      ]
     },
     {
       "id": 45,
@@ -910,10 +871,7 @@
       },
       "widgets_values": [
         5
-      ],
-      "widgets_values_named": {
-        "shift": 5
-      }
+      ]
     },
     {
       "id": 46,
@@ -1060,26 +1018,14 @@
         "enable",
         0,
         "fixed",
-        4,
+        8,
         1,
         "euler",
         "simple",
         0,
-        2,
+        4,
         "enable"
-      ],
-      "widgets_values_named": {
-        "add_noise": "enable",
-        "noise_seed": 4,
-        "control_after_generate": 1,
-        "steps": "euler",
-        "cfg": "simple",
-        "sampler_name": 0,
-        "scheduler": 2,
-        "start_at_step": "enable",
-        "end_at_step": 10000,
-        "return_with_leftover_noise": "disable"
-      }
+      ]
     },
     {
       "id": 47,
@@ -1226,26 +1172,14 @@
         "disable",
         0,
         "fixed",
-        4,
+        8,
         1,
         "euler",
         "simple",
-        2,
+        4,
         10000,
         "disable"
-      ],
-      "widgets_values_named": {
-        "add_noise": "disable",
-        "noise_seed": 4,
-        "control_after_generate": 1,
-        "steps": "euler",
-        "cfg": "simple",
-        "sampler_name": 2,
-        "scheduler": 10000,
-        "start_at_step": "disable",
-        "end_at_step": 10000,
-        "return_with_leftover_noise": "disable"
-      }
+      ]
     },
     {
       "id": 48,
@@ -1370,10 +1304,6 @@
         16,
         4
       ],
-      "widgets_values_named": {
-        "fps": 16,
-        "length_grid": 4
-      },
       "color": "#233",
       "bgcolor": "#355"
     },
@@ -1402,11 +1332,8 @@
         }
       },
       "widgets_values": [
-        "## ENGINE: Wan 2.2\nVideo generation engine (Wan 2.2 i2v, 14B, fp8, two-pass high/low noise).\n- **Infinite Movie · Engine Start** (from Director): `start_image`, `end_image`, `prompt`, `seed`, `width`, `height`, `length`.\n- **UNETLoader** (×2): high-noise and low-noise 14B models.\n- **LoraLoaderModelOnly** (×2): LightX2V 4-step LoRAs for fast sampling.\n- **WanFirstLastFrameToVideo**: builds conditioning from start/end frames.\n- **KSamplerAdvanced** (×2): two-pass sampling (high-noise → low-noise).\n- **VAEDecode**: decodes the latent to pixels.\n- **Infinite Movie · Engine Result** (to Director): outputs the rendered frames.\n- Copy this group into Infinite Movie (Ctrl+C / Ctrl+V) and mute the MiniMax group (Ctrl+M) – only ONE engine group may be active."
+        "## ENGINE: Wan 2.2\nVideo generation engine (Wan 2.2 i2v, 14B, fp8, two-pass high/low noise).\n- **Infinite Movie · Engine Start** (from Director): `start_image`, `end_image`, `prompt`, `seed`, `width`, `height`, `length`.\n- **UNETLoader** (×2): high-noise and low-noise 14B models.\n- **LoraLoaderModelOnly** (×2): LightX2V distill LoRAs (1022) – run at 8 steps (4 high + 4 low, cfg 1).\n- **WanFirstLastFrameToVideo**: builds conditioning from start/end frames.\n- **KSamplerAdvanced** (×2): two-pass sampling, 8 steps: high-noise 0–4 → low-noise 4–8.\n- **VAEDecode**: decodes the latent to pixels.\n- **Infinite Movie · Engine Result** (to Director): outputs the rendered frames.\n- Copy this group into Infinite Movie (Ctrl+C / Ctrl+V) and mute the MiniMax group (Ctrl+M) – only ONE engine group may be active."
       ],
-      "widgets_values_named": {
-        "text": "## ENGINE: Wan 2.2\nVideo generation engine (Wan 2.2 i2v, 14B, fp8, two-pass high/low noise).\n- **Infinite Movie · Engine Start** (from Director): `start_image`, `end_image`, `prompt`, `seed`, `width`, `height`, `length`.\n- **UNETLoader** (×2): high-noise and low-noise 14B models.\n- **LoraLoaderModelOnly** (×2): LightX2V 4-step LoRAs for fast sampling.\n- **WanFirstLastFrameToVideo**: builds conditioning from start/end frames.\n- **KSamplerAdvanced** (×2): two-pass sampling (high-noise → low-noise).\n- **VAEDecode**: decodes the latent to pixels.\n- **Infinite Movie · Engine Result** (to Director): outputs the rendered frames.\n- Copy this group into Infinite Movie (Ctrl+C / Ctrl+V) and mute the MiniMax group (Ctrl+M) – only ONE engine group may be active."
-      },
       "color": "#432",
       "bgcolor": "#653"
     }
