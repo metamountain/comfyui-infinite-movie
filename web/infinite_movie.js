@@ -1482,7 +1482,7 @@ app.registerExtension({
   },
 });
 
-// Normalize Time: redraw the graph immediately when strength changes (user 2026-10-26:
+// Normalize Time: draw the graph of the last run below the widgets (user 2026-10-26:
 // "must be visualized which normalization takes effect"). Uses the analysis of the last run
 // (POST /infinite_movie/normalize_graph, retime_nodes.py) - no render, no encode.
 // The node itself draws the graph below the widgets: the frontend does not show output images
@@ -1899,14 +1899,12 @@ app.registerExtension({
       this._imvRz = setTimeout(() => imvDraw(this), 120);
       return r;
     };
-    let timer = null;
     const redraw = async () => {
-      const get = (n) => node.widgets?.find((w) => w.name === n)?.value;
       try {
         const r = await fetch("/infinite_movie/normalize_graph", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ node_id: String(node.id), strength: get("strength"), keep: get("keep") }),
+          body: JSON.stringify({ node_id: String(node.id) }),  // 110: strength/keep are fixed in Python
         });
         const j = await r.json();
         if (!r.ok) return; // no run yet: nothing to draw
@@ -1915,17 +1913,6 @@ app.registerExtension({
         console.warn("[InfiniteMovie] normalize graph:", e);
       }
     };
-    for (const name of ["strength", "keep"]) {
-      const w = node.widgets?.find((x) => x.name === name);
-      if (!w) continue;
-      const orig = w.callback;
-      w.callback = function (...args) {
-        const res = orig?.apply(this, args);
-        clearTimeout(timer);
-        timer = setTimeout(redraw, 250);
-        return res;
-      };
-    }
     // after loading the workflow: fetch the graph of the last run (if the server still knows it)
     setTimeout(redraw, 1500);
   },
@@ -1939,7 +1926,7 @@ app.registerExtension({
     if (node.comfyClass !== "InfiniteMovieAssemble") return;
     // 57c: if `shots` is connected, hide file/video_path/fps/loop + the upload button
     // (Python ignores them anyway, precedence retime_nodes.py:299). Do NOT delete the values.
-    const HIDDEN_WHEN_SHOTS = ["file", "video_path", "fps", "loop"];
+    const HIDDEN_WHEN_SHOTS = ["file", "video_path", "loop"];
     // 58 (2026-11-02): do NOT take widgets from node.widgets – widgets_values are positional, and graphToPrompt
     // left out the required inputs file/loop (night debug 58: strength=24 > max 1.0). Only hide,
     // Vorbild ComfyUI-LTXVideo/web/js/guider_parameters_advanced.js:22-45 (hidden + computeSize).
@@ -1971,7 +1958,7 @@ app.registerExtension({
     // fps='') reset to the default – otherwise validation fails on fields that are hidden and thus
     // not correctable by the user. Valid values stay untouched.
     // Defaults as in retime_nodes.py InfiniteMovieAssemble.define_schema (the frontend does not know them here).
-    const DEFAULTS = { fps: 24, strength: 0.8, keep: 1, interpolate: "RIFE x2", even_motion: true, loop: true };
+    const DEFAULTS = { interpolate: "RIFE x2", even_motion: true, loop: true };
     const sanitize = () => {
       for (const w of node.widgets || []) {
         const vals = w.options?.values;

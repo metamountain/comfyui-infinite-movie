@@ -206,6 +206,12 @@ def _picks_for(curves: list, fps: float, strength: float, rendered_seconds, keep
     return picks, n_out_list, "\n".join(lines)
 
 
+# 110 (2026-11-10): strength/keep removed as widgets (user: "alles weg, was nicht 100 % nötig ist");
+# fixed values below, behaviour unchanged (the widget defaults were 0.8 / 1.0).
+ASSEMBLE_STRENGTH = 0.8   # 1 = fully even change per frame, 0 = unchanged timing; 0.8 keeps a short rest on the key images (only with even_motion)
+ASSEMBLE_KEEP = 1.0       # share of each shot's rendered length that stays in the film; 1 = the whole shot (only with even_motion)
+
+
 class InfiniteMovieAssemble(io.ComfyNode):
     @classmethod
     def define_schema(cls):
@@ -220,7 +226,7 @@ class InfiniteMovieAssemble(io.ComfyNode):
                         "frames are re-picked to carry about the same change each. Each shot keeps its rendered length "
                         "(Director › seconds / per-shot ⏱); with interpolate RIFE there are more frames to pick from "
                         "and fewer duplicates. Draws an analysis graph below the widgets (grey = as rendered, "
-                        "coloured = evened out) that updates live when you change strength.",
+                        "coloured = evened out).",
             is_output_node=True,
             inputs=[
                 # Auftrag 32: shots (SHOTS) as the FIRST input (highest priority).
@@ -237,29 +243,17 @@ class InfiniteMovieAssemble(io.ComfyNode):
                                tooltip="direct load from ComfyUI/input (used when nothing is connected); "
                                        "a single video is treated as one segment"),
                 io.String.Input("video_path", advanced=True, default="", optional=True, tooltip="file path"),
-                io.Float.Input("strength", advanced=True, default=0.8, min=0.0, max=1.0, step=0.05,
-                               tooltip="1 = fully even change per frame, 0 = unchanged timing. 0.8 keeps a short "
-                                       "rest on the key images. Only effective when even_motion=true."),
+                # 110 (2026-11-10): strength removed as a widget -> ASSEMBLE_STRENGTH (0.8)
                 io.Combo.Input("interpolate", advanced=True, options=["off", "RIFE x2", "RIFE x4"], default="RIFE x2", optional=True,
                                tooltip="Interpolate in-between frames first, then pick. Only effective when even_motion=true. "
                                        "'off' = pick from the original frames (fastest, no GPU); 'RIFE x2' = 2x frames; "
                                        "'RIFE x4' = 4x (smoothest, most GPU time)."),
                 # 57d: free_vram/free_ram now in the Settings node
                 # (settings input at the end of the schema).
-                # Auftrag 32: concat options (as the LAST inputs, widgets_values!).
-                io.Float.Input("keep", advanced=True, default=1.0, min=0.0, max=1.0, step=0.05,
-                               tooltip="Share of each shot's rendered length that stays in the film (only with even_motion).\n"
-                                       "1 = full length (default). Where a shot stands still, even_motion has to fill the "
-                                       "time with repeated frames - visible as small stutters.\n"
-                                       "0 = auto: per shot as many frames as possible WITHOUT repeats; the still parts are "
-                                       "dropped and the film gets shorter (measured on a fog/rain shot: 0.3 without, 0.6 with RIFE x2 - more frames to pick from).\n"
-                                       "0.05-0.95 = fixed share for all shots.\n"
-                                       "Good for: morphs/time-lapses between stills, transitions with long still ends. "
-                                       "Not for: real-time action, lip sync, or when the film must keep an exact length "
-                                       "(music). The Assemble report shows the keep used per shot."),
+                # 110 (2026-11-10): keep removed as a widget -> ASSEMBLE_KEEP (1.0 = the whole shot)
                 io.Boolean.Input("even_motion", default=True,
                                  tooltip="true = even out the motion of each shot (frames re-picked so each carries about the same "
-                                         "change), then join; false = join the shots unchanged (keeps the engine's sound)."),
+                                         "change), then join; false = join the shots unchanged (preserves the engine's sound)."),
                 io.Boolean.Input("loop", default=True,
                                  tooltip="true = also drop the last frame of the last segment (seamless loop); "
                                          "false = keep it (the film ends on the last image)."),
@@ -294,8 +288,8 @@ class InfiniteMovieAssemble(io.ComfyNode):
     @classmethod
     def execute(cls, shots=None, file="",
                 video_path="",
-                strength=0.8, interpolate="off",
-                even_motion=True, loop=True, keep=1.0,
+                interpolate="off",
+                even_motion=True, loop=True,
                 settings=None) -> io.NodeOutput:
         # 57d: free_vram/free_ram
         # come from the Settings node (SETTINGS pipe); without it -> defaults.
@@ -372,7 +366,7 @@ class InfiniteMovieAssemble(io.ComfyNode):
             per_scene_seconds = [f / fps_f for f in scene_frames_list]
         else:
             per_scene_seconds = [max(len(c) - 1, 1) / fps_in for c in curves]
-        picks, n_out, report = _picks_for(curves, fps_f, strength, per_scene_seconds, keep)
+        picks, n_out, report = _picks_for(curves, fps_f, ASSEMBLE_STRENGTH, per_scene_seconds, ASSEMBLE_KEEP)
         out_paths = []
         # 86: viewer data (timeline, heatmap, used frames) in the temp folder; errors here are never fatal.
         import time as _time
@@ -397,16 +391,16 @@ class InfiniteMovieAssemble(io.ComfyNode):
             del frames
         if viz is not None:
             try:
-                viz["timeline"] = _viz_timeline(curves, picks, n_out, keep, viz_dir,
+                viz["timeline"] = _viz_timeline(curves, picks, n_out, ASSEMBLE_KEEP, viz_dir,
                                                 n_full=[max(int(round(s * fps_f)) + 1, 2) for s in per_scene_seconds])
             except Exception as _e:  # noqa: BLE001
                 print(f"[InfiniteMovieAssemble] timeline skipped: {_e}")
         if uid is not None:
             _CACHE[str(uid)] = {"curves": curves, "fps": fps_f, "fps_in": fps_in, "interpolate": interpolate,
-                                "seconds": per_scene_seconds, "keep": keep,
+                                "seconds": per_scene_seconds, "keep": ASSEMBLE_KEEP,
                                 "viz_dir": viz_dir if viz is not None else None}
         out_seconds = [max(n - 1, 1) / fps_f for n in n_out]
-        graph = draw_graph(curves, picks, fps_f, strength, out_seconds, fps_in, interpolate)
+        graph = draw_graph(curves, picks, fps_f, ASSEMBLE_STRENGTH, out_seconds, fps_in, interpolate)
         print(f"[InfiniteMovieAssemble]\n{report}")
         from comfy_api.latest import ui
         preview = ui.PreviewImage(graph, cls=cls)
@@ -498,8 +492,9 @@ def _register_route():
             c = _CACHE.get(str(b.get("node_id")))
             if not c:
                 return web.json_response({"error": "run the node once first"}, status=404)
-            strength, seconds = float(b["strength"]), c["seconds"]
-            keep = float(b.get("keep", c.get("keep", 1.0)))
+            # 110: strength/keep are no longer widgets; the frontend may omit them -> fall back to the constants.
+            strength, seconds = float(b.get("strength", ASSEMBLE_STRENGTH)), c["seconds"]
+            keep = float(b.get("keep", c.get("keep", ASSEMBLE_KEEP)))
 
             def work():
                 from PIL import Image
