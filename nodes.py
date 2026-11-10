@@ -826,7 +826,7 @@ class InfiniteMovieRender(io.ComfyNode):
                 # (widgets_values is positional). "2" renders every transition twice
                 # (seed A and seed A+500) for the Infinite Movie · Choose node.
                 io.Combo.Input(
-                    "variants",
+                    "variants", advanced=True,
                     options=["1", "2"],
                     default="1",
                     tooltip="Variants (Auftrag 61): '2' renders every transition TWICE (variant A with the "
@@ -1149,7 +1149,7 @@ class InfiniteMovieSegmentSave(io.ComfyNode):
     @classmethod
     def define_schema(cls):
         return io.Schema(
-            node_id="InfiniteMovieSegmentSave",
+            node_id="InfiniteMovieSegmentSave", is_dev_only=True,
             display_name="Infinite Movie · Segment Save (internal)",
             search_aliases=["infinite movie", "infinite_movie", "film", "movie", "video", "ltx", "wan"],
             category="Infinite Movie/9 Internal",
@@ -1245,7 +1245,7 @@ class InfiniteMovieSegmentPaths(io.ComfyNode):
             max=24,
         )
         return io.Schema(
-            node_id="InfiniteMovieSegmentPaths",
+            node_id="InfiniteMovieSegmentPaths", is_dev_only=True,
             display_name="Infinite Movie · Segment Paths (internal)",
             search_aliases=["infinite movie", "infinite_movie", "film", "movie", "video", "ltx", "wan"],
             category="Infinite Movie/9 Internal",
@@ -1302,7 +1302,7 @@ class InfiniteMovieShotsOut(io.ComfyNode):
     @classmethod
     def define_schema(cls):
         return io.Schema(
-            node_id="InfiniteMovieShotsOut",
+            node_id="InfiniteMovieShotsOut", is_dev_only=True,
             display_name="Infinite Movie · Shots Out (internal)",
             search_aliases=["infinite movie", "infinite_movie", "film", "movie", "video", "ltx", "wan"],
             category="Infinite Movie/9 Internal",
@@ -1457,7 +1457,7 @@ class InfiniteMovieFramesCollect(io.ComfyNode):
     @classmethod
     def define_schema(cls):
         return io.Schema(
-            node_id="InfiniteMovieFramesCollect",
+            node_id="InfiniteMovieFramesCollect", is_dev_only=True,
             display_name="Infinite Movie · Frames Collect (internal)",
             search_aliases=["infinite movie", "infinite_movie", "film", "movie", "video", "ltx", "wan"],
             category="Infinite Movie/9 Internal",

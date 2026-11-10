@@ -511,7 +511,7 @@ class InfiniteMovieChooser(io.ComfyNode):
                 SHOTS.Input("shots", display_name="shots",
                             tooltip="Pipe with all shots (segment paths, folder, name, fps, loop, variants) "
                                     "from Infinite Movie · Director."),
-                io.String.Input("choices", default="",
+                io.String.Input("choices", advanced=True, default="",
                                 tooltip="Hidden (written by the frontend): per-transition choice, e.g. 'auto,b,auto' "
                                         "('a'/'b' overrides the automatic choice)."),
             ],

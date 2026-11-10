@@ -105,7 +105,7 @@ class InfiniteMovieEngineOut(io.ComfyNode):
                                tooltip="Optional audio."),
                 io.Float.Input("fps", default=24.0,
                                tooltip="Frame rate (FLOAT) – 24 for LTX, 16 for Wan."),
-                io.Int.Input("length_grid", default=1,
+                io.Int.Input("length_grid", advanced=True, default=1,
                              tooltip="Length grid (INT) – 8 for LTX, 4 for Wan."),
             ],
             outputs=[

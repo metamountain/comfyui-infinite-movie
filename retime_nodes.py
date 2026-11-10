@@ -233,25 +233,25 @@ class InfiniteMovieAssemble(io.ComfyNode):
                 # 73: segments/save_folder/save_name removed as socket inputs
                 # ("less is more") - they now always come from the shots pipe
                 # (or Settings › output_folder). shots has the highest priority.
-                io.Combo.Input("file", options=_input_videos(), upload=io.UploadType.video,
+                io.Combo.Input("file", advanced=True, options=_input_videos(), upload=io.UploadType.video,
                                tooltip="direct load from ComfyUI/input (used when nothing is connected); "
                                        "a single video is treated as one segment"),
                 io.Image.Input("images", optional=True, tooltip="frame batch (priority 4)"),
                 io.Video.Input("video", optional=True, tooltip="VIDEO (priority 3)"),
-                io.String.Input("video_path", default="", optional=True, tooltip="file path (priority 5)"),
-                io.Float.Input("fps", default=24.0, min=1.0, max=120.0, optional=True,
+                io.String.Input("video_path", advanced=True, default="", optional=True, tooltip="file path (priority 5)"),
+                io.Float.Input("fps", advanced=True, default=24.0, min=1.0, max=120.0, optional=True,
                                tooltip="only for the images input"),
-                io.Float.Input("strength", default=0.8, min=0.0, max=1.0, step=0.05,
+                io.Float.Input("strength", advanced=True, default=0.8, min=0.0, max=1.0, step=0.05,
                                tooltip="1 = fully even change per frame, 0 = unchanged timing. 0.8 keeps a short "
                                        "rest on the key images. Only effective when even_motion=true."),
-                io.Combo.Input("interpolate", options=["off", "RIFE x2", "RIFE x4"], default="RIFE x2", optional=True,
+                io.Combo.Input("interpolate", advanced=True, options=["off", "RIFE x2", "RIFE x4"], default="RIFE x2", optional=True,
                                tooltip="Interpolate in-between frames first, then pick. Only effective when even_motion=true. "
                                        "'off' = pick from the original frames (fastest, no GPU); 'RIFE x2' = 2x frames; "
                                        "'RIFE x4' = 4x (smoothest, most GPU time)."),
                 # 57d: free_vram/free_ram now in the Settings node
                 # (settings input at the end of the schema).
                 # Auftrag 32: concat options (as the LAST inputs, widgets_values!).
-                io.Float.Input("keep", default=1.0, min=0.0, max=1.0, step=0.05,
+                io.Float.Input("keep", advanced=True, default=1.0, min=0.0, max=1.0, step=0.05,
                                tooltip="Share of each shot's rendered length that stays in the film (only with even_motion).\n"
                                        "1 = full length (default). Where a shot stands still, even_motion has to fill the "
                                        "time with repeated frames - visible as small stutters.\n"
