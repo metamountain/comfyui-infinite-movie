@@ -208,9 +208,9 @@ function updateVisibility(node) {
     node.setDirtyCanvas(true, true);
 }
 
-// Kopie aus metamountain/upscale-universal (975c025) im Infinite-Movie-Pack. Eigener Extension-Name (doppelte
-// Namen wirft das Frontend als Fehler) und nur aktiv, wenn der Node aus DIESEM Pack kommt – ist das eigenständige
-// Pack installiert, liefert es den Node und sein eigenes JS (Python-Seite: __init__.py registriert die Kopie dann nicht).
+// Copy from metamountain/upscale-universal (975c025) inside the Infinite-Movie pack. Own extension name
+// (duplicate names are rejected by the frontend) and only active when the node comes from THIS pack – if the
+// standalone pack is installed, it provides the node and its own JS (Python side: __init__.py then does not register the copy).
 app.registerExtension({
     name: "infinite_movie.upscale_crop_universal_copy",
 

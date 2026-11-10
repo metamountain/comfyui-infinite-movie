@@ -1,20 +1,20 @@
-"""Engine Start / Engine Result – Pack-Nodes für den Engine-Split (Auftrag 37, 57e).
+"""Engine Start / Engine Result - pack nodes for the engine split (Auftrag 37, 57e).
 
-Engine Start (from Director): Pack-Node OHNE Eingänge. Ausgänge: start_image,
-end_image, prompt, negative, seed, width, height, length. Der Director liest die
-Werte pro Segment aus dem dynprompt und ersetzt sie im Segment-Graph.
+Engine Start (from Director): pack node WITHOUT inputs. Outputs: start_image,
+end_image, prompt, negative, seed, width, height, length. The Director reads the
+values per segment from the dynprompt and replaces them in the segment graph.
 
-Engine Result (to Director): Pack-Node. Eingänge: images (IMAGE) oder video
-(VIDEO, Vorrang video), optional audio. Widgets: fps, length_grid. Ausgang:
+Engine Result (to Director): pack node. Inputs: images (IMAGE) or video
+(VIDEO, video takes priority), optional audio. Widgets: fps, length_grid. Output:
 engine (INFINITE_ENGINE).
 
-Wichtig (57e): Die Kette zwischen Start und Result wird NICHT direkt
-ausgeführt. Der Director-Eingang 'engine' ist lazy=True (graph.py add_node legt
-lazy Inputs nicht als Strong-Links an), daher entsteht kein Strong-Link zur
-Kette und es gibt keinen Double-Run. Der Director liest die Verkabelung aus dem
-dynprompt (Link [engine_out_id, 0]) und baut daraus das Template. Die execute-
-Methoden liefern nur Platzhalter (None/""/0 bzw. ein engine-Dict als String),
-damit die Nodes im UI funktionieren, ohne dass die Kette läuft.
+Important (57e): the chain between Start and Result is NOT executed
+directly. The Director input 'engine' is lazy=True (graph.py add_node does not
+create lazy inputs as Strong-Links), so no Strong-Link to the
+chain is created and there is no double run. The Director reads the wiring from
+the dynprompt (link [engine_out_id, 0]) and builds the template from it. The execute
+methods only return placeholders (None/""/0 or an engine dict as a string),
+so the nodes work in the UI without the chain running.
 """
 
 from __future__ import annotations
@@ -23,13 +23,13 @@ from comfy_api.latest import io
 
 
 class InfiniteMovieEngineIn(io.ComfyNode):
-    """Engine Start (from Director): Pack-Node ohne Eingänge.
+    """Engine Start (from Director): pack node without inputs.
 
-    Liefert die Engine-Parameter (start_image, end_image, prompt,
-    seed, width, height, length). Im normalen Lauf liefert execute()
-    Platzhalter (None/""/0) – die Kette wird NICHT direkt ausgeführt, weil der
-    Director-Eingang 'engine' lazy ist (kein Strong-Link). Der Director liest
-    die Werte pro Segment aus dem dynprompt.
+    Provides the engine parameters (start_image, end_image, prompt,
+    seed, width, height, length). In a normal run execute() returns
+    placeholders (None/""/0) - the chain is NOT executed directly, because the
+    Director input 'engine' is lazy (no Strong-Link). The Director reads
+    the values per segment from the dynprompt.
     """
 
     @classmethod
@@ -49,8 +49,8 @@ class InfiniteMovieEngineIn(io.ComfyNode):
                                 tooltip="End image (IMAGE) – per segment from the Director."),
                 io.String.Output(display_name="prompt",
                                  tooltip="Prompt (STRING) – per segment from the Director."),
-                # 73: negative-Ausgang gestrichen – der Negativ-Encoder bleibt leer
-                # (Expansion setzt keinen Negativ-Text mehr).
+                # 73: negative output removed - the negative encoder stays empty
+                # (the expansion no longer sets negative text).
                 io.Int.Output(display_name="seed",
                               tooltip="Seed (INT) – per segment from the Director."),
                 io.Int.Output(display_name="width",
@@ -64,9 +64,9 @@ class InfiniteMovieEngineIn(io.ComfyNode):
 
     @classmethod
     def execute(cls) -> io.NodeOutput:
-        # Platzhalter: die Kette wird NICHT direkt ausgeführt (engine ist lazy,
-        # kein Strong-Link). Die echten Werte liefert der Director pro Segment
-        # aus dem dynprompt.
+        # Placeholders: the chain is NOT executed directly (engine is lazy,
+        # no Strong-Link). The real values are provided by the Director per segment
+        # from the dynprompt.
         return io.NodeOutput(
             None,  # start_image
             None,  # end_image
@@ -79,12 +79,12 @@ class InfiniteMovieEngineIn(io.ComfyNode):
 
 
 class InfiniteMovieEngineOut(io.ComfyNode):
-    """Engine Result (to Director): Pack-Node.
+    """Engine Result (to Director): pack node.
 
-    Nimmt images oder video entgegen, liefert engine (INFINITE_ENGINE).
-    Vorrang: video > images. Optional: audio. Widgets: fps, length_grid.
-    execute() liefert ein engine-Dict als String-Platzhalter; die Kette wird
-    NICHT direkt ausgeführt (engine ist lazy).
+    Takes images or video, provides engine (INFINITE_ENGINE).
+    Priority: video > images. Optional: audio. Widgets: fps, length_grid.
+    execute() returns an engine dict as a string placeholder; the chain is
+    NOT executed directly (engine is lazy).
     """
 
     @classmethod
@@ -116,8 +116,8 @@ class InfiniteMovieEngineOut(io.ComfyNode):
 
     @classmethod
     def execute(cls, images=None, video=None, audio=None, fps=24.0, length_grid=1) -> io.NodeOutput:
-        # Vorrang: video > images
-        # Platzhalter: die Kette wird NICHT direkt ausgeführt (engine ist lazy).
+        # Priority: video > images
+        # Placeholders: the chain is NOT executed directly (engine is lazy).
         engine_dict = {
             "fps": float(fps),
             "length_grid": int(length_grid),
@@ -125,7 +125,7 @@ class InfiniteMovieEngineOut(io.ComfyNode):
             "has_video": video is not None,
         }
         return io.NodeOutput(
-            str(engine_dict),  # engine (Platzhalter)
+            str(engine_dict),  # engine (placeholder)
         )
 
 

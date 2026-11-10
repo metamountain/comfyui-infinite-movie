@@ -44,20 +44,20 @@ def _input_videos() -> list[str]:
     files = [f for f in os.listdir(d) if os.path.isfile(os.path.join(d, f))]
     vids = sorted(folder_paths.filter_files_content_types(files, ["video"]))
     return ["(none)"] + vids
-# 57d: SETTINGS-Pipe + get_setting (settings_nodes importiert nur .vram + lazy .autoprompt,
-# kein Zirkel). settings-Eingang am ENDE des Schemas, damit sich die Slot-Indizes der
-# Autogrow-Eingaenge (images/shot_prompts) NICHT verschieben (RAG: Links haengen am Index).
+# 57d: SETTINGS pipe + get_setting (settings_nodes imports only .vram + lazy .autoprompt,
+# no cycle). The settings input goes at the END of the schema so the slot indices of the
+# Autogrow inputs (images/shot_prompts) do NOT shift (RAG: links hang off the index).
 from .settings_nodes import SETTINGS, get_setting, chain_settings, ASPECT_FROM_IMAGES, resolve_ratio
 
 # Image slots: Autogrow starts with one, the next appears once one is connected
-# (Nutzer 2026-10-26: max. 12). Keep in sync with MAX_IMAGES in web/infinite_movie.js.
+# (user 2026-10-26: max. 12). Keep in sync with MAX_IMAGES in web/infinite_movie.js.
 MAX_IMAGES = 12
 
-# Auftrag 32: shots-Pipe - ein "Pipe"-Typ (wie rgthree-Context /
-# Efficiency-Pipes). Inhalt: dict mit segments, save_folder, save_name, fps,
+# Auftrag 32: shots pipe - a "pipe" type (like rgthree-Context /
+# Efficiency-Pipes). Content: dict with segments, save_folder, save_name, fps,
 # loop, width, height, frames_per_segment, seed, render_id.
-# 57b2 (2026-11-01): Typ umbenannt (Nutzer-Entscheidung: Pipe heißt überall
-# "shots" – ID, Anzeige UND Typ; alter Typ-Name ist in tools/migrate_workflows.py).
+# 57b2 (2026-11-01): type renamed (user decision: the pipe is called
+# "shots" everywhere - ID, display AND type; the old type name is in tools/migrate_workflows.py).
 SHOTS = io.Custom("SHOTS")
 
 # ---------------------------------------------------------------------------
@@ -65,7 +65,7 @@ SHOTS = io.Custom("SHOTS")
 # ---------------------------------------------------------------------------
 
 _FFMPEG_CANDIDATES = [
-    "ffmpeg",   # PATH; sonst imageio_ffmpeg (keine maschinenspezifischen Pfade, Pack ist öffentlich)
+    "ffmpeg",   # PATH; otherwise imageio_ffmpeg (no machine-specific paths, the pack is public)
 ]
 
 
@@ -86,10 +86,10 @@ def _ffmpeg() -> str:
 
 
 def _no_window() -> dict:
-    """57e: subprocess-Kwargs, damit ffmpeg/ffprobe unter Windows KEIN
-    Konsolenfenster aufreist (CREATE_NO_WINDOW = 0x08000000). Auf POSIX leer.
-    Einziges Definition – post_nodes.py und retime_nodes.py importieren es
-    von hier (nodes.py ist die Basis, wird von beiden importiert)."""
+    """57e: subprocess kwargs so that ffmpeg/ffprobe under Windows opens NO
+    console window (CREATE_NO_WINDOW = 0x08000000). Empty on POSIX.
+    Single definition - post_nodes.py and retime_nodes.py import it
+    from here (nodes.py is the base, imported by both)."""
     if os.name == "nt":
         return {"creationflags": 0x08000000}
     return {}
@@ -346,9 +346,9 @@ def _run_ffmpeg_to(cmd: list, out_path: str, timeout_s: int = 600, tries: int = 
 def _write_audio_to_wav(audio: dict, wav_path: str) -> None:
     """Write a ComfyUI AUDIO dict {"waveform": tensor, "sample_rate": int} to a 16-bit PCM WAV.
 
-    Vorbild: comfy_extras/nodes_audio.py SaveAudio (RAG). waveform shape
-    (batch, channels, samples) float; stdlib `wave` + numpy (kein scipy/soundfile
-    in embedded Python nötig).
+    Model: comfy_extras/nodes_audio.py SaveAudio (RAG). waveform shape
+    (batch, channels, samples) float; stdlib `wave` + numpy (no scipy/soundfile
+    needed in embedded Python).
     """
     import wave as _wave
     waveform = audio["waveform"]
@@ -474,8 +474,8 @@ def _segment_is_complete(mp4_path: str, expected_frames: int) -> bool:
 
 def _parse_reseed(text: str) -> dict:
     """'2' / '2,4' / '2,2' -> {segment number: bumps}. Each mention adds one bump.
-    2026-11-08 (Nutzer: nur die abgewählte Variante neu rendern): '2a' / '2b' -> {"2a": bumps} / {"2b": bumps}
-    = nur Variante A bzw. B dieses Shots bekommt einen neuen Seed, die andere bleibt (Datei wird wiederverwendet)."""
+    2026-11-08 (user: only re-render the chosen variant): '2a' / '2b' -> {"2a": bumps} / {"2b": bumps}
+    = only variant A or B of this shot gets a new seed, the other stays (the file is reused)."""
     bumps: dict = {}
     for tok in re.split(r"[,;\s]+", text or ""):
         tok = tok.strip().lower()
@@ -538,12 +538,12 @@ def _snap_length(length: int, mod: int) -> int:
 
 
 def _seconds_to_frames(seconds: float, fps: float, length_mod: int) -> int:
-    """seconds -> frames (Auftrag 21, Änderung 3 + Korrektur 2026-10-26):
-    frames = floor(seconds*fps/length_mod + 0.5) * length_mod + 1  (Round half up,
-    KEIN Banker-Rounding wie Python's round()), minimum 1*length_mod+1.
+    """seconds -> frames (Auftrag 21, change 3 + fix 2026-10-26):
+    frames = floor(seconds*fps/length_mod + 0.5) * length_mod + 1  (round half up,
+    NOT Banker's rounding like Python's round()), minimum 1*length_mod+1.
 
-    Das Ergebnis liegt immer auf dem (mod*n+1)-Grid des Presets.
-    Sollwerte LTX (24 fps, mod 8): 0.5 s=17, 1 s=25, 1.5 s=41, 2 s=49, 5 s=121.
+    The result always lands on the (mod*n+1) grid of the preset.
+    Target values LTX (24 fps, mod 8): 0.5 s=17, 1 s=25, 1.5 s=41, 2 s=49, 5 s=121.
     """
     k = int(math.floor(seconds * fps / length_mod + 0.5))
     return max(k * length_mod + 1, 1 * length_mod + 1)
@@ -565,7 +565,7 @@ def _scene_frames(seconds_list: list, fps: float, length_mod: int, default_frame
     for i in range(n):
         s = seconds_list[i] if i < len(seconds_list) else 0
         if s is None or s <= 0:
-            result.append(default_frames)   # 82: 0 = globale Laenge (Frames, nicht Sekunden)
+            result.append(default_frames)   # 82: 0 = global length (frames, not seconds)
         else:
             result.append(_seconds_to_frames(s, fps, length_mod))
     return result
@@ -643,7 +643,7 @@ def _send_progress(text: str, node_id: str) -> None:
 
 
 def _send_render_plan(node_id, segments: int, width: int, height: int, frames: int, preset: str) -> dict:
-    """Render plan for the progress bar on the Render node (Nutzer 2026-11-10: „mach progressbar“).
+    """Render plan for the progress bar on the Render node (user 2026-11-10: "make a progress bar").
 
     Sends `infinite_movie.render_plan` {node, segments, frames, width, height, seg_seconds, n, match}; seg_seconds is
     the per-shot estimate from the recorded timings of THIS machine (timing.estimate, Auftrag 88) or None (no history
@@ -711,7 +711,7 @@ def _display_memory(cls, tag: str = "") -> str:
 
 
 def _resolve_film_name(settings):
-    """Settings › film_name (leer = "film"); Windows-sicher, ohne .mp4."""
+    """Settings › film_name (empty = "film"); Windows-safe, without .mp4."""
     n = str(get_setting(settings, "film_name") or "").strip() or "film"
     n = re.sub(r'[<>:"/\\|?*]', "_", n).strip() or "film"
     if n.lower().endswith(".mp4"):
@@ -741,18 +741,18 @@ class InfiniteMovieRender(io.ComfyNode):
             is_output_node=True,
             enable_expand=True,
             inputs=[
-                # 66 (Nutzer 2026-11-03: „Reihenfolge logisch, sauber verdrahten“): Sockets oben in
-                # Lese-Reihenfolge: settings, engine, images, shot_prompts; dann die Widgets.
-                # Alle Sockets optional – das Frontend setzt required VOR optional, darum ist auch
-                # images optional (execute meldet „no images provided“, wenn nichts kommt).
+                # 66 (user 2026-11-03: "logical order, wire it cleanly"): sockets on top in
+                # reading order: settings, engine, images, shot_prompts; then the widgets.
+                # All sockets optional - the frontend sets required BEFORE optional, that is
+                # why images is optional too (execute reports "no images provided" when nothing comes in).
                 SETTINGS.Input("settings", optional=True, display_name="settings",
                                tooltip="Settings chain (format, film name, GPU handoff). Without it the built-in defaults apply."),
-                # 57e: engine-Eingang ist optional + lazy.
-                # lazy=True: die Kette läuft NICHT direkt (graph.py add_node legt lazy
-                #   Inputs nicht als Strong-Links an) – kein Double-Run. Der Director
-                #   liest die Verbindung aus dem dynprompt, nicht aus dem engine-Wert.
-                # optional=True: Automatik. Nicht verbunden → die EINE nicht-stumme
-                #   Engine Out im Prompt. Verbunden → genau diese.
+                # 57e: the engine input is optional + lazy.
+                # lazy=True: the chain does NOT run directly (graph.py add_node does not create
+                #   lazy inputs as strong links) - no double run. The Director reads the
+                #   connection from the dynprompt, not from the engine value.
+                # optional=True: automatic. Unconnected -> the SINGLE non-muted
+                #   Engine Out in the prompt. Connected -> exactly that one.
                 io.String.Input(
                     "engine",
                     force_input=True,
@@ -820,11 +820,11 @@ class InfiniteMovieRender(io.ComfyNode):
                     tooltip="Segments to re-render with a new seed, e.g. '2' or '2,4' (numbers as in the Concat check report). "
                             "Each mention adds 1000 to that segment's seed ('2,2' = second try); all other segments keep theirs.",
                 ),
-                # mode-Widget entfernt (Auftrag 72): nur noch Segment-Render.
-                # 61: variants (Variants-Builder). AM ENDE der Widgets (nach reseed, vor den
-                # Sockets engine/settings), damit gespeicherte Workflows nichts verschieben
-                # (widgets_values ist positionell). "2" rendert jeden Uebergang zweimal
-                # (Seed A und Seed A+500) fuer den Infinite Movie · Choose-Node.
+                # mode widget removed (Auftrag 72): segment render only.
+                # 61: variants (Variants-Builder). AT THE END of the widgets (after reseed, before the
+                # engine/settings sockets) so saved workflows do not shift anything
+                # (widgets_values is positional). "2" renders every transition twice
+                # (seed A and seed A+500) for the Infinite Movie · Choose node.
                 io.Combo.Input(
                     "variants",
                     options=["1", "2"],
@@ -833,18 +833,18 @@ class InfiniteMovieRender(io.ComfyNode):
                             "normal seed, variant B with seed+500) so Infinite Movie · Choose can pick the "
                             "better one per transition. '1' (default) renders once, as before.",
                 ),
-                # scene_seconds entfernt (2026-10-27): optional=True funktionierte nicht bei
-                # Autogrow-Sub-Inputs → Validierung verlangte seconds0/seconds1 als required.
-                # Globales 'seconds' Widget wird für alle Szenen verwendet.
+                # scene_seconds removed (2026-10-27): optional=True did not work for
+                # Autogrow sub-inputs -> validation demanded seconds0/seconds1 as required.
+                # The global 'seconds' widget is used for all scenes.
             ],
             outputs=[
-                # 71 (Nutzer 2026-11-03: „weniger ist mehr“): genau 2 Ausgänge –
-                # shots = Slot 0 (Pipe zum Assemble), settings = Slot 1 (Kette).
+                # 71 (user 2026-11-03: "less is more"): exactly 2 outputs -
+                # shots = slot 0 (pipe to Assemble), settings = slot 1 (chain).
                 # film_path / segment_paths / save_folder / save_name / images
-                # entfernt (keine Migration). Blocking: shots ist ein Link zum
-                # internen Node InfiniteMovieShotsOut, der an den Collector hängt
-                # (execution.py 599-612: Strong-Link aus Link-Werten) – der Director
-                # wartet damit auf alle Segmente, ohne einen sichtbaren Ausgang.
+                # removed (no migration). Blocking: shots is a link to the
+                # internal node InfiniteMovieShotsOut, which hangs on the collector
+                # (execution.py 599-612: strong link from link values) - the Director
+                # thereby waits for all segments without a visible output.
                 SHOTS.Output("shots",
                           display_name="shots ▶ Assemble",
                           tooltip="Pipe mit allen Shots (Segment-Pfade, Ordner, Name, fps, loop …) von "
@@ -863,9 +863,9 @@ class InfiniteMovieRender(io.ComfyNode):
 
     @classmethod
     def check_lazy_status(cls, *args, **kwargs):
-        # 57e: engine-Eingang ist lazy (Schema lazy=True) – die Kette wird nicht
-        # direkt ausgeführt (kein Strong-Link). Der Director liest die Engine aus
-        # dem dynprompt. check_lazy_status=[] bestätigt: nichts abwarten.
+        # 57e: the engine input is lazy (schema lazy=True) - the chain is not
+        # executed directly (no strong link). The Director reads the engine from
+        # the dynprompt. check_lazy_status=[] confirms: wait for nothing.
         return []
 
     @classmethod
@@ -874,8 +874,8 @@ class InfiniteMovieRender(io.ComfyNode):
                 seed=42,
                 reseed="", engine=None,
                 shot_seconds="", settings=None, variants="1"):
-        # Format, Name und GPU-Übergabe aus der Settings-Kette; ohne -> Defaults.
-        # 73: negative entfällt (Engine In hat keinen negative-Ausgang mehr).
+        # Format, name and GPU handoff from the settings chain; without it -> defaults.
+        # 73: negative is gone (Engine In no longer has a negative output).
         width = get_setting(settings, "width")
         height = get_setting(settings, "height")
         min_free_mb = get_setting(settings, "min_free_mb")
@@ -901,7 +901,7 @@ class InfiniteMovieRender(io.ComfyNode):
         from .expansion import engine_to_template
         _dynprompt = getattr(cls.hidden, "dynprompt", None)
         template, cfg = engine_to_template(_dynprompt, unique_id)
-        cfg = dict(cfg, audio=bool(get_setting(settings, "audio")))   # Settings › audio (Standard aus)
+        cfg = dict(cfg, audio=bool(get_setting(settings, "audio")))   # Settings › audio (default off)
         preset = cfg.get("preset", "ltx25_flf2v")
 
         # Memory display: "before" reading (visible while the job runs).
@@ -920,8 +920,8 @@ class InfiniteMovieRender(io.ComfyNode):
             print(f"[InfiniteMovie] length {length} snapped to {snapped} "
                   f"(grid {cfg['length_mod']}n+1)")
         length = snapped
-        # 71: Intro/Outro entfernt (Nutzer 2026-11-03: „weniger ist mehr“) –
-        # keine intro/outro Frames, Prompts oder Segmente mehr.
+        # 71: intro/outro removed (user 2026-11-03: "less is more") -
+        # no more intro/outro frames, prompts or segments.
 
         # 82: per-shot seconds from the 'shot_seconds' widget
         # ("2, 3,,4" -> [2.0, 3.0, 0.0, 4.0]; 0 = global 'seconds').
@@ -933,8 +933,8 @@ class InfiniteMovieRender(io.ComfyNode):
         raw_images = _collect_images(images or [])
         # 1 image: open shot (start image + prompt, no end image); loop on adds a second shot
         # from that shot's last frame back to the image. See expansion._segment_plan (2026-11-09).
-        # 69: Größe aus dem ersten Eingangsbild (Settings › aspect = "from images");
-        # raw_images sind H×W×C (np.uint8) -> shape[:2] = (h, w).
+        # 69: size from the first input image (Settings › aspect = "from images");
+        # raw_images are H×W×C (np.uint8) -> shape[:2] = (h, w).
         if get_setting(settings, "aspect") == ASPECT_FROM_IMAGES:
             h0, w0 = raw_images[0].shape[:2]
             width, height = resolve_ratio(w0, h0, get_setting(settings, "long_side"))
@@ -955,7 +955,7 @@ class InfiniteMovieRender(io.ComfyNode):
         # Clean LLM-generated prompts (think blocks, Markdown, word limit).
         seg_prompts = [_clean_prompt(p) for p in seg_prompts]
 
-        # Auftrag 48G.1: je Szene den benutzten Prompt loggen (erste 80 Zeichen)
+        # Auftrag 48G.1: log the prompt used per scene (first 80 characters)
         for _si, _sp in enumerate(seg_prompts):
             print(f"[InfiniteMovie] scene {_si} prompt: {_sp[:80]}")
 
@@ -965,19 +965,19 @@ class InfiniteMovieRender(io.ComfyNode):
         output_dir = os.path.join(output_root, "infinite_movie", name)
         os.makedirs(output_dir, exist_ok=True)
 
-        # 3b. Skip-Mechanism (Auftrag 61): wenn alle Segmente (A+B) schon existieren
-        # und kein reseed gesetzt ist, GPU nicht anfordern und nur die Pfade
-        # durchreichen (Collector-Graph ohne Render). So bleibt mtime stabil.
-        # 57a: Gesamt-Segmentanzahl (Szenen + Loop); vor dem Skip-Check berechnet, der sie braucht.
-        # 71: Intro/Outro entfernt – nur noch Szenen + optionales Loop-Segment.
+        # 3b. Skip mechanism (Auftrag 61): if all segments (A+B) already exist
+        # and no reseed is set, do not request the GPU and only pass the paths
+        # through (collector graph without render). This keeps mtime stable.
+        # 57a: total segment count (scenes + loop); computed before the skip check, which needs it.
+        # 71: intro/outro removed - only scenes + optional loop segment.
         from .expansion import segment_path, segment_path_b
         n_scenes = n_images - 1 if n_images > 1 else 1  # 1 image: open shot (+ loop shot back if loop)
         total_segments = n_scenes + (1 if loop else 0)
         _skip_render = False
-        # 76 (Nutzer 2026-11-03: „not rendering when I press Run … old images“): vorhandene Segmente nur
-        # wiederverwenden, wenn sie mit GENAU diesen Einstellungen entstanden sind (Seed, Prompts, Bilder,
-        # Format, Länge, Varianten, Loop). Signatur-Datei im Ausgabe-Ordner; jedes Segment muss jünger sein
-        # als die Signatur (abgebrochener Lauf -> ältere Reste -> neu rendern).
+        # 76 (user 2026-11-03: "not rendering when I press Run … old images"): reuse existing segments only
+        # if they were made with EXACTLY these settings (seed, prompts, images,
+        # format, length, variants, loop). Signature file in the output folder; every segment must be younger
+        # than the signature (aborted run -> older leftovers -> render again).
         import hashlib
         _h = hashlib.sha1()
         _h.update(json.dumps([int(seed), seg_prompts, width, height, length,
@@ -1003,15 +1003,15 @@ class InfiniteMovieRender(io.ComfyNode):
             elif all(os.path.exists(f) for f in _seg_files):
                 print("[InfiniteMovie] segments exist but were made with other settings/seed -> render")
         if not _skip_render and not reseed:
-            # Neue Signatur VOR dem Render: die neuen Segmente werden danach jünger als diese Datei.
+            # New signature BEFORE the render: the new segments will then be younger than this file.
             with open(_sig_path, "w", encoding="utf-8") as _f:
                 _f.write(_sig)
 
         # 4. Acquire the GPU (synchronously, BEFORE building the expansion so
         #    it is guaranteed to run before the first loader).
-        # 2026-11-05 (Nutzer: „ASSEMBLE … starke Verzögerung“): Acquire erst NACH dem Bau der Expansion und nur,
-        # wenn darin wirklich gerendert wird – sind alle Segmente wiederverwendet (PrimitiveString), kein
-        # 20-GB-Warten/Entladen. Die Expansion läuft erst nach return, die Reihenfolge vor dem Loader bleibt.
+        # 2026-11-05 (user: "ASSEMBLE … strong delay"): acquire only AFTER building the expansion and only
+        # if it actually renders - if all segments are reused (PrimitiveString), no
+        # waiting for 20 GB / unloading. The expansion runs only after return, the order before the loader is kept.
 
         # 5. Build the expansion graph.
         # save_folder = the output dir; save_name = the film name (no ext).
@@ -1025,11 +1025,11 @@ class InfiniteMovieRender(io.ComfyNode):
         # segments mode (as before): one render per transition, collector
         # (InfiniteMovieSegmentPaths) depends on ALL segments.
         if _skip_render:
-            # Skip-Graph: nur Collector mit hartkodierten Pfaden (kein Render).
+            # Skip graph: only the collector with hardcoded paths (no render).
             collector_id = f"{unique_id}_collector"
             _seg_inputs = {}
             for i in range(total_segments):
-                # Autogrow flach wie im Collector der Expansion (expansion.py:1021)
+                # Autogrow flat like in the expansion's collector (expansion.py:1021)
                 _seg_inputs[f"segments.segment{i}"] = segment_path(output_dir, i)
             graph = {collector_id: {"class_type": "InfiniteMovieSegmentPaths",
                                     "inputs": _seg_inputs}}
@@ -1070,30 +1070,30 @@ class InfiniteMovieRender(io.ComfyNode):
 
         _cheap = {"PrimitiveString", "InfiniteMovieSegmentPaths", "InfiniteMovieShotsOut"}
         if not _skip_render and any(v.get("class_type") not in _cheap for v in graph.values()):
-            # 65: GPU von einem anderen Programm belegt -> klarer Abbruch VOR dem Render (vram.py, generisch)
+            # 65: GPU occupied by another program -> clear abort BEFORE the render (vram.py, generic)
             vram.wait_acquire(
                 min_free_mb=min_free_mb,
                 timeout_s=acquire_timeout_s,
             )
-            # 88: Marke nach dem GPU-Warten neu setzen – die Wartezeit gehört nicht zur Segmentdauer
+            # 88: reset the mark after the GPU wait - the wait time does not belong to the segment duration
             if str(unique_id) in _SEG_MARK:
                 _SEG_MARK[str(unique_id)] = time.time()
             _send_render_plan(_display_node_id(cls) or unique_id, total_segments, width, height, length, preset)
         elif not _skip_render:
             print("[InfiniteMovie] all segments reused -> no GPU acquire")
 
-        # 71: images-Ausgang und film_path entfernt – der frames-Collector
-        # (InfiniteMovieFramesCollect) wird hier nicht mehr angehängt.
+        # 71: images output and film_path removed - the frames collector
+        # (InfiniteMovieFramesCollect) is no longer attached here.
         # "after" reading (the heavy work happens in the expansion; this is
         # the state right after the graph is built / acquire finished).
         _display_memory(cls, "after")
-        # SHOTS dict (ein "Pipe")
-        # 57a: Gesamt-Segmentanzahl (intro/outro/loop) + per-Segment-Framezahlen.
-        # Segment-Pfade konstruieren (Collector-Output ist ein Link, kein direkter Wert)
+        # SHOTS dict (a "pipe")
+        # 57a: total segment count (intro/outro/loop) + per-segment frame counts.
+        # Build the segment paths (the collector output is a link, not a direct value)
         seg_paths_str = "\n".join(
             segment_path(output_dir, i) for i in range(total_segments)
         )
-        # Per-Segment-Framezahlen (Reihenfolge: Szenen…, loop?). 71: Intro/Outro entfernt.
+        # Per-segment frame counts (order: scenes…, loop?). 71: intro/outro removed.
         if scene_seconds_list:
             scene_lengths = _scene_frames(scene_seconds_list, cfg["fps"], cfg["length_mod"], length)
         else:
@@ -1113,7 +1113,7 @@ class InfiniteMovieRender(io.ComfyNode):
             "height": height,
             "frames_per_segment": length,
             "seed": seed,
-            "render_id": unique_id,  # uid-Zeile fiel in Paket 71 weg (NameError 2026-11-04)
+            "render_id": unique_id,  # the uid line was dropped in package 71 (NameError 2026-11-04)
             "scene_frames": scene_frames_list,
         }
         # 61: variants (Variants-Builder). Only present when variants=2 (segments mode).
@@ -1123,20 +1123,20 @@ class InfiniteMovieRender(io.ComfyNode):
                 [segment_path(output_dir, i), segment_path_b(output_dir, i)]
                 for i in range(total_segments)
             ]
-        # 71: Blocking-Brücke – der shots-Ausgang ist ein Link zu
-        # InfiniteMovieShotsOut, der an den Collector hängt (segment_paths).
-        # Damit wartet der Director auf alle Segmente, ohne einen sichtbaren
-        # Ausgang zu brauchen (execution.py:599-612).
+        # 71: blocking bridge - the shots output is a link to
+        # InfiniteMovieShotsOut, which hangs on the collector (segment_paths).
+        # The Director thereby waits for all segments without needing a visible
+        # output (execution.py:599-612).
         shots_id = f"{unique_id}_shots"
         graph[shots_id] = {
             "class_type": "InfiniteMovieShotsOut",
             "inputs": {"segment_paths": [collector_id, 0], "shots": film_dict},
         }
-        # 57c2: Settings-Kette – eingehendes Dict weiterreichen, sonst Defaults.
+        # 57c2: settings chain - pass the incoming dict through, otherwise defaults.
         out_settings = chain_settings(settings)
         return io.NodeOutput(
-            [shots_id, 0],      # 71: shots = Slot 0 (Link zu InfiniteMovieShotsOut)
-            out_settings,       # 71: settings = Slot 1
+            [shots_id, 0],      # 71: shots = slot 0 (link to InfiniteMovieShotsOut)
+            out_settings,       # 71: settings = slot 1
             expand=graph,
         )
 
@@ -1271,7 +1271,7 @@ class InfiniteMovieSegmentPaths(io.ComfyNode):
         # (comfy_api/latest/_io.py build_nested_inputs, line 2095). A plain
         # list is also accepted (offline test).
         if isinstance(segments, dict):
-            # numerisch sortieren (segment10 nicht vor segment2)
+            # sort numerically (segment10 not before segment2)
             def _idx(k):
                 d = "".join(c for c in str(k) if c.isdigit())
                 return int(d) if d else 0
@@ -1289,14 +1289,14 @@ class InfiniteMovieSegmentPaths(io.ComfyNode):
 # ---------------------------------------------------------------------------
 
 class InfiniteMovieShotsOut(io.ComfyNode):
-    """71: Interne Blocking-Brücke für den Director.
+    """71: internal blocking bridge for the Director.
 
-    Der Director gibt seinen `shots`-Ausgang als Link zu diesem Node zurück.
-    Dieser hängt an den Collector (`segment_paths`, Link) und nimmt das
-    Shots-Dict als Literal entgegen; er gibt das Dict mit den echten
-    Segment-Pfaden (aus dem Collector) zurück. Damit wartet der Director auf
-    alle Segmente, ohne einen sichtbaren Ausgang zu brauchen
-    (execution.py:599-612: Strong-Link aus Link-Werten).
+    The Director returns its `shots` output as a link to this node.
+    This node hangs on the collector (`segment_paths`, link) and takes the
+    shots dict as a literal; it returns the dict with the real
+    segment paths (from the collector). The Director thereby waits for
+    all segments without needing a visible output
+    (execution.py:599-612: strong link from link values).
     """
 
     @classmethod
@@ -1575,9 +1575,9 @@ def _concat_segments(seg_paths, save_folder, save_name, loop,
     for p in seg_paths:
         inputs += ["-i", p]
     fps = _video_fps(seg_paths[0])
-    # 76: Audio nur mitnehmen, wenn ALLE Segmente einen Audio-Stream haben.
-    # Sonst stumm (kein Versatz, kein Halbstumm).
-    # Settings › audio aus: immer stumm (auch wenn ältere Segmente noch Ton haben).
+    # 76: include audio only if ALL segments have an audio stream.
+    # Otherwise silent (no offset, no half-silent).
+    # Settings › audio off: always silent (even if older segments still have audio).
     all_have_audio = bool(audio) and all(_has_audio_stream(p) for p in seg_paths)
     filter_parts = []
     for i in range(n_seg):
@@ -1588,14 +1588,14 @@ def _concat_segments(seg_paths, save_folder, save_name, loop,
             raise ValueError(f"concat: segment {i} has only {n} frames; trim [start={start}, end={end}) is empty")
         filter_parts.append(f"[{i}:v]trim=start_frame={start}:end_frame={end}[v{i}]")
         if all_have_audio:
-            # Audio passend zu den Video-Frames trimmen (Zeit = Frames / fps),
-            # Timestamps zurücksetzen, damit Segment 0 bei 0 startet.
+            # Trim the audio to match the video frames (time = frames / fps),
+            # reset the timestamps so that segment 0 starts at 0.
             filter_parts.append(
                 f"[{i}:a]atrim=start={start / float(fps):.6f}:end={end / float(fps):.6f},"
                 f"asetpts=PTS-STARTPTS[a{i}]")
-    # 76: [vout] ist der kombinierte concat-Output (a=1 => Video+Audio, a=0 => nur
-    # Video). settb/setpts sind Video-Filter und greifen nur auf den Video-Teil;
-    # Audio laesst man durch. [vout] mappen reicht, ffmpeg extrahiert beide Streams.
+    # 76: [vout] is the combined concat output (a=1 => video+audio, a=0 => video
+    # only). settb/setpts are video filters and only affect the video part;
+    # audio is let through. Mapping [vout] is enough, ffmpeg extracts both streams.
     if all_have_audio:
         concat_in = "".join(f"[v{i}][a{i}]" for i in range(n_seg))
         filter_complex = ";".join(filter_parts) + \
@@ -1604,7 +1604,7 @@ def _concat_segments(seg_paths, save_folder, save_name, loop,
         concat_in = "".join(f"[v{i}]" for i in range(n_seg))
         filter_complex = ";".join(filter_parts) + \
             f";{concat_in}concat=n={n_seg}:v=1:a=0,settb=1/({fps}),setpts=N[vout]"
-    # Auftrag 70: FFMETADATA (prompt, workflow) in die finale MP4 schreiben.
+    # Auftrag 70: write FFMETADATA (prompt, workflow) into the final MP4.
     meta_path = None
     if metadata:
         import json as _json
@@ -1630,8 +1630,8 @@ def _concat_segments(seg_paths, save_folder, save_name, loop,
                     f.write(_escape_ffmpeg_metadata(k, _json.dumps(v)) + "\n")
         inputs = inputs + ["-f", "ffmetadata", "-i", meta_path]
     try:
-        # 76: [vout] ist der kombinierte concat-Output; AAC-Codec nur, wenn alle
-        # Segmente Ton haben.
+        # 76: [vout] is the combined concat output; AAC codec only if all
+        # segments have audio.
         codec_args = ["-c:v", "libx264", "-pix_fmt", "yuv420p", "-crf", "17"]
         if all_have_audio:
             codec_args += ["-c:a", "aac", "-b:a", "192k"]
@@ -1668,8 +1668,8 @@ def _concat_segments(seg_paths, save_folder, save_name, loop,
 # Node: InfiniteMovieAssemble (REMOVED in Auftrag 32 - logic now in _concat_segments)
 # ---------------------------------------------------------------------------
 
-# InfiniteMovieAssemble wurde in Auftrag 32 entfernt - die Logik lebt jetzt in
-# _concat_segments (oben). Der Node ist aus der NODE_LIST entfernt.
+# InfiniteMovieAssemble was removed in Auftrag 32 - the logic now lives in
+# _concat_segments (above). The node has been removed from NODE_LIST.
 
 
 

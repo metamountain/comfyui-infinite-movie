@@ -1,17 +1,17 @@
-"""Infinite Movie · Settings – gemeinsame Einstellungen an EINER Stelle (Pipe SETTINGS).
+"""Infinite Movie · Settings – shared settings in ONE place (pipe SETTINGS).
 
-Settings → Prompt Style → Auto Prompts → Director → Assemble. Jeder Node reicht das Dict weiter
-(chain_settings); ohne Settings-Node gelten settings_defaults().
-  - prompt_model: lokales Vision-Modell aus models/text_encoders, das die Shot-Prompts schreibt
-    (autoprompt.py, läuft IN ComfyUI – kein LLM-Server, kein Provider). 'off' = Prompts von Hand.
-  - Format: aspect (klassische Verhältnisse) + long_side; width/height daraus, auf 32 gerundet.  - Ausgabe: output_folder, film_name.
-  - GPU-Prüfung: fest (kein Widget), generisch (vram.py) – prüft vor dem Render, ob genug VRAM frei ist,
-    fasst keine fremden Programme an. Die Zahlen (MIN_FREE_MB, ACQUIRE_TIMEOUT_S) sind Konstanten;
-    die abgeleiteten Werte (free_vram, min_free_mb, …) bleiben im Settings-Dict, damit
-    Director/Assemble get_setting(...) nutzen.
-Der Prompt-Stil (instruction, max_words, camera) gehört dem Node Prompt Style.
+Settings → Prompt Style → Auto Prompts → Director → Assemble. Every node passes the dict through
+(chain_settings); without a Settings node, settings_defaults() apply.
+  - prompt_model: local vision model from models/text_encoders that writes the shot prompts
+    (autoprompt.py, runs INSIDE ComfyUI – no LLM server, no provider). 'off' = write the prompts by hand.
+  - Format: aspect (classic ratios) + long_side; width/height derived from it, rounded to 32.  - Output: output_folder, film_name.
+  - GPU check: fixed (no widget), generic (vram.py) – checks before the render whether enough VRAM is free,
+    does not touch other programs. The numbers (MIN_FREE_MB, ACQUIRE_TIMEOUT_S) are constants;
+    the derived values (free_vram, min_free_mb, …) stay in the settings dict so that
+    Director/Assemble can use get_setting(...).
+The prompt style (instruction, max_words, camera) belongs to the Prompt Style node.
 
-Import-Regel (kein Zirkel): settings_nodes importiert nur .vram (Leaf); .autoprompt nur LAZY.
+Import rule (no cycle): settings_nodes imports only .vram (leaf); .autoprompt only LAZY.
 """
 
 from __future__ import annotations
@@ -20,11 +20,11 @@ from comfy_api.latest import io
 
 from . import vram
 
-# Pipe-Typ (Vorbild SHOTS, nodes.py): ein Custom-Typ, der ein Plain-Dict trägt.
+# Pipe type (model SHOTS, nodes.py): a custom type that carries a plain dict.
 SETTINGS = io.Custom("SETTINGS")
 
-# Filmgröße (Nutzer 2026-11-03): klassisches Seitenverhältnis + längste Seite, beide Seiten auf 32 gerundet
-# (LTX-2 Model Card: „Width & height settings must be divisible by 32“; Wan braucht 16 – passt auch).
+# Film size (user 2026-11-03): classic aspect ratio + longest side, both sides rounded to 32
+# (LTX-2 Model Card: "Width & height settings must be divisible by 32"; Wan needs 16 – that fits too).
 ASPECTS = {
     "4:5 · portrait (Instagram)": (4, 5),
     "9:16 · portrait (reel)": (9, 16),
@@ -37,9 +37,9 @@ ASPECTS = {
     "21:9 · cinema": (21, 9),
 }
 ASPECT_DEFAULT = "4:5 · portrait (Instagram)"
-LONG_SIDE_DEFAULT = 960   # 4:5 -> 768×960 = Größe der LTX-Engine-Vorlage
-# 69 (2026-11-03): Seitenverhältnis kommt vom ersten Eingangsbild des Directors (long_side bleibt
-# die längste Seite, beide Seiten auf 32 gerundet). Der Director rechnet width/height aus Bild 1.
+LONG_SIDE_DEFAULT = 960   # 4:5 -> 768×960 = size of the LTX engine template
+# 69 (2026-11-03): the aspect ratio comes from the Director's first input image (long_side stays
+# the longest side, both sides rounded to 32). The Director computes width/height from image 1.
 ASPECT_FROM_IMAGES = "from images"
 
 
@@ -48,9 +48,9 @@ def _r32(v) -> int:
 
 
 def resolve_ratio(rw, rh, long_side) -> tuple:
-    """(width, height) aus Verhältnis rw:rh: längste Seite = long_side, beide auf 32 gerundet.
+    """(width, height) from ratio rw:rh: longest side = long_side, both rounded to 32.
 
-    69: Kern von resolve_size – der Director ruft ihn mit dem Verhältnis des ersten Bildes auf."""
+    69: core of resolve_size – the Director calls it with the ratio of the first image."""
     long = _r32(long_side)
     if rw >= rh:
         return long, _r32(long * rh / rw)
@@ -58,45 +58,45 @@ def resolve_ratio(rw, rh, long_side) -> tuple:
 
 
 def resolve_size(aspect, long_side) -> tuple:
-    """(width, height): längste Seite = long_side, kurze Seite nach Verhältnis; beide auf 32 gerundet."""
+    """(width, height): longest side = long_side, short side according to the ratio; both rounded to 32."""
     rw, rh = ASPECTS.get(aspect, ASPECTS[ASPECT_DEFAULT])
     return resolve_ratio(rw, rh, long_side)
 
 
-# 74 (2026-11-04): GPU-Werte fest, kein Widget (Nutzer: „dont like after film“). 2026-11-08: kein LLM-Server-Code
-# mehr (Pack ist öffentlich). Die abgeleiteten Werte (free_vram, min_free_mb, …) bleiben im Settings-Dict, damit
-# Director/Assemble unverändert get_setting(...) nutzen.
+# 74 (2026-11-04): GPU values fixed, no widget (user: "dont like after film"). 2026-11-08: no more LLM server code
+# (the pack is public). The derived values (free_vram, min_free_mb, …) stay in the settings dict so that
+# Director/Assemble can use get_setting(...) unchanged.
 MIN_FREE_MB = 20000
 ACQUIRE_TIMEOUT_S = 3600
-# GPU-Werte: im Settings-Dict, aber KEINE Widgets (feste Konstanten)
+# GPU values: in the settings dict, but NO widgets (fixed constants)
 DERIVED_GPU_KEYS = ["min_free_mb", "acquire_timeout_s", "free_vram", "free_ram"]
 
 
-# Widgets des Settings-Nodes (Reihenfolge = Schema).
+# Widgets of the Settings node (order = schema).
 SETTING_KEYS = [
     "prompt_model", "aspect", "long_side", "output_folder", "film_name", "audio",
 ]
-# Prompt-Stil: Widgets von Prompt Style; im Dict immer vorhanden (Defaults).
-STYLE_KEYS = ["instruction", "max_words", "camera"]  # kein audio (Nutzer 2026-11-04: Ton im Prompt = Ballast)
+# Prompt style: widgets of Prompt Style; always present in the dict (defaults).
+STYLE_KEYS = ["instruction", "max_words", "camera"]  # no audio (user 2026-11-04: sound in the prompt = dead weight)
 
 
 def settings_defaults() -> dict:
-    """Defaults aller Pipe-Felder (gelten ohne Settings-/Prompt-Style-Node)."""
+    """Defaults of all pipe fields (apply without a Settings/Prompt Style node)."""
     from .autoprompt import MAX_STORY_WORDS, STORY_SYSTEM, default_prompt_model
     return {
         "prompt_model": default_prompt_model(),
         "aspect": ASPECT_DEFAULT,
         "long_side": LONG_SIDE_DEFAULT,
-        "width": 0,    # ohne Settings-Node: Größe der Engine (0 = Engine-Default)
+        "width": 0,    # without a Settings node: size of the engine (0 = engine default)
         "height": 0,
         "output_folder": "",
         "film_name": "",
-        # 2026-11-08 (Nutzer: „normal benötige ich kein audio, bitte deaktivieren! … setting“): Ton aus = die Engine
-        # dekodiert keinen Ton (kein Audio-VAE-Laden), Segmente und Film bleiben stumm.
+        # 2026-11-08 (user: "normally I don't need audio, please disable it! … setting"): sound off = the engine
+        # does not decode audio (no audio VAE load), segments and film stay silent.
         "audio": False,
-        # kein Widget (Nutzer 2026-11-03): beide Engines rendern mit CFG 1 (LTX video/audio_cfg 1, Wan Lightning),
-        # dort wird die Negativ-Bedingung nicht gerechnet. Feld bleibt leer im Dict, der Director liest es.
-        # GPU fest (Nutzer 2026-11-04: after_film-Widget weg): nach dem Film ComfyUI-VRAM frei.
+        # no widget (user 2026-11-03): both engines render with CFG 1 (LTX video/audio_cfg 1, Wan Lightning),
+        # there the negative conditioning is not computed. The field stays empty in the dict, the Director reads it.
+        # GPU fixed (user 2026-11-04: after_film widget gone): after the film, free ComfyUI VRAM.
         "min_free_mb": MIN_FREE_MB,
         "acquire_timeout_s": ACQUIRE_TIMEOUT_S,
         "free_vram": True,
@@ -108,14 +108,14 @@ def settings_defaults() -> dict:
 
 
 def get_setting(settings, key):
-    """Wert von `key` aus einem SETTINGS-Dict; fehlt er (oder kein Dict) -> Default."""
+    """Value of `key` from a SETTINGS dict; missing (or not a dict) -> default."""
     if isinstance(settings, dict) and key in settings:
         return settings[key]
     return settings_defaults()[key]
 
 
 def chain_settings(settings) -> dict:
-    """Was ein Konsument an seinen settings-Ausgang weitergibt: das eingehende Dict, sonst die Defaults."""
+    """What a consumer passes to its settings output: the incoming dict, otherwise the defaults."""
     return settings if isinstance(settings, dict) and settings else settings_defaults()
 
 
@@ -164,16 +164,16 @@ class InfiniteMovieSettings(io.ComfyNode):
         out["min_free_mb"] = MIN_FREE_MB
         out["acquire_timeout_s"] = ACQUIRE_TIMEOUT_S
         if out["aspect"] == ASPECT_FROM_IMAGES:
-            out["width"] = out["height"] = 0   # 69: Director rechnet die Größe aus dem ersten Bild
+            out["width"] = out["height"] = 0   # 69: the Director computes the size from the first image
         else:
             out["width"], out["height"] = resolve_size(out["aspect"], out["long_side"])
         return io.NodeOutput(out)
 
 
-# 66 (2026-11-03): Ordner-Browser IM Browser (ein nativer Dialog aus dem Hintergrundprozess blieb
-# unsichtbar hängen – Windows lässt ihn nicht nach vorne).
-# Browser; der Server liefert nur ORDNERNAMEN (keine Dateien), und nur für Anfragen von diesem Rechner
-# (Loopback oder eigene IP – der Nutzer öffnet ComfyUI über die LAN-IP).
+# 66 (2026-11-03): folder browser IN the browser (a native dialog from the background process stayed
+# stuck invisibly – Windows will not bring it to the front).
+# browser; the server serves only FOLDER NAMES (no files), and only for requests from this computer
+# (loopback or own IP – the user opens ComfyUI via the LAN IP).
 def _own_addresses() -> set:
     import socket
     own = {"127.0.0.1", "::1", "localhost"}
@@ -190,7 +190,7 @@ def _own_addresses() -> set:
 
 
 def list_dirs(path: str) -> dict:
-    """Unterordner von `path` (nur Namen, sortiert, ohne versteckte). Leer = Laufwerke + Abkürzungen."""
+    """Subfolders of `path` (names only, sorted, without hidden ones). Empty = drives + shortcuts."""
     import os
     import string
     path = (path or "").strip()
@@ -222,7 +222,7 @@ def list_dirs(path: str) -> dict:
     dirs.sort(key=str.lower)
     parent = os.path.dirname(path)
     if parent == path:
-        parent = ""   # Laufwerkswurzel -> zurück zur Laufwerksliste
+        parent = ""   # drive root -> back to the drive list
     return {"ok": True, "path": path, "parent": parent, "dirs": dirs[:1000]}
 
 
@@ -243,7 +243,7 @@ def _register_choose_folder_route():
                 data = {}
             res = await asyncio.to_thread(list_dirs, str(data.get("path", "") or ""))
             return web.json_response(res)
-    except Exception as e:  # noqa: BLE001 – ohne Server (Unit-Tests) keine Route
+    except Exception as e:  # noqa: BLE001 - without a server (unit tests) no route
         print(f"[InfiniteMovieSettings] list_dirs route not registered: {e}")
 
 
@@ -251,15 +251,15 @@ _register_choose_folder_route()
 
 
 # ---------------------------------------------------------------------------
-# 65 (Nutzer 2026-11-03: „Render darf nicht losgeschickt werden!“): Vorabprüfung VOR dem Queue.
-# Das Frontend (web/infinite_movie.js wrapQueue) ruft das beim Run-Klick auf, wenn ein Director im Graph aktiv ist.
-# 2026-11-08: EINE Messung (vram.gpu_check), kein Warten, kein Entladen – die Route läuft im aiohttp-Thread
-# (Entladen dort hängte den Server auf, /prompt "Fetch timeout"), und das Frontend bricht fetchApi nach 60 s ab.
-# Fremde Programme werden nie angefasst; ok=False -> Meldung, wer die GPU hält, und NICHT gequeued.
+# 65 (user 2026-11-03: "the render must not be sent off!"): preflight check BEFORE the queue.
+# The frontend (web/infinite_movie.js wrapQueue) calls it on the Run click when a Director is active in the graph.
+# 2026-11-08: ONE measurement (vram.gpu_check), no waiting, no unloading – the route runs in the aiohttp thread
+# (unloading there hung the server, /prompt "Fetch timeout"), and the frontend aborts fetchApi after 60 s.
+# Other programs are never touched; ok=False -> message who holds the GPU, and NOT queued.
 def gpu_preflight(body: dict, queue_remaining: int = 0, check=None) -> dict:
-    """Reine Funktion (testbar): {"ok": bool, "message": str}."""
+    """Pure function (testable): {"ok": bool, "message": str}."""
     if queue_remaining > 0:
-        # Ein Render läuft schon: freier Speicher sagt dann nichts; der Director prüft beim Start selbst.
+        # A render is already running: free memory says nothing then; the Director checks at start itself.
         return {"ok": True, "message": "queue busy – the Director checks the GPU when its turn comes"}
     check = check or vram.gpu_check
     min_free = body.get("min_free_mb", settings_defaults()["min_free_mb"])
@@ -268,7 +268,7 @@ def gpu_preflight(body: dict, queue_remaining: int = 0, check=None) -> dict:
         if ok:
             return {"ok": True, "message": text}
         return {"ok": False, "message": vram.gpu_blocked_message(avail, need)}
-    except Exception as e:  # noqa: BLE001 – Prüfung kaputt: nicht blockieren, Director prüft nochmal
+    except Exception as e:  # noqa: BLE001 - check broken: do not block, the Director checks again
         return {"ok": True, "message": f"preflight failed ({type(e).__name__}: {e}) – the Director checks again"}
 
 
@@ -290,7 +290,7 @@ def _register_gpu_preflight_route():
                 remaining = 0
             res = await asyncio.to_thread(gpu_preflight, data, remaining)
             return web.json_response(res)
-    except Exception as e:  # noqa: BLE001 – ohne Server (Unit-Tests) keine Route
+    except Exception as e:  # noqa: BLE001 - without a server (unit tests) no route
         print(f"[InfiniteMovieSettings] gpu_preflight route not registered: {e}")
 
 
@@ -298,9 +298,9 @@ _register_gpu_preflight_route()
 
 
 # ---------------------------------------------------------------------------
-# 66 (Nutzer 2026-11-03: „Prompt-Anweisung fehlt – eigener Node oben im Prompt-Stapel mit Text“):
-# Prompt Style = System-Prompt-Node (üblich in LLM-Packs, z. B. LM Studio „System Prompt“). Sitzt in der
-# Settings-Kette (Settings → Prompt Style → Auto Prompts …) und überschreibt NUR den Prompt-Stil.
+# 66 (user 2026-11-03: "prompt instruction missing – own node at the top of the prompt stack with text"):
+# Prompt Style = system prompt node (common in LLM packs, e.g. LM Studio "System Prompt"). Sits in the
+# settings chain (Settings → Prompt Style → Auto Prompts …) and overrides ONLY the prompt style.
 class InfiniteMovieStyle(io.ComfyNode):
     @classmethod
     def define_schema(cls):
@@ -335,7 +335,7 @@ class InfiniteMovieStyle(io.ComfyNode):
 
 
 def apply_style(settings, instruction, max_words, camera) -> dict:
-    """Reine Funktion: Settings-Dict (oder Defaults) mit dem Prompt-Stil überschrieben."""
+    """Pure function: settings dict (or defaults) overridden with the prompt style."""
     out = dict(chain_settings(settings))
     out.update({"instruction": instruction, "max_words": max_words, "camera": camera})
     if not str(instruction or "").strip():

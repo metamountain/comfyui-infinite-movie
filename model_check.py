@@ -135,7 +135,7 @@ def download(entry, token=None, progress=None):
     tok = token or os.environ.get("HF_TOKEN")
     host = (urlparse(entry["url"]).hostname or "").lower()
     if tok and (host == "huggingface.co" or host.endswith(".huggingface.co")):
-        # unredirected: HF leitet auf ein CDN um – der Token darf nicht an den fremden Host mitgehen
+        # unredirected: HF redirects to a CDN - the token must not go to the foreign host
         req.add_unredirected_header("Authorization", f"Bearer {tok}")
     existing = os.path.getsize(part) if os.path.isfile(part) else 0
     if existing:
@@ -205,7 +205,7 @@ def _worker(names):
                 download(entry, progress=_make_progress(base))
                 with _LOCK:
                     _STATE["finished"].append(name)
-                try:   # Fortschritt kumulativ: Größe der fertigen Datei dazuzählen (nicht ersetzen)
+                try:   # progress cumulative: add the size of the finished file (do not replace)
                     base += os.path.getsize(os.path.join(_target_dir(entry["directory"]), name))
                 except OSError:
                     base += int(entry.get("size") or 0)

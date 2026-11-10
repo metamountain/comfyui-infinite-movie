@@ -1,22 +1,22 @@
-// Infinite Movie · Workflow-Layout. Aufgerufen vom Knopf „🔗 AUTO LAYOUT“ am Director
+// Infinite Movie · workflow layout. Called from the "🔗 AUTO LAYOUT" button on the Director
 // (web/infinite_movie.js → window.fcWorkflowLayout).
 //
-// Nutzer 2026-11-03 („engine ganz oben“, „help immer in der Mitte über den Feldern“, „Box vorne separat“):
-//                 ┌ 1 ENGINE (Hilfe mittig oben, Inhalt als Block) ┐
+// User 2026-11-03 ("engine at the very top", "help always in the middle above the fields", "box at the front separately"):
+//                 ┌ 1 ENGINE (help centered on top, content as a block) ┐
 //                 └─────────────────────────────────────────────────┘
 //   ┌ 0 README ┐  ┌ 2 Settings ┐┌ 3 Images ┐┌ 4 Prompts ┐┌ 5 Director ┐┌ 6 Choose ┐┌ 7 Assemble + Film ┐┌ 8 Upscale ┐
-//   │          │  │  Hilfe     ││  Hilfe   ││  Hilfe    ││  Hilfe     ││  Hilfe   ││  Hilfe            │  ← EINE Reihe
+//   │          │  │  help      ││  help    ││  help     ││  help      ││  help    ││  help             │  ← ONE row
 //   └──────────┘  │  Nodes     ││  Nodes   ││  Nodes    ││  Nodes     ││  Nodes   ││  Nodes            │
-// Jede Hilfe-Notiz „Help: N · …“ liegt mittig oben IN ihrer Gruppe „N · …“. Notizen ohne passende Gruppe
-// bleiben beim README. Anker: x = README-Gruppe, y = Oberkante der Engine.
+// Each help note "Help: N · …" sits centered on top INSIDE its group "N · …". Notes without a matching group
+// stay with the README. Anchor: x = README group, y = top edge of the engine.
 import { app } from "../../scripts/app.js";
 
-const T = 30;        // Node-Titelleiste
-const HEAD = 64;     // Gruppenkopf: Titel (32) + Platz für das Node-Badge (#id …)
-const PAD = 20;      // Rand links/rechts/unten
-const GAP = 40;      // zwischen Gruppen
-const NGAP = 40;     // zwischen Nodes in einer Gruppe
-const MINW = 420;    // Mindestbreite einer Gruppe
+const T = 30;        // node title bar
+const HEAD = 64;     // group header: title (32) + room for the node badge (#id …)
+const PAD = 20;      // margin left/right/bottom
+const GAP = 40;      // between groups
+const NGAP = 40;     // between nodes in a group
+const MINW = 420;    // minimum width of a group
 
 const inRect = (n, r) => n.pos[0] >= r[0] - 5 && n.pos[1] >= r[1] - 5 && n.pos[0] < r[0] + r[2] && n.pos[1] < r[1] + r[3];
 const gRect = (g) => [g.pos[0], g.pos[1], g.size[0], g.size[1]];
@@ -24,7 +24,7 @@ const findGroup = (groups, re) => groups.find((g) => re.test(g.title || ""));
 const isEngineGroup = (g) => /ENGINE/i.test(g.title || "");
 const isNote = (n) => /Note/i.test(n.type || "");
 const isHelp = (n) => /^\s*help/i.test(n.title || "");
-// „Help: 4 · Prompts“ / „4 · Prompts“ → Nummer 4 und Schlüssel „prompts“
+// "Help: 4 · Prompts" / "4 · Prompts" → number 4 and key "prompts"
 const numOf = (t) => { const m = /(\d+)/.exec(t || ""); return m ? +m[1] : null; };
 const keyOf = (t) => (t || "").replace(/^\s*help\s*:?/i, "").replace(/[\d·:.\-]+/g, " ").trim().toLowerCase();
 const helpFits = (note, grp) => {
@@ -34,7 +34,7 @@ const helpFits = (note, grp) => {
 };
 
 function linkedOrigins(g, node, prefix) {
-  // Ursprungs-Nodes der Eingänge prefix.* in Slot-Reihenfolge (images.image0.. / shot_prompts.prompt0..)
+  // Origin nodes of the prefix.* inputs in slot order (images.image0.. / shot_prompts.prompt0..)
   const out = [];
   for (const inp of node.inputs || []) {
     if (!inp.name?.startsWith(prefix) || inp.link == null) continue;
@@ -45,8 +45,8 @@ function linkedOrigins(g, node, prefix) {
   return out;
 }
 
-// 2026-11-08: Bildkette einer Quelle stromaufwärts (Load Image → Upscale Crop Universal → … → Quelle), nur über
-// IMAGE-Eingänge und ohne Kern-Nodes; Reihenfolge Wurzel zuerst.
+// 2026-11-08: image chain of a source upstream (Load Image → Upscale Crop Universal → … → source), only via
+// IMAGE inputs and without core nodes; order root first.
 function imageRow(g, src, core) {
   const row = [src];
   let n = src;
@@ -61,10 +61,10 @@ function imageRow(g, src, core) {
   return row;
 }
 
-// Höhe des Hilfe-Blocks oben in einer Gruppe (Titelleiste + Notiz + Abstand)
+// Height of the help block on top in a group (title bar + note + spacing)
 const helpH = (help) => (help ? T + help.size[1] + NGAP : 0);
 
-// Gruppe: Hilfe mittig oben, darunter Nodes untereinander (stack) oder nebeneinander (side).
+// Group: help centered on top, below it nodes one under another (stack) or side by side (side).
 function colSize(nodes, side, help) {
   const hw = help ? help.size[0] : 0;
   if (!nodes.length) return [Math.max(MINW, hw + 2 * PAD), HEAD + (help ? T + help.size[1] : 0) + PAD];
@@ -92,23 +92,23 @@ function placeCol(nodes, side, help, x, y, w) {
 export function fcWorkflowLayout(director, second = false) {
   const g = director?.graph || app.graph;
   if (!g) return;
-  // Aufräumen: Auto Prompts, deren prompt-Ausgang an nichts mehr hängt (Bild entfernt), entfernen.
-  // Gemutete bleiben (Bild gemutet / loop aus): sie behalten ihren Text für später (Nutzer 2026-11-04).
+  // Cleanup: remove auto prompts whose prompt output is no longer connected (image removed).
+  // Muted ones stay (image muted / loop off): they keep their text for later (user 2026-11-04).
   for (const ap of (g._nodes || []).filter((n) => n.comfyClass === "InfiniteMovieAutoPrompt" && (n.mode ?? 0) === 0)) {
     const out = (ap.outputs || []).find((o) => o.name === "prompt");
     if (out && !(out.links || []).length) g.remove(ap);
   }
-  // Choose an die aktuelle Shot-Zahl anpassen, dann messen.
+  // Adapt Choose to the current shot count, then measure.
   if (window.fcChooseRefreshAll) window.fcChooseRefreshAll();
   const groups = g._groups || [];
   const engines = groups.filter(isEngineGroup);
-  // Kern-Nodes gehören NIE zur Engine, auch wenn sie gerade über einer Engine-Gruppe liegen.
+  // Core nodes NEVER belong to the engine, even if they currently sit over an engine group.
   const CORE = new Set(["InfiniteMovieSettings", "InfiniteMovieStyle", "InfiniteMovieAutoPrompt", "InfiniteMovieRender",
     "InfiniteMovieChooser", "InfiniteMovieAssemble", "InfiniteMovieFilm"]);
-  // Bildquellen (ohne Kern-Nodes wie Assemble › last_frame – die bleiben in ihrer Gruppe) samt ihrer Bildkette
+  // Image sources (without core nodes like Assemble > last_frame - those stay in their group) plus their image chain
   const imgRows = linkedOrigins(g, director, "images.").filter((n) => !CORE.has(n.comfyClass))
     .map((src) => imageRow(g, src, CORE));
-  // Ein Node, der mehrere Bilder speist (z. B. ein Load Image vor zwei Upscalern), steht nur in der ersten Zeile.
+  // A node feeding several images (e.g. a Load Image before two upscalers) appears only in the first row.
   { const seen = new Set();
     for (let i = 0; i < imgRows.length; i++) {
       imgRows[i] = imgRows[i].filter((n, j, r) => j === r.length - 1 || !seen.has(n));
@@ -120,9 +120,9 @@ export function fcWorkflowLayout(director, second = false) {
   const engineHelp = engines.map((e) => allNotes.find((n) => isHelp(n) && helpFits(n, e)) || null);
   const inEngine = (n) => !CORE.has(n.comfyClass) && !coreImages.has(n) && !isNote(n)
     && engines.some((e) => inRect(n, gRect(e)));
-  // Mitglieder VOR jedem Verschieben bestimmen (die Engine landet dort, wo vorher anderes lag).
+  // Determine members BEFORE any moving (the engine lands where something else used to be).
   const engineMembers = engines.map((e) => (g._nodes || []).filter((n) => inEngine(n) && inRect(n, gRect(e))));
-  // 8 Upscale (optional, B3 2026-11-04): Block wie die Engine, Mitglieder VOR dem Verschieben bestimmen.
+  // 8 Upscale (optional, B3 2026-11-04): block like the engine, members determined BEFORE moving.
   const upGrp = groups.find((x) => !isEngineGroup(x) && /upscale/i.test(x.title || ""));
   const upMembers = upGrp ? (g._nodes || []).filter((n) => !isNote(n) && !inEngine(n) && !coreImages.has(n) && inRect(n, gRect(upGrp))) : [];
   const upHelp = upGrp ? allNotes.find((n) => isHelp(n) && helpFits(n, upGrp)) || null : null;
@@ -133,7 +133,7 @@ export function fcWorkflowLayout(director, second = false) {
   const prompts = linkedOrigins(g, director, "shot_prompts.");
   for (const p of byType("InfiniteMovieAutoPrompt")) if (!prompts.includes(p)) prompts.push(p);
   const G = (re) => findGroup(groups.filter((x) => !isEngineGroup(x)), re);
-  // EINE Reihe, Reihenfolge = Nummern 2…7
+  // ONE row, order = numbers 2…7
   const row = [
     [G(/settings/i), byType("InfiniteMovieSettings")],
     [G(/images/i), imgRows.flat()],
@@ -148,19 +148,19 @@ export function fcWorkflowLayout(director, second = false) {
     if (h) used.add(h);
     return h || null;
   });
-  // README-Gruppe: README + alle Notizen ohne eigene Gruppe, untereinander
+  // README group: README + all notes without their own group, one under another
   const readme = G(/readme/i);
   const restNotes = allNotes.filter((n) => !used.has(n))
     .sort((a, b) => (/readme/i.test(b.title || "") ? 1 : 0) - (/readme/i.test(a.title || "") ? 1 : 0));
 
-  // Anker: x = README-Gruppe (sonst Settings-/erste Gruppe der Reihe), y = Oberkante der Engine (ganz oben)
+  // Anchor: x = README group (otherwise the settings/first group of the row), y = top edge of the engine (very top)
   const anchor = readme || row.find(([grp]) => grp)?.[0];
   const XR = anchor ? anchor.pos[0] : director.pos[0] - PAD;
   const TOP = engines.length ? Math.min(...engines.map((e) => e.pos[1])) : (anchor ? anchor.pos[1] : director.pos[1] - T - HEAD);
   const [rw, rh] = colSize(restNotes, false, null);
   const X0 = (readme || restNotes.length) ? XR + rw + GAP : XR;
 
-  // 1 Engine ganz oben: Gruppen nebeneinander, Hilfe mittig oben, Inhalt als Block darunter
+  // 1 Engine at the very top: groups side by side, help centered on top, content as a block below
   let Y = TOP;
   if (engines.length) {
     let ex = X0, HE = 0;
@@ -182,7 +182,7 @@ export function fcWorkflowLayout(director, second = false) {
     Y = TOP + HE + GAP;
   }
 
-  // 2…7 EINE Reihe, gleiche Höhe, Hilfe jeweils mittig oben. Images: je Bild eine Zeile (Kette nebeneinander).
+  // 2…7 ONE row, same height, help centered on top each. Images: one row per image (chain side by side).
   const rowW = (r) => r.reduce((s, n) => s + n.size[0], 0) + PAD * (r.length - 1);
   const rowH = (r) => T + Math.max(...r.map((n) => n.size[1]));
   const sizes = row.map(([, ns, side], k) => {
@@ -211,19 +211,19 @@ export function fcWorkflowLayout(director, second = false) {
     x += sizes[k][0] + GAP;
   });
 
-  // Prompt k exakt zwischen Bild k und Bild k+1 (Loop-Prompt n→1 einen halben Schritt unter dem letzten Bild):
-  // so liest man den Übergang direkt ab (Nutzer 2026-11-03: „exakt zwischen Bildern … wichtig“).
-  const imgs = imgRows.map((r) => r[r.length - 1]);   // Quelle je Zeile (an ihr richten sich die Prompts aus)
+  // Prompt k exactly between image k and image k+1 (loop prompt n→1 half a step below the last image):
+  // so you can read the transition directly (user 2026-11-03: "exactly between the images ... important").
+  const imgs = imgRows.map((r) => r[r.length - 1]);   // source per row (the prompts align to it)
   const linkedPrompts = linkedOrigins(g, director, "shot_prompts.");
   if (imgs.length >= 2 && linkedPrompts.length) {
-    const mid = (n) => n.pos[1] + (n.size[1] - T) / 2;          // Mitte des Kastens inkl. Titelleiste
+    const mid = (n) => n.pos[1] + (n.size[1] - T) / 2;          // middle of the box incl. title bar
     const c = imgs.map(mid);
     const step = c[1] - c[0];
     linkedPrompts.forEach((p, k) => {
       const target = k + 1 < c.length ? (c[k] + c[k + 1]) / 2 : c[c.length - 1] + step / 2;
       p.pos = [p.pos[0], target - (p.size[1] - T) / 2];
     });
-    // Prompt Style steht oben in der Prompt-Spalte: Bilder + Prompts so weit nach unten, dass nichts überlappt.
+    // Prompt Style sits on top of the prompt column: move images + prompts down enough so nothing overlaps.
     const style = byType("InfiniteMovieStyle")[0];
     if (style) {
       const need = style.pos[1] + style.size[1] + NGAP + T;
@@ -231,11 +231,11 @@ export function fcWorkflowLayout(director, second = false) {
       if (shift) for (const n of [...imgRows.flat(), ...linkedPrompts]) n.pos = [n.pos[0], n.pos[1] + shift];
     }
   }
-  // Gruppenhöhe nach dem echten Inhalt (Prompts können unter das letzte Bild reichen)
+  // Group height from the real content (prompts can reach below the last image)
   const bottom = Math.max(...row.flatMap(([, ns]) => ns.map((n) => n.pos[1] + n.size[1])));
   const H = Math.max(...sizes.map((s) => s[1]), bottom - Y + PAD);
   row.forEach(([grp, ns], k) => { if (grp && (ns.length || grp)) grp.size = [sizes[k][0], H]; });
-  // 8 Upscale rechts neben 7, Inhalt als Block, Hilfe mittig oben, gleiche Höhe wie die Reihe
+  // 8 Upscale right of 7, content as a block, help centered on top, same height as the row
   if (upGrp && upMembers.length) {
     const ms = upMembers;
     const minX = Math.min(...ms.map((n) => n.pos[0])), minY = Math.min(...ms.map((n) => n.pos[1] - T));
@@ -248,7 +248,7 @@ export function fcWorkflowLayout(director, second = false) {
     upGrp.size = [w, Math.max(H, HEAD + helpH(upHelp) + maxY - minY + PAD)];
   }
 
-  // 0 README vorne, separat, auf Höhe der Reihe
+  // 0 README at the front, separate, at the height of the row
   if (readme || restNotes.length) {
     placeCol(restNotes, false, null, XR, Y, rw);
     if (readme) { readme.pos = [XR, Y]; readme.size = [rw, rh]; }
@@ -256,8 +256,8 @@ export function fcWorkflowLayout(director, second = false) {
 
   g.setDirtyCanvas?.(true, true);
   console.log("[InfiniteMovie] layout: README left / engine top / row 2-7 with help", { XR, X0, TOP, Y, H, second });
-  // Zweiter Durchgang: neu angelegte Nodes (z. B. Auto Prompts) bekommen ihre echte Höhe erst nach dem
-  // ersten Zeichnen – ohne Nachmessen überlappen sie.
+  // Second pass: newly created nodes (e.g. auto prompts) only get their real height after the
+  // first draw - without re-measuring they overlap.
   if (!second) setTimeout(() => fcWorkflowLayout(director, true), 250);
 }
 

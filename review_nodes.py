@@ -1,15 +1,15 @@
-"""InfiniteMovieReview (Auftrag 31): Segment-Kacheln mit Nummern, markieren, nur
-Schadhaftes neu rendern.
+"""InfiniteMovieReview (Auftrag 31): numbered segment tiles, marking, re-rendering
+only the damaged ones.
 
-Backend-Node: erzeugt je Segment eine animierte WebP-Vorschau (160 px, jedes
-2. Frame, 12 fps) und faehrt 3 billige Pruefungen (CUT / FLICKER / PARTICLES)
-im Graustufen-Kleinformat (96x120, Frames stueckweise, nie als IMAGE-Batch).
-Das Ergebnis geht als ui-Dict an das Frontend (web/infinite_movie.js, Extension
-InfiniteMovieRender.Review), das die Kacheln rendert. Der Node blockiert nichts: der
-segments-Eingang wird unveraendert durchgereicht.
+Backend node: creates an animated WebP preview per segment (160 px, every
+2nd frame, 12 fps) and runs 3 cheap checks (CUT / FLICKER / PARTICLES)
+in a small grayscale format (96x120, frames chunk by chunk, never as an IMAGE batch).
+The result goes to the frontend as a ui dict (web/infinite_movie.js, extension
+InfiniteMovieRender.Review), which renders the tiles. The node blocks nothing: the
+segments input is passed through unchanged.
 
-Vorschau + Pruefung werden gecacht (JSON-Sidecar, Dateigroesse/mtime): ein
-Review-Lauf dauert Sekunden, nicht Minuten.
+Preview + checks are cached (JSON sidecar, file size/mtime): a
+review run takes seconds, not minutes.
 """
 from __future__ import annotations
 
@@ -26,12 +26,12 @@ from .nodes import _count_frames, _ffmpeg, _motion_check, _no_window, _run_ffmpe
 # 75: particle helpers moved here from ghost_nodes.py (ghost_nodes.py -> tools/ghost_check.py)
 import cv2
 
-HP_SIGMA = 3.0      # Hochpass-Radius
-BLOB_T = 10         # Mindestkontrast (Grauwert) eines Partikels
+HP_SIGMA = 3.0      # high-pass radius
+BLOB_T = 10         # minimum contrast (gray value) of a particle
 AREA_MIN, AREA_MAX = 2, 60
-SMOOTH_T = 6.0      # max. lokale Std im Median-Frame fuer "glatt" (Himmel)
-MATCH_R = 14.0      # px, max. Sprung je Frame
-STILL_PX = 2.5      # Gesamtweg-Schwelle fuer "steht"
+SMOOTH_T = 6.0      # max. local std in the median frame for "smooth" (sky)
+MATCH_R = 14.0      # px, max. jump per frame
+STILL_PX = 2.5      # total-path threshold for "stationary"
 
 
 def _sky_mask(gray: np.ndarray) -> np.ndarray:
@@ -85,27 +85,27 @@ def _is_still(t) -> bool:
     return path < STILL_PX * 2 and net < STILL_PX
 
 # ---------------------------------------------------------------------------
-# Schwellwerte (Konstanten oben in der Datei, Auftrag 31)
+# Thresholds (constants at the top of the file, Auftrag 31)
 # ---------------------------------------------------------------------------
-# CUT: groesster Schritt >= 35 % der Start->End-Aenderung UND > 8
-# (dieselbe Regel wie InfiniteMovieAssemble-`check`, _motion_check wiederverwendet).
+# CUT: largest step >= 35 % of the start->end change AND > 8
+# (same rule as InfiniteMovieAssemble-`check`, _motion_check reused).
 CUT_SHARE_MIN = 0.35
 CUT_STEP_MIN = 8.0
-# FLICKER: mittlere Helligkeit je Frame L[t] (0-255), d = diff(L),
-# Vorzeichenwechsel von d mit |d| > 1.5 in beiden Nachbarschritten;
-# FLICKER wenn Anzahl >= 3.
+# FLICKER: mean brightness per frame L[t] (0-255), d = diff(L),
+# sign changes of d with |d| > 1.5 in both neighboring steps;
+# FLICKER if count >= 3.
 FLICKER_DELTA_MIN = 1.5
 FLICKER_COUNT_MIN = 3
-# PARTICLES: Partikel-Erkennung (ghost_nodes) auf jedes 2. Frame;
-# PARTICLES wenn >= 5 stehende Partikel-Tracks mit Laenge >= 6.
+# PARTICLES: particle detection (ghost_nodes) on every 2nd frame;
+# PARTICLES if >= 5 stationary particle tracks with length >= 6.
 PARTICLES_TRACKS_MIN = 5
 PARTICLES_LEN_MIN = 6
-# Verdachts-Stufe (level 0-3) je Pruefung:
-#   CUT:       groesster Schritt 35-50 % -> 2, > 50 % -> 3
-#   FLICKER:   3-5 Wechsel -> 1, 6-9 -> 2, >= 10 -> 3
-#   PARTICLES: 5-9 Tracks -> 1, 10-19 -> 2, >= 20 -> 3
-#   level = Maximum der Einzelstufen; >= 2 Flags -> mindestens 2.
-GRAY_W, GRAY_H = 96, 120  # Kleinformat wie _motion_check
+# Suspicion level (level 0-3) per check:
+#   CUT:       largest step 35-50 % -> 2, > 50 % -> 3
+#   FLICKER:   3-5 changes -> 1, 6-9 -> 2, >= 10 -> 3
+#   PARTICLES: 5-9 tracks -> 1, 10-19 -> 2, >= 20 -> 3
+#   level = max of the individual levels; >= 2 flags -> at least 2.
+GRAY_W, GRAY_H = 96, 120  # small format like _motion_check
 
 
 def _cut_level(share: float) -> int:
@@ -138,7 +138,7 @@ def _particles_level(tracks: int) -> int:
 
 def _read_gray_frames(path: str, every: int = 1) -> np.ndarray:
     """Read every `every`-th frame as gray GRAY_W x GRAY_H, shape (n, H, W) float32.
-    Frames stueckweise (ein ffmpeg-Aufruf, rawvideo) – nie als IMAGE-Batch."""
+    Frames chunk by chunk (one ffmpeg call, rawvideo) - never as an IMAGE batch."""
     raw = _ffmpeg_run_gray(path, every)
     a = np.frombuffer(raw, np.uint8)
     n = a.size // (GRAY_W * GRAY_H)
@@ -159,7 +159,7 @@ def _ffmpeg_run_gray(path: str, every: int) -> bytes:
 
 
 def _check_cut(path: str) -> tuple[bool, int, str]:
-    """CUT via _motion_check (wiederverwendet, nicht kopiert).
+    """CUT via _motion_check (reused, not copied).
     Returns (is_cut, level, info)."""
     jump, k, total = _motion_check(path)
     share = jump / max(total, 1.0)
@@ -170,13 +170,13 @@ def _check_cut(path: str) -> tuple[bool, int, str]:
 
 
 def _check_flicker(frames: np.ndarray) -> tuple[bool, int, str]:
-    """FLICKER: mittlere Helligkeit je Frame, Vorzeichenwechsel von d mit |d|>1.5."""
+    """FLICKER: mean brightness per frame, sign changes of d with |d|>1.5."""
     if frames.shape[0] < 3:
         return False, 0, "too few frames"
-    L = frames.mean(axis=(1, 2))  # (n,) mittlere Helligkeit je Frame
+    L = frames.mean(axis=(1, 2))  # (n,) mean brightness per frame
     d = np.diff(L)
-    # Vorzeichenwechsel in beiden Nachbarschritten: d[i] und d[i+1] haben
-    # unterschiedliches Vorzeichen UND beide |d| > FLICKER_DELTA_MIN.
+    # Sign changes in both neighboring steps: d[i] and d[i+1] have
+    # different signs AND both |d| > FLICKER_DELTA_MIN.
     big = np.abs(d) > FLICKER_DELTA_MIN
     changes = 0
     for i in range(len(d) - 1):
@@ -189,7 +189,7 @@ def _check_flicker(frames: np.ndarray) -> tuple[bool, int, str]:
 
 
 def _check_particles(frames: np.ndarray) -> tuple[bool, int, str]:
-    """PARTICLES: ghost_nodes-Erkennung auf die (alle 2. Frame) Frames."""
+    """PARTICLES: ghost_nodes detection on the (every 2nd frame) frames."""
     if frames.shape[0] < PARTICLES_LEN_MIN:
         return False, 0, "too few frames"
     mask = _sky_mask(frames)
@@ -203,16 +203,16 @@ def _check_particles(frames: np.ndarray) -> tuple[bool, int, str]:
 
 
 def _review_segment(path: str, out_webp: str) -> dict:
-    """Vorschau (WebP) + 3 Pruefungen fuer ein Segment. Returns the ui-entry."""
-    # 1. Vorschau: animierte WebP (160 px, jedes 2. Frame, 12 fps, Endlosschleife).
+    """Preview (WebP) + 3 checks for one segment. Returns the ui-entry."""
+    # 1. Preview: animated WebP (160 px, every 2nd frame, 12 fps, infinite loop).
     ff = _ffmpeg()
     cmd = [ff, "-y", "-i", path,
            "-vf", "select=not(mod(n\\,2)),scale=160:-2",
            "-loop", "0", "-c:v", "libwebp", "-quality", "60", out_webp]
     _run_ffmpeg_to(cmd, out_webp)
-    # 2. Pruefungen (Graustufen 96x120, stueckweise). FLICKER braucht jedes
-    #    Frame (every=1, sonst wird die Abwechselung uebersprungen);
-    #    PARTICLES jedes 2. Frame (wie in der Doku).
+    # 2. Checks (grayscale 96x120, chunk by chunk). FLICKER needs every
+    #    frame (every=1, otherwise the alternation is skipped);
+    #    PARTICLES every 2nd frame (as in the docs).
     frames_all = _read_gray_frames(path, every=1)
     frames = frames_all[::2]
     flags: list[str] = []
@@ -244,18 +244,18 @@ def _segment_sig(path: str) -> tuple[int, float]:
 
 
 # ---------------------------------------------------------------------------
-# InfiniteMovieChooser (Auftrag 61): Variants-Builder
+# InfiniteMovieChooser (Auftrag 61): variants builder
 # ---------------------------------------------------------------------------
-# Je Uebergang zwei Varianten (A/B) als Kacheln + Vergleichskachel. Ein
-# Algorithmus waehlt vorab automatisch die bessere Variante (CUT/FLICKER/
-# PARTICLES-Level + Ruckel-Mass); der Nutzer kann pro Uebergang ueberschreiben.
-# Die gewaehlten Pfade ersetzen segments in der shots-Pipe (variants bleibt
-# erhalten), sodass der nachgeschaltete Assemble die gewaehlten Segmente bekommt.
+# Two variants (A/B) per transition as tiles + a comparison tile. An
+# algorithm pre-selects the better variant automatically (CUT/FLICKER/
+# PARTICLES level + jerk metric); the user can override per transition.
+# The chosen paths replace segments in the shots pipe (variants is
+# preserved), so the downstream Assemble gets the chosen segments.
 
 
 def _jerk_metric(path: str) -> float:
-    """Ruckel-Mass (Auftrag 61): Graustufen 96x120, d[t] = mittlere
-    Absolutdifferenz der Nachbarframes, jerk = max(d) / mean(d)."""
+    """Jerk metric (Auftrag 61): grayscale 96x120, d[t] = mean
+    absolute difference of neighboring frames, jerk = max(d) / mean(d)."""
     frames = _read_gray_frames(path, every=1)
     n = frames.shape[0]
     if n < 2:
@@ -268,9 +268,9 @@ def _jerk_metric(path: str) -> float:
 
 
 def _read_frame_gray(path: str, index: int) -> np.ndarray | None:
-    """Einzelnes Frame (0-basiert) als Graustufen GRAY_W x GRAY_H, shape (H, W) float32.
-    Per ffmpeg select=eq(n\\,index) – nur das eine Frame, nie den ganzen Film als
-    IMAGE-Batch (AGENTS-Regel 4)."""
+    """A single frame (0-based) as grayscale GRAY_W x GRAY_H, shape (H, W) float32.
+    Via ffmpeg select=eq(n\\,index) - just that one frame, never the whole film as
+    an IMAGE batch (AGENTS rule 4)."""
     sel = f"select=eq(n\\,{index}),scale={GRAY_W}:{GRAY_H}"
     res = subprocess.run(
         [_ffmpeg(), "-v", "error", "-i", path, "-vf", sel,
@@ -283,9 +283,9 @@ def _read_frame_gray(path: str, index: int) -> np.ndarray | None:
 
 
 def _seam_metric(path_a: str, path_b: str) -> float:
-    """Naht-Mass (78): letztes Frame von path_a gegen erstes Frame von path_b.
-    Gleiche Bildverkleinerung (Graustufen 96x120) und Differenz (mittlere
-    Absolutdifferenz) wie _jerk_metric. Returns den Wert in Grauwerten (0-255)."""
+    """Seam metric (78): last frame of path_a vs first frame of path_b.
+    Same downscaling (grayscale 96x120) and difference (mean
+    absolute difference) as _jerk_metric. Returns the value in gray values (0-255)."""
     if not os.path.exists(path_a) or not os.path.exists(path_b):
         return 0.0
     n_a = _count_frames(path_a)
@@ -300,8 +300,8 @@ def _seam_metric(path_a: str, path_b: str) -> float:
 
 
 def _make_still(path: str, out_still: str) -> None:
-    """Standbild (erster Frame, 160 px) als WebP – fuer die Live-Vorschau
-    (nur die aktive Spalte ist animiert, die anderen zeigen das Standbild)."""
+    """Still image (first frame, 160 px) as WebP - for the live preview
+    (only the active column is animated, the others show the still)."""
     ff = _ffmpeg()
     cmd = [ff, "-y", "-i", path,
            "-vf", "scale=160:-2",
@@ -309,12 +309,12 @@ def _make_still(path: str, out_still: str) -> None:
     _run_ffmpeg_to(cmd, out_still)
 
 
-SHEET_GRID = 3          # 2026-11-08 (Nutzer: „sheet muss schon in chooser … 3x3 als standard“)
-SHEET_TILE = (240, 240)  # je Kachel quadratisch, Bild eingepasst (Hoch/Quer, Nutzer 2026-11-09) -> Sheet 720×720
+SHEET_GRID = 3          # 2026-11-08 (user: "the sheet must already be in the chooser ... 3x3 as the default")
+SHEET_TILE = (240, 240)  # square per tile, image fitted (portrait/landscape, user 2026-11-09) -> sheet 720x720
 
 
 def sheet_picks(n: int, grid: int = SHEET_GRID) -> list[int]:
-    """grid×grid gleichmäßig verteilte Frame-Indizes (erstes + letztes Frame immer dabei, keine Doppelten)."""
+    """Evenly distributed grid×grid frame indices (first + last frame always included, no duplicates)."""
     want = min(grid * grid, max(n, 0))
     if want <= 0:
         return []
@@ -329,8 +329,8 @@ def sheet_picks(n: int, grid: int = SHEET_GRID) -> list[int]:
 
 
 def _make_sheet(path: str, out_sheet: str, grid: int = SHEET_GRID) -> None:
-    """Kontaktabzug grid×grid (Standard 3×3) über den ganzen Shot als WebP – zeigt im Chooser den Verlauf des
-    Übergangs auf einen Blick, ohne abzuspielen."""
+    """Contact sheet grid×grid (default 3x3) over the whole shot as WebP - shows the course of the
+    transition at a glance in the chooser, without playing it."""
     n = _count_frames(path)
     picks = sheet_picks(n, grid)
     if not picks:
@@ -345,8 +345,8 @@ def _make_sheet(path: str, out_sheet: str, grid: int = SHEET_GRID) -> None:
 
 
 def _make_last(path: str, out_last: str) -> None:
-    """Letztes Frame (160 px) als WebP – für die Naht-Ansicht im Chooser (letztes Bild Shot k | erstes Bild
-    Shot k+1). Gegenstück zu _make_still (erstes Frame)."""
+    """Last frame (160 px) as WebP - for the seam view in the chooser (last image shot k | first image
+    shot k+1). Counterpart of _make_still (first frame)."""
     n = _count_frames(path)
     if n < 1:
         raise RuntimeError(f"no frames in {path}")
@@ -355,7 +355,7 @@ def _make_last(path: str, out_last: str) -> None:
     _run_ffmpeg_to(cmd, out_last)
 
 
-# Zusatzbilder je Variante: Cache-Schlüssel -> (Erzeuger, Dateiendung, Eintrag im ui)
+# Extra images per variant: cache key -> (generator, file extension, entry in the ui)
 _EXTRAS = {"sheet_file": (_make_sheet, "_sheet.webp", "sheet"), "last_file": (_make_last, "_last.webp", "last")}
 
 
@@ -368,8 +368,8 @@ def _short_err(what: str, e: Exception) -> str:
 
 def _variant_entry(path: str, choose_dir: str, subfolder: str, variant_key: str,
                    cache: dict, cache_key: str) -> tuple[dict, bool]:
-    """Vorschau (animierte WebP) + Standbild + Pruefungen + jerk fuer eine
-    Variante. Gecacht nach Groesse/mtime (wie der Review-Node). Returns (entry, changed)."""
+    """Preview (animated WebP) + still + checks + jerk for one
+    variant. Cached by size/mtime (like the review node). Returns (entry, changed)."""
     if not os.path.exists(path):
         return {"preview": None, "still": None, "flags": [], "level": 0,
                 "info": f"segment file not found: {os.path.basename(path)}",
@@ -386,7 +386,7 @@ def _variant_entry(path: str, choose_dir: str, subfolder: str, variant_key: str,
         for key, (fn, suffix, ui) in _EXTRAS.items():
             if cached.get(key) and os.path.exists(os.path.join(choose_dir, cached[key])):
                 continue
-            try:   # ältere Cache-Einträge: fehlende Zusatzbilder nachziehen
+            try:   # older cache entries: fetch missing extra images
                 f = cached["still_file"].replace("_still.webp", suffix)
                 fn(path, os.path.join(choose_dir, f))
                 cached[key] = f
@@ -419,7 +419,7 @@ def _variant_entry(path: str, choose_dir: str, subfolder: str, variant_key: str,
         for key, (fn, _sfx, ui) in _EXTRAS.items():
             try:
                 fn(path, os.path.join(choose_dir, extra_files[key]))
-            except Exception as e:  # noqa: BLE001  (Zugabe – Vorschau/Prüfung laufen weiter)
+            except Exception as e:  # noqa: BLE001  (extra - preview/checks keep running)
                 extra_files[key] = None
                 errors.append(_short_err(ui, e))
         jerk = _jerk_metric(path)
@@ -447,8 +447,8 @@ def _variant_entry(path: str, choose_dir: str, subfolder: str, variant_key: str,
 
 
 def _auto_choose(a_entry: dict, b_entry: dict) -> tuple[str, float, float, str]:
-    """Auto-Wahl (Auftrag 61): score = level*10 + jerk, niedriger ist besser,
-    Gleichstand gewinnt A. Returns (winner, a_score, b_score, reason)."""
+    """Auto choice (Auftrag 61): score = level*10 + jerk, lower is better,
+    ties go to A. Returns (winner, a_score, b_score, reason)."""
     a_score = a_entry["score"]
     b_score = b_entry["score"]
     winner = "a" if a_score <= b_score else "b"
@@ -457,9 +457,9 @@ def _auto_choose(a_entry: dict, b_entry: dict) -> tuple[str, float, float, str]:
     return winner, a_score, b_score, reason
 
 
-# 75 (Nutzer 2026-11-03: „Empfehlung nur wenn starke Indikation (schlechte harte Übergänge)“)
-JERK_HARD = 7.0        # ab hier harter Sprung; echte ruhige LTX-Shots 1.8-4.8 (2026-11-03), synth. Schnitt-Clip im Test nur >= 2.5
-LEVEL_STRONG = 2       # Review-Stufe ab der ein Fehler deutlich ist (0-3)
+# 75 (user 2026-11-03: "recommendation only with strong indication (bad hard transitions)")
+JERK_HARD = 7.0        # beyond this a hard jump; real calm LTX shots 1.8-4.8 (2026-11-03), synthetic cut clip in the test only >= 2.5
+LEVEL_STRONG = 2       # review level from which an error is obvious (0-3)
 
 
 def _is_bad(e: dict) -> bool:
@@ -467,13 +467,13 @@ def _is_bad(e: dict) -> bool:
 
 
 def _auto_strong(a_entry: dict, b_entry: dict) -> bool:
-    """True nur, wenn eine Variante klar schlecht ist und die andere klar besser."""
+    """True only if one variant is clearly bad and the other clearly better."""
     for bad, good in ((a_entry, b_entry), (b_entry, a_entry)):
         if not _is_bad(bad) or _is_bad(good):
             continue
         return True
     if _is_bad(a_entry) and _is_bad(b_entry):
-        # beide schlecht: nur bei deutlichem Abstand empfehlen (eine Stufe oder 40 % weniger Ruck)
+        # both bad: only recommend with a clear margin (one level or 40 % less jerk)
         la, lb = int(a_entry.get("level", 0)), int(b_entry.get("level", 0))
         ja, jb = float(a_entry.get("jerk", 0.0)), float(b_entry.get("jerk", 0.0))
         return abs(la - lb) >= 1 or min(ja, jb) < 0.6 * max(ja, jb)
@@ -516,8 +516,8 @@ class InfiniteMovieChooser(io.ComfyNode):
                                         "('a'/'b' overrides the automatic choice)."),
             ],
             outputs=[
-                # 73: nur noch shots (segments-Ausgang gestrichen; die gewählten
-                # Segmente stecken in der shots-Pipe unter "segments").
+                # 73: only shots now (segments output removed; the chosen
+                # segments are in the shots pipe under "segments").
                 SHOTS.Output("shots", display_name="shots",
                              tooltip="Pipe with the chosen segment paths (segments replaced, variants preserved)."),
             ],
@@ -593,9 +593,9 @@ class InfiniteMovieChooser(io.ComfyNode):
                 "score_b": b_score,
                 "chosen": chosen,
             })
-        # 78: Naht (seam) je Shot: letztes Frame von Shot i gegen erstes Frame von
-        # Shot i+1 (mit Loop: letzter -> erster). Gleiche Verkleinerung/Differenz
-        # wie _jerk_metric; Schwelle JERK_HARD. Auf den gewaehlten Segmenten gemessen.
+        # 78: seam per shot: last frame of shot i vs first frame of
+        # shot i+1 (with loop: last -> first). Same downscaling/difference
+        # as _jerk_metric; threshold JERK_HARD. Measured on the chosen segments.
         loop = bool(shots.get("loop", False))
         for i in range(n):
             if i + 1 < n:
@@ -610,14 +610,14 @@ class InfiniteMovieChooser(io.ComfyNode):
             seam = _seam_metric(chosen_segments[i], chosen_segments[nxt])
             entries[i]["seam"] = seam
             entries[i]["seam_bad"] = seam >= JERK_HARD
-            entries[i]["seam_next"] = nxt + 1   # Shot-Nummer des Nachbarn (Loop: 1)
+            entries[i]["seam_next"] = nxt + 1   # shot number of the neighbor (loop: 1)
         if changed:
             with open(cache_file, "w", encoding="utf-8") as f:
                 json.dump(cache, f)
         out_shots = dict(shots)
         out_shots["segments"] = chosen_segments
         ui = {"infinite_movie_choose": entries}
-        # 73: nur noch shots (segments-Ausgang gestrichen).
+        # 73: only shots now (segments output removed).
         return io.NodeOutput(out_shots, ui=ui)
 
 

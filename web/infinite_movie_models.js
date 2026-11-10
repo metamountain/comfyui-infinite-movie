@@ -5,12 +5,12 @@
 // polls /infinite_movie/models/status once per second.
 // No alert/confirm/prompt – own DOM dialog (pitfall: native dialogs from the server
 // are not visible in the browser).
-// 2026-11-09 (Claude-Review): vorausgewählt ist nur, was der offene Workflow braucht (aktive Nodes);
-// Warnung + Platzprüfung rechnen mit der Auswahl. Aufrufe über api.fetchApi (Basis-Pfad).
+// 2026-11-09 (Claude-Review): pre-selected is only what the open workflow needs (active nodes);
+// warning + space check are computed from the selection. Calls via api.fetchApi (base path).
 import { app } from "../../scripts/app.js";
 import { api } from "../../scripts/api.js";
 (() => {
-  const GB = 1e9;   // Dezimal-GB wie Hugging Face und README (42.0 GB), nicht GiB
+  const GB = 1e9;   // decimal GB like Hugging Face and the README (42.0 GB), not GiB
   const MB = 1e6;
   const BTN_NAME = "📦 Check models";
 
@@ -29,8 +29,8 @@ import { api } from "../../scripts/api.js";
     return r.json();
   }
 
-  // Modell-Dateinamen, die der offene Workflow braucht: Widget-Werte und properties.models aktiver Nodes
-  // (stumm/umgangen = nicht gebraucht). Dateien in Unterordnern zählen mit ihrem Dateinamen.
+  // Model file names the open workflow needs: widget values and properties.models of active nodes
+  // (muted/bypassed = not needed). Files in subfolders count by their file name.
   function usedModelNames() {
     const used = new Set();
     const base = (v) => String(v).split(/[\/]/).pop();
@@ -109,7 +109,7 @@ import { api } from "../../scripts/api.js";
     function renderTable(j) {
       const s = j.summary || {};
       const used = usedModelNames();
-      // Gebrauchte zuerst, dann der Rest (andere Engines)
+      // Used ones first, then the rest (other engines)
       j.missing.sort((a, b) => (used.has(b.name) ? 1 : 0) - (used.has(a.name) ? 1 : 0));
       body.append(el("div", "margin-bottom:8px;color:#ccc;font-size:13px",
         "Pre-selected: the files this workflow uses. Other engines are listed below, not selected."));

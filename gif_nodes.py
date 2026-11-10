@@ -89,7 +89,7 @@ def video_filter(p: dict) -> str:
     if p["direction"] == "reverse":
         return f"[0:v]{base},reverse[v]"
     if p["direction"] == "boomerang":
-        # vorwärts + rückwärts ohne den doppelten Umkehr-Frame
+        # forward + backward without the duplicated reversal frame
         return (f"[0:v]{base},split[fw][bw];[bw]reverse,trim=start_frame=1,setpts=PTS-STARTPTS[rv];"
                 f"[fw][rv]concat=n=2:v=1:a=0[v]")
     return f"[0:v]{base}[v]"
@@ -104,7 +104,7 @@ def ffmpeg_args(ff: str, src: str, out: str, p: dict, max_seconds: float = 0.0) 
     if max_seconds > 0:
         dur = min(dur, max_seconds) if dur > 0 else max_seconds
     if dur > 0:
-        args += ["-t", f"{dur:g}"]   # -t vor -i = Dauer im Quellfilm (vor speed)
+        args += ["-t", f"{dur:g}"]   # -t before -i = duration in the source film (before speed)
     args += ["-i", src]
     chain = video_filter(p)
     if _ext(p) == ".gif":
@@ -145,7 +145,7 @@ def allowed_source(path: str, dirs=None, extra=()) -> bool:
 
 
 def _probe(ff: str, path: str) -> dict:
-    """Breite, Höhe, Dauer (s) aus der ffmpeg-Ausgabe; fehlende Werte 0."""
+    """Width, height, duration (s) from the ffmpeg output; missing values 0."""
     import re
     err = subprocess.run([ff, "-hide_banner", "-i", path], capture_output=True, text=True, **_no_window()).stderr
     m = re.search(r"Video:.*?(\d{2,5})x(\d{2,5})", err)
@@ -155,7 +155,7 @@ def _probe(ff: str, path: str) -> dict:
 
 
 def anim_info(path: str, fps: float = 0.0) -> dict:
-    """Breite, Höhe, Dauer (s), Frames einer GIF/WebP (PIL; ffmpeg kann animiertes WebP nicht lesen)."""
+    """Width, height, duration (s), frames of a GIF/WebP (PIL; ffmpeg cannot read animated WebP)."""
     from PIL import Image
     with Image.open(path) as im:
         n = getattr(im, "n_frames", 1)
@@ -164,7 +164,7 @@ def anim_info(path: str, fps: float = 0.0) -> dict:
             im.seek(i)
             dur += im.info.get("duration", 0) or 0
         d = dur / 1000.0
-        if not d and n > 1 and fps > 0:   # PIL liefert bei WebP oft keine Frame-Dauer
+        if not d and n > 1 and fps > 0:   # PIL often provides no frame duration for WebP
             d = n / fps
         return {"w": im.width, "h": im.height, "dur": d, "frames": n}
 
@@ -188,8 +188,8 @@ def human(n: int) -> str:
 
 
 def save_path(output_folder: str, filename: str, src: str, ext: str, settings=None, default_dir=None) -> str:
-    """Ziel-Datei: Ordner = output_folder > Settings › output_folder > <output>/infinite_movie/gif;
-    Name = filename > Name des Quellfilms; nie überschreiben (_2, _3 …)."""
+    """Target file: folder = output_folder > Settings > output_folder > <output>/infinite_movie/gif;
+    name = filename > name of the source film; never overwrite (_2, _3 ...)."""
     folder = (output_folder or "").strip().strip('"')
     if not folder and isinstance(settings, dict):
         folder = str(settings.get("output_folder") or "").strip().strip('"')
@@ -208,7 +208,7 @@ def save_path(output_folder: str, filename: str, src: str, ext: str, settings=No
 
 
 def view_ref(path: str) -> dict:
-    """/view-Adresse für die Anzeige: im Output-Ordner direkt, sonst eine Kopie im Temp-Ordner."""
+    """/view address for display: directly if in the output folder, otherwise a copy in the temp folder."""
     import shutil
     import folder_paths
     out_dir = os.path.abspath(folder_paths.get_output_directory())
@@ -398,7 +398,7 @@ def gif_preview(body: dict) -> dict:
     info = render(src, out, p, max_seconds=PREVIEW_MAX_S, timeout=60) if not os.path.isfile(out) else \
         {**anim_info(out, p["fps"]), "bytes": os.path.getsize(out), "seconds": 0}
     srcinfo = _probe(_ffmpeg(), src)
-    # Schätzung der vollen Größe: Fläche × Bildrate × Dauer gegenüber der Vorschau
+    # Estimate of the full size: area x frame rate x duration compared to the preview
     est = None
     if info.get("w") and info.get("h") and srcinfo.get("w"):
         L = full["long_side"] or max(srcinfo["w"], srcinfo["h"])
@@ -439,7 +439,7 @@ def _register_routes():
             except Exception as e:  # noqa: BLE001
                 res = {"ok": False, "message": f"preview failed: {e}"}
             return web.json_response(res)
-    except Exception as e:  # noqa: BLE001 – ohne Server (Unit-Tests) keine Route
+    except Exception as e:  # noqa: BLE001 - without a server (unit tests) no route
         print(f"[InfiniteMovieGif] preview route not registered: {e}")
 
 

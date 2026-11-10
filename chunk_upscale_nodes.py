@@ -1,19 +1,19 @@
-"""Infinite Movie · LTX Refine (2026-11-02, Nutzer: „upscale sampler der immer 30-50 frames rotiert“).
+"""Infinite Movie · LTX Refine (2026-11-02, user: "upscale sampler that always rotates 30-50 frames").
 
-Standard (Messung 2026-11-02, Wetter-Loop): Upscale-Modell 2xLiveActionV1_SPAN per Upscale Crop Universal davor,
-dann hier „refine 1:1“ mit Sigma 0.42 -> Schärfe x1,72, Textur ruhiger als das Original, Treue 0,99.
-Modus „ic-lora upscale x2“ (Pixel-Upscaler-LoRA) bleibt wählbar, erfindet aber mehr (max. x1,25 ohne Kochen).
+Standard (measurement 2026-11-02, weather loop): upscale model 2xLiveActionV1_SPAN via Upscale Crop Universal first,
+then here "refine 1:1" with sigma 0.42 -> sharpness x1.72, texture calmer than the original, fidelity 0.99.
+Mode "ic-lora upscale x2" (pixel upscaler LoRA) stays selectable, but it invents more (max x1.25 without boiling).
 
-LTX-2.5 IC-LoRA pixel spatial upscaler x2 auf einem ganzen Film, Stück für Stück:
-- Video in Stücke von chunk_frames (8n+1) mit overlap (8n+1) Frames Überlappung schneiden; Schrittweite
-  = chunk_frames - overlap ist ein Vielfaches von 8 -> Latent-Raster der Stücke deckt sich.
-- Jedes Stück: lanczos auf Zielgröße -> VAEEncode -> LTXAddVideoICLoRAGuide -> CFGGuider (cfg 1)
-  -> SamplerCustomAdvanced (ManualSigmas) -> LTXVCropGuides -> VAEDecodeTiled. Genau der Graph aus
-  tmp/messung_ltx_upscale.py (121 Frames am Stück = OOM auf 24 GB, 49 Frames passen).
-- Rauschen pro ABSOLUTEM Latent-Frame (Generator-Seed = seed + Index): dieselbe Stelle im Film bekommt in
-  beiden Stücken dasselbe Rauschen -> die erfundenen Details passen in der Überlappung zusammen.
-- Überlappung linear überblenden, fertige Frames sofort an ffmpeg (RAM klein), jedes Stück als .npy
-  zwischenspeichern (Neustart nach Absturz setzt beim nächsten Stück fort), Ton aus der Quelle übernehmen.
+LTX-2.5 IC-LoRA pixel spatial upscaler x2 on a whole film, piece by piece:
+- Cut the video into chunks of chunk_frames (8n+1) with an overlap of (8n+1) frames; stride
+  = chunk_frames - overlap is a multiple of 8 -> the latent grids of the chunks align.
+- Each chunk: lanczos to target size -> VAEEncode -> LTXAddVideoICLoRAGuide -> CFGGuider (cfg 1)
+  -> SamplerCustomAdvanced (ManualSigmas) -> LTXVCropGuides -> VAEDecodeTiled. Exactly the graph from
+  tmp/messung_ltx_upscale.py (121 frames at once = OOM on 24 GB, 49 frames fit).
+- Noise per ABSOLUTE latent frame (generator seed = seed + index): the same position in the film gets the
+  same noise in both chunks -> the invented details match in the overlap.
+- Cross-fade the overlap linearly, send finished frames to ffmpeg immediately (keep RAM small), each chunk
+  cached as .npy (a restart after a crash continues at the next chunk), take the audio from the source.
 """
 
 from __future__ import annotations
@@ -35,11 +35,11 @@ from .post_nodes import _probe_fps
 from .upscale_universal.upscale_crop_universal import _scale_for, _snap as _snap_mult
 
 DEFAULT_SIGMAS = "0.421875, 0.0"   # refine 1:1; ic-lora: "0.725, 0.421875, 0.0"
-ICLORA_SIGMAS = "0.725, 0.421875, 0.0"   # Textur so ruhig wie die Quelle, Schärfe x1,17 (Messung 2026-11-02; 0.909 kocht)
+ICLORA_SIGMAS = "0.725, 0.421875, 0.0"   # texture as calm as the source, sharpness x1.17 (measurement 2026-11-02; 0.909 boils)
 DEFAULT_POSITIVE_HINT = "LTXVConditioning: look/style only, e.g. 'photographic, 4k' – no objects (they stamp into every chunk)"
 MODES = ["refine 1:1", "ic-lora upscale x2"]
 REFINE_SIGMAS = "0.421875, 0.0"
-TARGET_MODES = ["scale_factor", "scale_percent", "shortest_side", "longest_side", "megapixels"]  # wie Upscale Crop Universal, ohne custom (Zuschnitt)
+TARGET_MODES = ["scale_factor", "scale_percent", "shortest_side", "longest_side", "megapixels"]  # like Upscale Crop Universal, without custom (crop)
 MAX_SIDE = 2560
 
 
@@ -55,8 +55,8 @@ def _snap_8n1(n: int, lo: int) -> int:
 def target_size(w: int, h: int, mode: str = "scale_factor", scale_factor: float = 1.5, scale_percent: float = 150.0,
                 shortest_side: int = 1024, longest_side: int = 1280, megapixels: float = 1.3,
                 multiple_of: int = 64) -> tuple[int, int]:
-    """Zielgröße mit derselben Rechnung wie Upscale Crop Universal (_scale_for + _snap: nächstes Vielfaches).
-    multiple_of mindestens 32 (LTX); 64 für die Faktor-2-LoRA (1440 -> rearrange-Fehler)."""
+    """Target size with the same calculation as Upscale Crop Universal (_scale_for + _snap: next multiple).
+    multiple_of at least 32 (LTX); 64 for the factor-2 LoRA (1440 -> rearrange error)."""
     k = _scale_for(w, h, mode, scale_percent, scale_factor, shortest_side, longest_side, megapixels)
     m = max(32, int(multiple_of))
     tw, th = _snap_mult(w * k, m), _snap_mult(h * k, m)
@@ -66,8 +66,8 @@ def target_size(w: int, h: int, mode: str = "scale_factor", scale_factor: float 
 
 
 def chunk_starts(n_frames: int, chunk: int, overlap: int) -> tuple[list[int], int]:
-    """Startframes der Stücke + aufgefüllte Länge (8n+1). Schrittweite = chunk - overlap (Vielfaches von 8).
-    Das letzte Stück endet genau am Ende; verdrängt es das vorletzte, wird die Überlappung dort kleiner (>= 9)."""
+    """Start frames of the chunks + padded length (8n+1). Stride = chunk - overlap (multiple of 8).
+    The last chunk ends exactly at the end; if it displaces the second-to-last, the overlap there gets smaller (>= 9)."""
     n_pad = _snap_8n1(n_frames + 7, 1) if (n_frames - 1) % 8 else n_frames
     if n_pad <= chunk:
         return [0], n_pad
@@ -75,16 +75,16 @@ def chunk_starts(n_frames: int, chunk: int, overlap: int) -> tuple[list[int], in
     starts = list(range(0, n_pad - chunk, stride))
     starts.append(n_pad - chunk)
     starts = sorted(set(starts))
-    # Jeder Frame darf höchstens in ZWEI Stücken liegen (Überblendung immer nur Vorgänger/Nachfolger):
-    # das kurze letzte Stück verdrängt notfalls das vorletzte.
+    # Each frame may be in at most TWO chunks (cross-fade always only predecessor/successor):
+    # the short last chunk displaces the second-to-last if necessary.
     while len(starts) >= 3 and starts[-1] < starts[-3] + chunk:
         del starts[-2]
     return starts, n_pad
 
 
 def frame_noise(shape, seed: int, abs_latent0: int, n_video: int, device="cpu") -> torch.Tensor:
-    """Rauschen [B,C,T,H,W]: Video-Latent-Frame k bekommt das Rauschen des absoluten Frames abs_latent0+k,
-    angehängte Guide-Frames (k >= n_video) eigenes, ebenfalls absolutes Rauschen."""
+    """Noise [B,C,T,H,W]: video latent frame k gets the noise of absolute frame abs_latent0+k,
+    appended guide frames (k >= n_video) get their own, also absolute, noise."""
     b, c, t, h, w = shape
     out = torch.empty(shape, dtype=torch.float32)
     for k in range(t):
@@ -95,7 +95,7 @@ def frame_noise(shape, seed: int, abs_latent0: int, n_video: int, device="cpu") 
 
 
 class _AbsNoise:
-    """NOISE-Objekt wie comfy_extras Noise_RandomNoise, aber positionsgebunden."""
+    """NOISE object like comfy_extras Noise_RandomNoise, but position-bound."""
 
     def __init__(self, seed: int, abs_latent0: int, n_video: int):
         self.seed, self.abs_latent0, self.n_video = seed, abs_latent0, n_video
@@ -106,7 +106,7 @@ class _AbsNoise:
 
 
 def _read_frames(src: str, start: int, count: int, w: int, h: int, n_src: int) -> np.ndarray:
-    """count Frames ab start (lanczos auf w×h) als uint8 [F,H,W,3]; über das Ende hinaus = letzter Frame."""
+    """count frames from start (lanczos to w×h) as uint8 [F,H,W,3]; beyond the end = last frame."""
     real = max(0, min(count, n_src - start))
     frames = np.zeros((0, h, w, 3), np.uint8)
     if real > 0:
@@ -122,8 +122,8 @@ def _read_frames(src: str, start: int, count: int, w: int, h: int, n_src: int) -
 
 
 def _read_virtual(src: str, start: int, count: int, w: int, h: int, n_src: int, loop: bool) -> np.ndarray:
-    """Wie _read_frames, aber im Loop-Modus läuft die Zeitachse über das Ende in den Anfang weiter
-    (virtueller Frame v = Quellframe v mod n_src)."""
+    """Like _read_frames, but in loop mode the time axis runs past the end into the start
+    (virtual frame v = source frame v mod n_src)."""
     if not loop or start + count <= n_src:
         return _read_frames(src, start, count, w, h, n_src)
     parts, v, left = [], start, count
@@ -175,8 +175,8 @@ def _upscale_chunk(frames: np.ndarray, model, vae, positive, negative, ldf: floa
 
 
 def _images_to_file(images, audio, fps: float, tmp: str) -> str:
-    """IMAGE-Batch (z. B. VHS Load Video) verlustfrei in eine Datei schreiben, damit der Rest wie bei einer
-    Datei stückweise liest. Name aus Form + Stichprobe -> gleiche Bilder = gleiche Datei (Wiederaufnahme)."""
+    """Write an IMAGE batch (e.g. VHS Load Video) losslessly to a file, so the rest reads it
+    chunk by chunk like a file. Name from shape + sample -> same images = same file (resume)."""
     n, h, w = images.shape[0], images.shape[1], images.shape[2]
     probe = images[:: max(1, n // 8)].float().mean().item()
     key = hashlib.sha1(json.dumps([n, h, w, round(probe, 6), fps]).encode()).hexdigest()[:16]
@@ -192,7 +192,7 @@ def _images_to_file(images, audio, fps: float, tmp: str) -> str:
     enc.stdin.close()
     enc.wait()
     from .audio_nodes import audio_or_none
-    audio = audio_or_none(audio)   # VHS-LazyAudioMap wirft bei stummen Filmen -> ohne Ton weiter
+    audio = audio_or_none(audio)   # VHS-LazyAudioMap raises on silent films -> continue without audio
     if audio is not None:
         wav = audio["waveform"][0].float().cpu().numpy().T.copy()        # [S, C]
         apath = path + ".f32"
@@ -294,8 +294,8 @@ class InfiniteMovieLTXRefine(io.ComfyNode):
         import folder_paths
 
         uid = getattr(getattr(cls, "hidden", None), "unique_id", None)
-        # video_path gesetzt -> gleicher Ordner, gleicher Name + _upscale (Nutzer 2026-11-04),
-        # auch wenn die Frames über images kommen (Gruppe 8: Assemble › video_path).
+        # video_path set -> same folder, same name + _upscale (user 2026-11-04),
+        # also when the frames come via images (group 8: Assemble > video_path).
         name_src = (video_path or "").strip().strip('"')
         if name_src:
             out_dir = os.path.dirname(os.path.abspath(name_src))
@@ -319,7 +319,7 @@ class InfiniteMovieLTXRefine(io.ComfyNode):
         chunk = _snap_8n1(chunk_frames, 17)
         ov = min(_snap_8n1(overlap, 9), _snap_8n1(chunk // 2, 9))   # overlap <= chunk/2 (siehe chunk_starts)
         loop = bool(loop) and n_src > ov
-        n_virt = n_src + ov if loop else n_src     # Loop: ov Frames über das Ende hinaus (= Anfang)
+        n_virt = n_src + ov if loop else n_src     # loop: ov frames past the end (= start)
         starts, n_pad = chunk_starts(n_virt, chunk, ov)
         sig = torch.tensor([float(x) for x in str(sigmas).replace(";", ",").split(",") if x.strip()])
 
@@ -332,19 +332,19 @@ class InfiniteMovieLTXRefine(io.ComfyNode):
         vram.wait_acquire(min_free_mb=8000, timeout_s=3600)
         tmp_video = out_path + ".noaudio.mp4"
         enc = _encoder(tmp_video, tw, th, fps, crf)
-        head, wrap = {}, {}   # Loop: Anfang (Frames 0..ov-1) und Weiterlauf (n_src..n_src+ov-1) für die Naht
+        head, wrap = {}, {}   # loop: start (frames 0..ov-1) and continuation (n_src..n_src+ov-1) for the seam
 
         def emit(f, arr):
             arr = np.clip(arr + 0.5, 0, 255).astype(np.uint8) if arr.dtype != np.uint8 else arr
             if loop and f < ov:
-                head[f] = arr           # erst am Ende mit dem Weiterlauf überblendet
+                head[f] = arr           # cross-faded with the continuation only at the end
             elif loop and n_src <= f < n_virt:
                 wrap[f - n_src] = arr
             elif f < n_src:
                 enc.stdin.write(arr.tobytes())
 
         pbar = comfy.utils.ProgressBar(len(starts))
-        written, tail = 0, None   # tail = (startframe, frames) des vorigen Stücks ab dem nächsten Start
+        written, tail = 0, None   # tail = (start frame, frames) of the previous chunk from the next start
         try:
             for i, s in enumerate(starts):
                 cpath = os.path.join(cache, f"chunk_{s:06d}.npy")
@@ -357,7 +357,7 @@ class InfiniteMovieLTXRefine(io.ComfyNode):
                                         seed, s // 8, use_guide=(mode == "ic-lora upscale x2"))
                     np.save(cpath + ".part.npy", up)
                     os.replace(cpath + ".part.npy", cpath)
-                # Überlappung mit dem vorigen Stück linear überblenden.
+                # Cross-fade the overlap with the previous chunk linearly.
                 if tail is not None:
                     t0, prev = tail
                     n_ov = len(prev)
@@ -378,8 +378,8 @@ class InfiniteMovieLTXRefine(io.ComfyNode):
         if enc.returncode != 0:
             raise RuntimeError("LTX Refine: ffmpeg-Encode fehlgeschlagen")
         if loop:
-            # Naht Ende -> Anfang: Weiterlauf des letzten Stücks in den Anfang von Stück 1 überblenden,
-            # als eigenes Kopfstück kodieren und vor den Rest hängen (concat ohne Neu-Kodierung).
+            # Seam end -> start: cross-fade the continuation of the last chunk into the start of chunk 1,
+            # encode it as a separate head chunk and prepend it to the rest (concat without re-encoding).
             head_video = out_path + ".head.mp4"
             henc = _encoder(head_video, tw, th, fps, crf)
             for f in range(ov):
@@ -398,15 +398,15 @@ class InfiniteMovieLTXRefine(io.ComfyNode):
             for p_ in (head_video, lst, tmp_video):
                 os.remove(p_)
             os.replace(joined, tmp_video)
-        # Ton aus der Quelle übernehmen (falls vorhanden), faststart.
+        # Take the audio from the source (if present), faststart.
         subprocess.run([_ffmpeg(), "-y", "-v", "error", "-i", tmp_video, "-i", src, "-map", "0:v", "-map", "1:a?",
                         "-c:v", "copy", "-c:a", "aac", "-shortest", "-movflags", "+faststart", out_path],
                        check=True, **_no_window())
         os.remove(tmp_video)
-        if not os.environ.get("IM_CHUNK_KEEP"):   # Messung: Stücke behalten (Überlappungs-Vergleich)
+        if not os.environ.get("IM_CHUNK_KEEP"):   # measurement: keep the chunks (overlap comparison)
             shutil.rmtree(cache, ignore_errors=True)
         _send_progress(f"done {tw}x{th}, {len(starts)} chunks", uid)
-        # Vorschau nur, wenn die Datei im ComfyUI-Output liegt (sonst zeigt sie der Film-Node dahinter).
+        # Preview only when the file is in the ComfyUI output (otherwise the film node behind shows it).
         outd = os.path.abspath(folder_paths.get_output_directory())
         if os.path.abspath(out_path).lower().startswith(outd.lower() + os.sep):
             sub_ = os.path.relpath(os.path.dirname(os.path.abspath(out_path)), outd)

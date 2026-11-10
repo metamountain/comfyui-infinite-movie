@@ -24,7 +24,7 @@ from . import vram
 # 75: _input_videos moved from ghost_nodes.py to nodes.py
 from .nodes import SHOTS, _input_videos, _probe_size
 from .nodes import _ffmpeg, _no_window, _send_progress, _video_fps, _run_ffmpeg_to, _has_audio_stream
-# 57d: SETTINGS-Pipe + get_setting (kein Zirkel: settings_nodes -> .vram + lazy .autoprompt).
+# 57d: SETTINGS pipe + get_setting (no cycle: settings_nodes -> .vram + lazy .autoprompt).
 from .settings_nodes import SETTINGS, get_setting
 
 _W, _H = 96, 120   # analysis size
@@ -96,7 +96,7 @@ def draw_graph(curves: list, picks: list, fps: float, strength: float = None, re
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt
 
-    # quadratisch wie der Assemble-Viewer (480×480, Nutzer 2026-11-09: alle Analyzer gleich groß)
+    # square like the Assemble viewer (480×480, user 2026-11-09: all analyzers the same size)
     fig = plt.figure(figsize=(8, 8), dpi=100)
     gs = fig.add_gridspec(3, 1, height_ratios=[3, 3, 2])
     ax0, ax1, ax2 = fig.add_subplot(gs[0]), fig.add_subplot(gs[1]), fig.add_subplot(gs[2])
@@ -165,8 +165,8 @@ _CACHE: dict = {}
 
 
 def auto_frames(cum: np.ndarray, n_max: int, strength: float, tol: float = 0.02) -> int:
-    """Größte Ausgabe-Framezahl <= n_max, bei der höchstens tol (2 %) Duplikate entstehen (2026-11-04, Nutzer:
-    „kann man es berechnen?“). Duplikat = zwei Ziel-Frames auf demselben Quell-Frame (zu viel Stillstand)."""
+    """Largest output frame count <= n_max at which at most tol (2 %) duplicates occur (2026-11-04, user:
+    "can it be calculated?"). Duplicate = two target frames on the same source frame (too much standing still)."""
     for n in range(max(n_max, 2), 1, -1):
         idx = pick_frames(cum, n, strength)
         if len(idx) - len(set(idx.tolist())) <= int(tol * n):
@@ -176,8 +176,8 @@ def auto_frames(cum: np.ndarray, n_max: int, strength: float, tol: float = 0.02)
 
 def _picks_for(curves: list, fps: float, strength: float, rendered_seconds, keep: float = 1.0) -> tuple:
     """Auftrag 41A: rendered_seconds can be a float (all segments same length) or a list
-    (per-scene lengths). keep (2026-11-04): Anteil der gerenderten Länge, der bleibt; 0 = auto je Shot
-    (auto_frames: so viele Frames wie ohne Duplikate möglich). Returns (picks, n_out_list, report)."""
+    (per-scene lengths). keep (2026-11-04): share of the rendered length that stays; 0 = auto per shot
+    (auto_frames: as many frames as possible without duplicates). Returns (picks, n_out_list, report)."""
     if isinstance(rendered_seconds, (int, float)):
         n_out_list = [max(int(round(rendered_seconds * fps)) + 1, 2)] * len(curves)
     else:
@@ -223,16 +223,16 @@ class InfiniteMovieAssemble(io.ComfyNode):
                         "coloured = evened out) that updates live when you change strength.",
             is_output_node=True,
             inputs=[
-                # Auftrag 32: shots (SHOTS) als ERSTER Input (hoechster Vorrang).
-                # 57b: movie -> shots (ID + Anzeige); 57b2: Typ -> SHOTS.
+                # Auftrag 32: shots (SHOTS) as the FIRST input (highest priority).
+                # 57b: movie -> shots (ID + display); 57b2: type -> SHOTS.
                 SHOTS.Input("shots", optional=True, display_name="shots",
                          tooltip="Pipe mit allen Shots (Segment-Pfade, Ordner, Name, fps, loop …) von "
                                  "Infinite Movie · Director (highest priority). When connected, "
                                  "segments/save_folder/save_name/fps/loop come from the pipe; otherwise "
                                  "connect video/images/video_path/file directly."),
-                # 73: segments/save_folder/save_name als Socket-Eingaenge gestrichen
-                # ("weniger ist mehr") - sie kommen jetzt immer aus der shots-Pipe
-                # (oder Settings › output_folder). shots hat hoechsten Vorrang.
+                # 73: segments/save_folder/save_name removed as socket inputs
+                # ("less is more") - they now always come from the shots pipe
+                # (or Settings › output_folder). shots has the highest priority.
                 io.Combo.Input("file", options=_input_videos(), upload=io.UploadType.video,
                                tooltip="direct load from ComfyUI/input (used when nothing is connected); "
                                        "a single video is treated as one segment"),
@@ -248,9 +248,9 @@ class InfiniteMovieAssemble(io.ComfyNode):
                                tooltip="Interpolate in-between frames first, then pick. Only effective when even_motion=true. "
                                        "'off' = pick from the original frames (fastest, no GPU); 'RIFE x2' = 2x frames; "
                                        "'RIFE x4' = 4x (smoothest, most GPU time)."),
-                # 57d: free_vram/free_ram jetzt im Settings-Node
-                # (settings-Eingang am Ende des Schemas).
-                # Auftrag 32: Concat-Optionen (als LETZTE Eingaeinge, widgets_values!).
+                # 57d: free_vram/free_ram now in the Settings node
+                # (settings input at the end of the schema).
+                # Auftrag 32: concat options (as the LAST inputs, widgets_values!).
                 io.Float.Input("keep", default=1.0, min=0.0, max=1.0, step=0.05,
                                tooltip="Share of each shot's rendered length that stays in the film (only with even_motion).\n"
                                        "1 = full length (default). Where a shot stands still, even_motion has to fill the "
@@ -267,29 +267,29 @@ class InfiniteMovieAssemble(io.ComfyNode):
                 io.Boolean.Input("loop", default=True,
                                  tooltip="true = also drop the last frame of the last segment (seamless loop); "
                                          "false = keep it (the film ends on the last image)."),
-                # 73: copy_to gestrichen (kein Copy-Ziel mehr; Film bleibt im Ausgabe-Ordner).
-                # 57d: settings (SETTINGS) am ENDE, damit sich die Slot-Indizes der
-                # verdrahteten Eingaenge (shots/segments/save_folder/save_name) nicht verschieben.
+                # 73: copy_to removed (no more copy target; the film stays in the output folder).
+                # 57d: settings (SETTINGS) at the END so that the slot indices of the
+                # wired inputs (shots/segments/save_folder/save_name) do not shift.
                 SETTINGS.Input("settings", optional=True, display_name="settings",
                                tooltip="Shared settings from Infinite Movie · Settings (cleanup after the film: "
                                        "free_vram/free_ram). When connected, the cleanup switches "
                                        "come from the pipe; otherwise the built-in defaults apply."),
             ],
             outputs=[
-                # 73: Ausgaenge schlank – nur noch video_path + video.
-                # segments/graph/report/images/fps/check/settings-chain entfallen;
-                # Graph + Report bleiben als ui=-Anzeige (preview.as_dict()).
+                # 73: outputs slim - only video_path + video left.
+                # segments/graph/report/images/fps/check/settings-chain are gone;
+                # graph + report remain as a ui= display (preview.as_dict()).
                 io.String.Output("video_path",
                                  tooltip="Path to the final assembled film (film_path, VHS-compatible). Same as the "
                                          "film written to <save_folder>/<save_name>.mp4."),
                 io.Video.Output("video",
                                 tooltip="The final assembled film as VIDEO (VHS-compatible)."),
-                # 2026-11-08 (Nutzer: „last frame … to get longer videos, restart or loop“)
+                # 2026-11-08 (user: "last frame … to get longer videos, restart or loop")
                 io.Image.Output("last_frame",
                                 tooltip="The last frame of the finished film as IMAGE – connect it to the Director's "
                                         "image input to continue the film from where it ends. With loop on, the "
                                         "film ends just before the start image, so this frame is close to it."),
-                # 2026-11-08 (Nutzer: „add first frame too … in some cases it does“)
+                # 2026-11-08 (user: "add first frame too … in some cases it does")
                 io.Image.Output("first_frame",
                                 tooltip="The first frame of the finished film as IMAGE – e.g. to render a lead-in "
                                         "that ends where the film starts, or to loop a follow-up back to the start."),
@@ -304,25 +304,25 @@ class InfiniteMovieAssemble(io.ComfyNode):
                 even_motion=True, loop=True, keep=1.0,
                 settings=None) -> io.NodeOutput:
         # 57d: free_vram/free_ram
-        # kommen aus dem Settings-Node (SETTINGS-Pipe); ohne -> Defaults.
+        # come from the Settings node (SETTINGS pipe); without it -> defaults.
         free_vram = get_setting(settings, "free_vram")
         free_ram = get_setting(settings, "free_ram")
-        # 63: Ausgabe-Ordner für den fertigen Film (Settings › output_folder).
-        # Leer = Verhalten wie bisher (Film neben den Shots im save_folder).
+        # 63: output folder for the finished film (Settings › output_folder).
+        # Empty = behaviour as before (film next to the shots in save_folder).
         of = (get_setting(settings, "output_folder") or "").strip()
         import folder_paths
         uid = getattr(getattr(cls, "hidden", None), "unique_id", None)
         out_dir = tempfile.mkdtemp(prefix="normalize_", dir=_temp_dir())
         # Source: shots > video > images > video_path > file
-        # 73: segments/save_folder/save_name als Inputs gestrichen - paths/sf/sn
-        # kommen jetzt nur noch aus der shots-Pipe (oder Settings › output_folder).
+        # 73: segments/save_folder/save_name removed as inputs - paths/sf/sn
+        # now only come from the shots pipe (or Settings › output_folder).
         paths = []
         sf = ""
         sn = "film"
         scene_frames_list = []
         # Auftrag 48-P5: "movielink" -> "movie"; 57b: "movie" -> "shots"
         if shots is not None:
-            # shots (SHOTS) hat hoechsten Vorrang
+            # shots (SHOTS) has the highest priority
             paths = list(shots.get("segments", []))
             sf = shots.get("save_folder", sf) or sf
             sn = shots.get("save_name", sn) or sn
@@ -345,9 +345,9 @@ class InfiniteMovieAssemble(io.ComfyNode):
                 _encode(arr, np.arange(len(arr)), f"{fps:g}", src)
                 paths = [src]
             else:
-                # Auftrag 48B: "(none)"/"" = keine Datei (shots/segments/video verbunden)
-                # 2026-11-04: video_path VOR file prüfen – sonst wurde ein gesetzter video_path bei
-                # file="(none)" (Vorgabe) ignoriert ("no source connected").
+                # Auftrag 48B: "(none)"/"" = no file (shots/segments/video connected)
+                # 2026-11-04: check video_path BEFORE file - otherwise a set video_path with
+                # file="(none)" (the default) was ignored ("no source connected").
                 _file = (file or "").strip()
                 _vp = (video_path or "").strip().strip('"')
                 if not _vp and _file in ("", "(none)"):
@@ -385,15 +385,15 @@ class InfiniteMovieAssemble(io.ComfyNode):
             frames, _, _ = _read_rgb(p)
             curves.append(motion_curve(frames))
             del frames
-        # Länge je Shot = gerenderte Länge (Widget seconds_out gestrichen, Nutzer 2026-11-04):
-        # aus scene_frames der Shots-Pipe, sonst aus der Framezahl jedes Segments.
+        # Length per shot = rendered length (widget seconds_out removed, user 2026-11-04):
+        # from scene_frames of the shots pipe, otherwise from the frame count of each segment.
         if scene_frames_list and len(scene_frames_list) == len(curves):
             per_scene_seconds = [f / fps_f for f in scene_frames_list]
         else:
             per_scene_seconds = [max(len(c) - 1, 1) / fps_in for c in curves]
         picks, n_out, report = _picks_for(curves, fps_f, strength, per_scene_seconds, keep)
         out_paths = []
-        # 86: Viewer-Daten (Zeitstreifen, Heatmap, benutzte Frames) im Temp-Ordner; Fehler hier nie fatal.
+        # 86: viewer data (timeline, heatmap, used frames) in the temp folder; errors here are never fatal.
         import time as _time
         viz_dir = os.path.join(_temp_dir(), f"viz_{uid or 'x'}_{int(_time.time())}")
         viz = {"shots": [], "timeline": None, "subfolder": "infinite_movie_normalize/" + os.path.basename(viz_dir)}
@@ -429,31 +429,31 @@ class InfiniteMovieAssemble(io.ComfyNode):
         print(f"[InfiniteMovieAssemble]\n{report}")
         from comfy_api.latest import ui, InputImpl
         preview = ui.PreviewImage(graph, cls=cls)
-        # 73: images/fps/check/segments/graph/report/chain sind keine Ausgaenge mehr;
-        # Graph + Report bleiben nur als ui=-Anzeige (preview.as_dict()).
-        # images_out (RAM-hungrig) wird nicht mehr berechnet.
-        # Auftrag 32: Concat (gemeinsame Funktion aus nodes.py)
+        # 73: images/fps/check/segments/graph/report/chain are no longer outputs;
+        # graph + report only remain as a ui= display (preview.as_dict()).
+        # images_out (RAM-hungry) is no longer computed.
+        # Auftrag 32: concat (shared function from nodes.py)
         from .nodes import _concat_segments, _has_audio_stream
         if even_motion:
-            # Retime + Concat: die retimten Segmente werden zusammengefuegt
+            # Retime + concat: the retimed segments are joined
             concat_paths = out_paths
         else:
-            # Nur Concat (ohne Retime): die Original-Segmente werden zusammengefuegt
+            # Concat only (without retime): the original segments are joined
             concat_paths = paths
-        # 76: Retime aendert die Video-Zeit -> Audio kann NICHT retimt werden
-        # (kein Versatz). Retimte Segmente sind video-only, daher wird der Film
-        # bei even_motion=true automatisch stumm. Falls die Original-Segmente Ton
-        # hatten, das melden.
+        # 76: retime changes the video timing -> audio CANNOT be re-timed
+        # (no offset). Retimed segments are video-only, so the film is
+        # automatically silent with even_motion=true. If the original segments
+        # had audio, report that.
         if even_motion and any(_has_audio_stream(p) for p in paths):
             report += "\nSound only without even_motion: the film is silent (even_motion changes the video timing, audio is not re-timed)."
-        # 63: Settings › output_folder überschreibt den Ausgabe-Ordner des FINALEN
-        # Films (nachdem shots/save_folder ausgewertet sind). _unique_output_path
-        # (nodes.py:672) legt den Ordner an und löst relative Pfade gegen die
-        # ComfyUI-Output-Dir auf; die retimten Zwischen-Segmente bleiben im
-        # Temp-Ordner (out_dir), nur der finale Film wandert nach `of`.
+        # 63: Settings › output_folder overrides the output folder of the FINAL
+        # film (after shots/save_folder have been evaluated). _unique_output_path
+        # (nodes.py:672) creates the folder and resolves relative paths against
+        # the ComfyUI output directory; the retimed intermediate segments stay
+        # in the temp folder (out_dir), only the final film moves to `of`.
         if of:
             sf = of
-        # Auftrag 70: prompt + workflow (extra_pnginfo) als FFMETADATA in den Film.
+        # Auftrag 70: prompt + workflow (extra_pnginfo) as FFMETADATA in the film.
         meta = {}
         _hidden_prompt = getattr(getattr(cls, "hidden", None), "prompt", None)
         if _hidden_prompt is not None:
@@ -461,23 +461,23 @@ class InfiniteMovieAssemble(io.ComfyNode):
         _hidden_pnginfo = getattr(getattr(cls, "hidden", None), "extra_pnginfo", None)
         if isinstance(_hidden_pnginfo, dict):
             meta.update(_hidden_pnginfo)
-        # 73: copy_to gestrichen (Parameter von _concat_segments entfernt).
+        # 73: copy_to removed (parameter removed from _concat_segments).
         film_path, check, total_frames, out_fps = _concat_segments(
             concat_paths, sf, sn, loop,
             free_vram, free_ram, metadata=meta or None, audio=bool(get_setting(settings, "audio")))
-        # video_path = film_path (der finale Film, nicht das erste Segment)
+        # video_path = film_path (the final film, not the first segment)
         vp = film_path
         video_out = InputImpl.VideoFromFile(film_path)
         fps_f = out_fps
         ui_out = {"images": preview.as_dict()["images"], "text": [report], "film_path": [vp]}
         if viz is not None:
             ui_out["im_viz"] = [viz]
-        # 73: Ausgaenge nur noch video_path + video (Graph/Report als ui=).
+        # 73: outputs only video_path + video left (graph/report as ui=).
         return io.NodeOutput(vp, video_out, last_frame(film_path), first_frame(film_path), ui=ui_out)
 
 
 def first_frame(video_path: str) -> torch.Tensor:
-    """Erstes Frame eines Films als IMAGE [1, H, W, 3] (float 0..1)."""
+    """First frame of a film as IMAGE [1, H, W, 3] (float 0..1)."""
     w, h = _probe_size(video_path)
     raw = subprocess.run([_ffmpeg(), "-v", "error", "-i", video_path, "-map", "0:v:0", "-frames:v", "1",
                           "-f", "rawvideo", "-pix_fmt", "rgb24", "-"], capture_output=True, **_no_window()).stdout
@@ -489,13 +489,13 @@ def first_frame(video_path: str) -> torch.Tensor:
 
 
 def last_frame(video_path: str) -> torch.Tensor:
-    """Letztes Frame eines Films als IMAGE [1, H, W, 3] (float 0..1). Liest nur die letzten 2 s (-sseof),
-    nimmt das letzte vollständige Frame aus dem rawvideo-Strom."""
+    """Last frame of a film as IMAGE [1, H, W, 3] (float 0..1). Reads only the last 2 s (-sseof),
+    takes the last complete frame from the rawvideo stream."""
     w, h = _probe_size(video_path)
     raw = subprocess.run([_ffmpeg(), "-v", "error", "-sseof", "-2", "-i", video_path, "-map", "0:v:0",
                           "-f", "rawvideo", "-pix_fmt", "rgb24", "-"], capture_output=True, **_no_window()).stdout
     size = w * h * 3
-    if len(raw) < size:   # Film kürzer/fehlerhaft: ganz lesen
+    if len(raw) < size:   # film shorter/defective: read the whole thing
         raw = subprocess.run([_ffmpeg(), "-v", "error", "-i", video_path, "-map", "0:v:0", "-f", "rawvideo",
                               "-pix_fmt", "rgb24", "-"], capture_output=True, **_no_window()).stdout
     if len(raw) < size:
@@ -553,19 +553,19 @@ except Exception as _e:  # noqa: BLE001  (outside ComfyUI, e.g. tests)
     print(f"[InfiniteMovieAssemble] graph route not registered: {_e}")
 
 
-VIZ_MAX_FRAMES = 64   # Nutzer 2026-11-04: alle benutzten Frames bis 64, darüber jedes x-te
+VIZ_MAX_FRAMES = 64   # user 2026-11-04: all used frames up to 64, above that every x-th
 VIZ_FRAME_W = 256
 
 
-TRACK_W = 384         # Partikel (Nutzer 2026-11-04): Verfolgung auf 384 px Breite
-TRACK_MAX = 300       # höchstens so viele Spuren je Shot
-TRACK_RESEED = 6      # alle 6 Quell-Frames neue Punkte in leeren Bereichen
+TRACK_W = 384         # particles (user 2026-11-04): tracking at 384 px width
+TRACK_MAX = 300       # at most this many tracks per shot
+TRACK_RESEED = 6      # every 6 source frames, new points in empty areas
 
 
 def particle_tracks(frames: np.ndarray, max_tracks: int = TRACK_MAX, min_move: float = 0.01) -> list:
-    """Erkannte Bildpunkte (goodFeaturesToTrack) per Lucas-Kanade durch alle Quell-Frames verfolgen,
-    mit Vor-/Rückwärts-Prüfung. Rückgabe: Liste {"s": Start-Frame, "p": [x0,y0,x1,y1,…]} in 0..1000
-    (relativ zu Breite/Höhe); nur Spuren ≥ 4 Frames, die sich insgesamt ≥ min_move der Breite bewegen."""
+    """Track detected image points (goodFeaturesToTrack) with Lucas-Kanade through all source frames,
+    with a forward/backward check. Returns: a list {"s": start frame, "p": [x0,y0,x1,y1,…]} in 0..1000
+    (relative to width/height); only tracks of ≥ 4 frames that move a total of ≥ min_move of the width."""
     import cv2
     n, h, w = frames.shape[:3]
     tw = min(TRACK_W, w)
@@ -619,8 +619,8 @@ def particle_tracks(frames: np.ndarray, max_tracks: int = TRACK_MAX, min_move: f
 
 
 def _viz_shot(frames: np.ndarray, idx: np.ndarray, seg: int, viz_dir: str, fps: float) -> dict:
-    """Viewer-Daten eines Shots (Auftrag 86): Heatmap-PNG + die benutzten Frames als kleine JPEGs in
-    Ausgabe-Reihenfolge (höchstens VIZ_MAX_FRAMES, sonst jedes x-te). dup = Quell-Frame mehrfach benutzt."""
+    """Viewer data of a shot (Auftrag 86): heatmap PNG + the used frames as small JPEGs in
+    output order (at most VIZ_MAX_FRAMES, otherwise every x-th). dup = source frame used multiple times."""
     from PIL import Image
     from . import motion_viz
     rel = os.path.basename(viz_dir)
@@ -650,7 +650,7 @@ def _viz_shot(frames: np.ndarray, idx: np.ndarray, seg: int, viz_dir: str, fps: 
         with open(os.path.join(viz_dir, tracks), "w", encoding="utf-8") as fh:
             json.dump({"n": int(len(frames)), "aspect": w / h, "tracks": particle_tracks(frames)}, fh,
                       separators=(",", ":"))
-    except Exception as _e:  # noqa: BLE001 – Partikel sind nur Zusatz
+    except Exception as _e:  # noqa: BLE001 - particles are only an extra
         print(f"[InfiniteMovieAssemble] particle tracks seg {seg + 1} skipped: {_e}")
         tracks = None
     return {"seg": seg + 1, "heat": heat, "tracks": tracks, "step": step, "n_out": int(len(idx)), "frames": out,
@@ -659,8 +659,8 @@ def _viz_shot(frames: np.ndarray, idx: np.ndarray, seg: int, viz_dir: str, fps: 
 
 def _viz_timeline(curves: list, picks: list, n_out: list, keep: float, viz_dir: str, tag: str = "",
                   n_full: list = None) -> str:
-    """Zeitstreifen-PNG (motion_viz.timeline_heatmap) mit keep je Shot im Label. keep = Anteil der GERENDERTEN
-    Länge (n_full), nicht der Quell-Frames – mit RIFE sind das 2×/4× so viele."""
+    """Timeline PNG (motion_viz.timeline_heatmap) with the keep per shot in the label. keep = share of the RENDERED
+    length (n_full), not of the source frames - with RIFE that is 2×/4× as many."""
     from PIL import Image
     from . import motion_viz
     labels = []
@@ -669,7 +669,7 @@ def _viz_timeline(curves: list, picks: list, n_out: list, keep: float, viz_dir: 
         k = (n - 1) / max(full - 1, 1)
         labels.append(f"seg {i + 1} · {len(c)} -> {n} frames · keep {k:.2f}{' auto' if keep <= 0 else ''}")
     name = f"timeline{tag}.png"
-    # quadratisch wie der Assemble-Viewer (480×480, Nutzer 2026-11-09: alle Analyzer gleich groß)
+    # square like the Assemble viewer (480×480, user 2026-11-09: all analyzers the same size)
     Image.fromarray(motion_viz.timeline_heatmap(curves, picks, labels, width=512, height=512)).save(
         os.path.join(viz_dir, name))
     return name

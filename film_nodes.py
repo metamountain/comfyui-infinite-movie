@@ -1,9 +1,9 @@
-"""Infinite Movie · Film (Nutzer 2026-11-03: „Status-Bestätigung saved, fertigen Movie anzeigen, Node hinten ran“).
+"""Infinite Movie · Film (user 2026-11-03: "status confirmation saved, show the finished movie, node at the end").
 
-Letzter Node der Kette: zeigt den fertigen Film als Video in der Node (Loop, stumm, Controls) und eine
-Statuszeile „Saved: <Pfad> · 6.0 s · 1080×1350 · 12.3 MB · 14:32“. Keine Ausgänge, nur Anzeige.
-Eingänge universal (AGENTS „Nodes universal“): video (VIDEO) > video_path (STRING).
-Vorschau über /view: nur Dateien im ComfyUI-Output-Ordner sind erreichbar; sonst nur die Statuszeile.
+Last node of the chain: shows the finished film as a video in the node (loop, muted, controls) and a
+status line "Saved: <path> · 6.0 s · 1080x1350 · 12.3 MB · 14:32". No outputs, display only.
+Inputs universal (AGENTS "nodes universal"): video (VIDEO) > video_path (STRING).
+Preview via /view: only files in the ComfyUI output folder are reachable; otherwise only the status line.
 """
 
 from __future__ import annotations
@@ -23,7 +23,7 @@ def _no_window() -> dict:
 
 
 def _probe(path: str) -> dict:
-    """Dauer, Größe, fps aus ffmpeg -i (wie post_nodes._probe_fps/_probe_size)."""
+    """Duration, size, fps from ffmpeg -i (like post_nodes._probe_fps/_probe_size)."""
     try:
         err = subprocess.run([_ffmpeg(), "-hide_banner", "-i", path], capture_output=True, text=True,
                              timeout=30, **_no_window()).stderr
@@ -43,7 +43,7 @@ def _probe(path: str) -> dict:
 
 
 def _video_to_path(video) -> str:
-    """VIDEO-Objekt -> Dateipfad, wenn es aus einer Datei stammt (VideoFromFile)."""
+    """VIDEO object -> file path, if it comes from a file (VideoFromFile)."""
     if video is None:
         return ""
     try:
@@ -54,7 +54,7 @@ def _video_to_path(video) -> str:
 
 
 def film_info(path: str) -> dict:
-    """Anzeige-Daten für das Frontend (auch für Tests ohne ComfyUI-Server nutzbar)."""
+    """Display data for the frontend (also usable in tests without a ComfyUI server)."""
     info = {"path": path, "exists": bool(path) and os.path.isfile(path)}
     if not info["exists"]:
         info["status"] = f"No film found: {path or '(empty path)'}"
@@ -83,8 +83,8 @@ def film_info(path: str) -> dict:
     return info
 
 
-# „Open folder“ (Nutzer 2026-11-03): Explorer mit markiertem Film. ComfyUI lauscht im LAN (--listen) –
-# darum NUR Pfade, die dieser Node selbst gemeldet hat (_SHOWN), existierende Dateien, ohne Shell.
+# "Open folder" (user 2026-11-03): Explorer with the film highlighted. ComfyUI listens on the LAN (--listen) -
+# therefore ONLY paths this node itself reported (_SHOWN), existing files, without a shell.
 _SHOWN: set[str] = set()
 
 
@@ -104,7 +104,7 @@ def _register_open_route():
             else:
                 subprocess.Popen(["xdg-open", os.path.dirname(path)])
             return web.json_response({"ok": True})
-    except Exception as e:  # noqa: BLE001 – ohne Server (Unit-Tests) kein Route
+    except Exception as e:  # noqa: BLE001 - without a server (unit tests) no route
         print(f"[InfiniteMovieFilm] open_folder route not registered: {e}")
 
 

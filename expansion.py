@@ -133,9 +133,9 @@ def engine_to_template(dynprompt, director_id) -> tuple[dict, dict]:
 
     The engine graph is the chain between an InfiniteMovieEngineIn and an
     InfiniteMovieEngineOut, either flat on the canvas or inside a subgraph
-    (Auftrag 57e: flache Kette UND Subgraph-Präfix).
+    (Auftrag 57e: flat chain AND subgraph prefix).
 
-    Resolution of the Engine Out (Auftrag 57e, Nutzer-Entscheidung 2026-11-01):
+    Resolution of the Engine Out (Auftrag 57e, user decision 2026-11-01):
     - If the Director's `engine` input is a link in the dynprompt, EXACTLY that
       Engine Out is used (the connected one).
     - Otherwise, the single non-muted InfiniteMovieEngineOut in the prompt is
@@ -149,8 +149,8 @@ def engine_to_template(dynprompt, director_id) -> tuple[dict, dict]:
     Returns (template, cfg) where template is the extracted engine graph
     (API-format dict) and cfg is the configuration derived from the graph.
     """
-    # Convert DynamicPrompt to dict if needed (Auftrag 41: dynprompt ist ein
-    # DynamicPrompt-Objekt, kein dict – original_prompt + ephemeral_prompt + node_overrides)
+    # Convert DynamicPrompt to dict if needed (Auftrag 41: dynprompt is a
+    # DynamicPrompt object, not a dict - original_prompt + ephemeral_prompt + node_overrides)
     if hasattr(dynprompt, 'original_prompt'):
         _dp: dict = {}
         _dp.update(dynprompt.original_prompt)
@@ -212,7 +212,7 @@ def engine_to_template(dynprompt, director_id) -> tuple[dict, dict]:
 
 
 def _extract_flat_chain(dynprompt: dict, out_nid: str) -> dict:
-    """Extract the flat engine chain (Auftrag 57e, Befund 1): all nodes reachable
+    """Extract the flat engine chain (Auftrag 57e, finding 1): all nodes reachable
     backwards from the Engine Out until the Engine In (inclusive).
 
     Follows input links backwards (towards the sources). The Engine In has no
@@ -274,8 +274,8 @@ def _chain_to_template(chain: dict) -> dict:
             0: ("image", "START_IMAGE.png"),
             1: ("image", "END_IMAGE.png"),
             2: ("text", "PROMPT_POSITIVE"),
-            # 73: negative (Slot 3) gestrichen – seed/width/height/length rücken
-            # auf Slots 3-6 (Engine In hat keinen negative-Ausgang mehr).
+            # 73: negative (slot 3) removed - seed/width/height/length move
+            # to slots 3-6 (Engine In has no negative output anymore).
             3: ("literal", 42),
             4: ("literal", 768),
             5: ("literal", 960),
@@ -311,8 +311,8 @@ def _chain_to_template(chain: dict) -> dict:
             if is_link(value):
                 images_src = (str(value[0]), value[1])
                 break
-        # 76: Audio-Quelle erfassen (wenn an EngineOut.audio verbunden), damit
-        # build_segment sie an SegmentSave.audio weiterreichen kann.
+        # 76: capture the audio source (if connected to EngineOut.audio) so
+        # build_segment can pass it on to SegmentSave.audio.
         audio_src = None
         audio_value = (out_node.get("inputs") or {}).get("audio")
         if is_link(audio_value):
@@ -336,7 +336,7 @@ def _chain_to_template(chain: dict) -> dict:
 
 
 def _derive_cfg_from_graph(template: dict, out_node: dict) -> dict:
-    """Derive the cfg from the extracted engine graph (Auftrag 57e, Schritt 2).
+    """Derive the cfg from the extracted engine graph (Auftrag 57e, step 2).
 
     The cfg is derived FROM THE CHAIN, not from a preset selection:
     - fps (from the Engine Out's fps widget)
@@ -438,7 +438,7 @@ def _derive_cfg_from_graph(template: dict, out_node: dict) -> dict:
     for nid, n in template.items():
         if n.get("class_type") == "LoadImage":
             img = n.get("inputs", {}).get("image", "")
-            img = img if isinstance(img, str) else ""   # Link/Zahl (verrutschte Widgets) -> kein Marker
+            img = img if isinstance(img, str) else ""   # link/number (shifted widgets) -> no marker
             if "START" in img:
                 cfg["start_image_marker"] = img
             elif "END" in img:
@@ -448,7 +448,7 @@ def _derive_cfg_from_graph(template: dict, out_node: dict) -> dict:
     for nid, n in template.items():
         if n.get("class_type") == "CLIPTextEncode":
             text = n.get("inputs", {}).get("text", "")
-            text = text if isinstance(text, str) else ""  # Link/Zahl -> kein Marker (Fehler 2026-11-04: int not iterable)
+            text = text if isinstance(text, str) else ""  # link/number -> no marker (error 2026-11-04: int not iterable)
             if "PROMPT" in text or "POSITIVE" in text:
                 cfg["prompt_marker"] = text
 
@@ -659,8 +659,8 @@ def _model_inputs_tag(model_inputs: dict | None) -> str:
 
 
 def _reusable_segment(path: str, key: str) -> bool:
-    """78 (Nutzer 2026-11-03: RERENDER rechnete alle Shots neu und warf die unveränderten weg): Datei mit genau
-    diesem Schlüssel (Seed/Prompt/Bilder/Länge) vorhanden -> gar nicht erst sampeln."""
+    """78 (user 2026-11-03: RERENDER recomputed all shots and threw away the unchanged ones): file with exactly
+    this key (seed/prompt/images/length) present -> do not sample at all."""
     try:
         return (os.path.getsize(path) > 0
                 and open(path + ".key", encoding="utf-8").read().strip() == key)
@@ -683,7 +683,7 @@ def _last_frame_tensor(path: str):
 
 
 def _reuse_node(graph: dict, nid: str, path: str) -> str:
-    """Statt Sampler-Graph nur den Pfad liefern (Core PrimitiveString, Ausgang 0 = STRING wie SegmentSave)."""
+    """Provide just the path instead of a sampler graph (Core PrimitiveString, output 0 = STRING like SegmentSave)."""
     graph[nid] = {"class_type": "PrimitiveString", "inputs": {"value": path}}
     print(f"[InfiniteMovie] segment unchanged, reusing {os.path.basename(path)}")
     return nid
@@ -739,8 +739,8 @@ def build_segment(template: dict, cfg: dict, prefix: str,
     if model_inputs:
         _apply_model_inputs(seg, template, cfg, prefix, model_inputs)
 
-    # 3. Set prompt. (73: negative wird nicht mehr gesetzt – der Negativ-Encoder
-    # bleibt leer; Engine In hat keinen negative-Ausgang mehr.)
+    # 3. Set prompt. (73: negative is no longer set - the negative encoder
+    # stays empty; Engine In has no negative output anymore.)
     prompt_hit = _find_prompt_input(template, cfg["prompt_marker"])
     if prompt_hit is not None:
         seg[prefix + prompt_hit[0]]["inputs"][prompt_hit[1]] = prompt
@@ -767,9 +767,9 @@ def build_segment(template: dict, cfg: dict, prefix: str,
     # The SaveImage node's 'images' input is a link to the VAEDecode output.
     # InfiniteMovieSegmentSave keeps that link and adds path/index/trigger inputs.
     images_link = seg[save_id]["inputs"].get("images")
-    # 76: Audio-Quelle (aus EngineOut.audio, in _chain_to_template als "audio"
-    # am SaveImage-Platzhalter mitgeführt) an SegmentSave.audio verdrahten.
-    # Ohne Audio-Quelle (z. B. Wan) bleibt der Eingang leer.
+    # 76: wire the audio source (from EngineOut.audio, carried along as "audio"
+    # on the SaveImage placeholder in _chain_to_template) to SegmentSave.audio.
+    # Without an audio source (e.g. Wan) the input stays empty.
     audio_link = seg[save_id]["inputs"].get("audio")
     seg_save_inputs = {
         "frames": images_link,
@@ -779,8 +779,8 @@ def build_segment(template: dict, cfg: dict, prefix: str,
         "fps": cfg["fps"],
         "trigger": "",       # dependency link (ignored)
     }
-    # Settings › audio aus: Ton nicht verdrahten -> Audio-Decode + Audio-VAE laufen gar nicht (nur verlinkte
-    # Nodes einer Expansion werden ausgeführt).
+    # Settings > audio off: do not wire the audio -> audio decode + audio VAE never run (only linked
+    # nodes of an expansion are executed).
     if is_link(audio_link) and cfg.get("audio", True):
         seg_save_inputs["audio"] = audio_link
     seg[save_id] = {
@@ -856,7 +856,7 @@ def build_expansion_graph(unique_id: str, preset: str,
 
     n_images = len(images)
     # --- Per-segment graphs ---
-    # Auftrag 41A: per-scene lengths (n_scenes Eintraege)
+    # Auftrag 41A: per-scene lengths (n_scenes entries)
     n_scenes = n_images - 1 if n_images > 1 else 1   # 1 image: open shot (+ loop shot back if loop)
     if scene_seconds:
         from .nodes import _scene_frames
@@ -893,26 +893,26 @@ def build_expansion_graph(unique_id: str, preset: str,
             seg_prompt = prompts[start_idx] if start_idx < len(prompts) else (prompts[-1] if prompts else "")
         _b = seed_bumps or {}
         seg_seed = seed + i + 1000 * (_b.get(i + 1, 0) + _b.get(f"{i + 1}a", 0))
-        # Variante B: wie bisher seg_seed + 500, aber nur ihre eigenen Bumps ("2b") – "2a" lässt B unverändert
+        # Variant B: as before seg_seed + 500, but only its own bumps ("2b") - "2a" leaves B unchanged
         seed_b = seed + i + 500 + 1000 * (_b.get(i + 1, 0) + _b.get(f"{i + 1}b", 0))
 
         # Key of everything that shapes the segment (shared by A and B except the seed):
         # InfiniteMovieSegmentSave only reuses an existing file when the key matches
-        # (seed / prompt / preset / images / length). 73: negative entfällt.
+        # (seed / prompt / preset / images / length). 73: negative no longer applies.
         h = hashlib.md5(seg_prompt.encode("utf-8"))
         h.update(preset.encode("utf-8"))
         if start_idx is None:
             h.update(f"after:{prev_key}".encode("utf-8"))   # pass 2 follows pass 1's exact result
         for t in ((images[start_idx] if start_idx is not None else None), end_tensor):
             h.update(t.cpu().numpy().tobytes() if t is not None else b"open")
-        # Modell-Bezeichner (Auftrag 29): stabil (Klasse + Name-Kurzform), kein
-        # id() (das aendert sich je Lauf). Ohne Bezeichner wuerde bei neu
-        # verbundenem Modell das alte Segment stillschweigend wiederverwendet.
+        # Model identifier (Auftrag 29): stable (class + name short form), not
+        # id() (which changes per run). Without the identifier, a newly
+        # connected model would silently reuse the old segment.
         model_tag = _model_inputs_tag(model_inputs)
         if model_tag:
             h.update(model_tag.encode("utf-8"))
-        # Settings › audio an: eigener Schlüssel (stumm gerenderte Segmente nicht als „mit Ton“ wiederverwenden);
-        # aus: Schlüssel wie bisher – vorhandene Segmente bleiben gültig, der Film wird beim Verketten stumm.
+        # Settings > audio on: its own key (do not reuse silently rendered segments as "with audio");
+        # off: key as before - existing segments stay valid, the film becomes silent when chained.
         if cfg.get("audio"):
             h.update(b"audio")
         base_hash = h.hexdigest()
@@ -963,10 +963,10 @@ def build_expansion_graph(unique_id: str, preset: str,
                 graph[save_id_b]["inputs"]["total"] = n_segments
                 graph[save_id_b]["inputs"]["key"] = key_b
             save_ids_b.append(save_id_b)
-            # 2026-11-03 Fix: der Parent wartet NICHT auf unverbundene Output-Nodes der Expansion –
-            # Assemble lief los, bevor seg_001_b.mp4 existierte (Smoke varianten_095500). Darum
-            # B[i] -> A[i].trigger: jedes A wartet auf sein B, der Collector auf alle A, seine
-            # Ausgabe (segment_paths) bleibt die A-Liste.
+            # 2026-11-03 fix: the parent does NOT wait for unconnected output nodes of the expansion -
+            # Assemble started before seg_001_b.mp4 existed (smoke varianten_095500). Therefore
+            # B[i] -> A[i].trigger: each A waits for its B, the collector for all A, its
+            # output (segment_paths) stays the A list.
             _set_trigger(graph, save_id_a, save_id_b)
 
     # 75: InfiniteMovieVRAMAcquire removed from the expansion.
@@ -981,16 +981,16 @@ def build_expansion_graph(unique_id: str, preset: str,
     collector_id = f"{unique_id}_collector"
     collector_inputs = {}
     for j, sid in enumerate(save_ids):
-        collector_inputs[f"segments.segment{j}"] = [sid, 0]  # Autogrow flach: name.prefixN
+        collector_inputs[f"segments.segment{j}"] = [sid, 0]  # Autogrow flat: name.prefixN
     graph[collector_id] = {"class_type": "InfiniteMovieSegmentPaths",
                            "inputs": collector_inputs}
 
     if concat_inside:
         # --- Internal InfiniteMovieShotsOut + InfiniteMovieAssemble (after all segments, via the collector) ---
-        # 73: Assemble hat keine segments/save_folder/save_name/copy_to Inputs mehr –
-        # die Daten kommen ueber die shots-Pipe (SHOTS). InfiniteMovieShotsOut kombiniert
-        # die Collector-Pfade (Link) mit dem shots-Dict (Literal) und gibt das Dict mit
-        # den echten Segment-Pfaden zurueck. Die Cleanup-Schalter liegen in settings.
+        # 73: Assemble has no segments/save_folder/save_name/copy_to inputs anymore -
+        # the data comes via the shots pipe (SHOTS). InfiniteMovieShotsOut combines
+        # the collector paths (link) with the shots dict (literal) and returns the dict
+        # with the real segment paths. The cleanup switches are in settings.
         concat_shots_id = f"{unique_id}_concat_shots"
         concat_shots_dict = {
             "save_folder": output_dir,

@@ -42,7 +42,7 @@ function showImage(node, r) {
   node._gif_dl.style.display = "inline-block";
 }
 
-// GIF-/WebP-only widgets ausgrauen, damit klar ist, was beim gewählten Format wirkt.
+// Grey out GIF-only / WebP-only widgets so it is clear which ones apply to the chosen format.
 function updateFormatHints(node) {
   const webp = String(wval(node, "format") || "").startsWith("WebP");
   for (const w of node.widgets || []) {
@@ -57,8 +57,8 @@ function schedule(node, delay = 500) {
   node._gif_timer = setTimeout(() => refreshPreview(node), delay);
 }
 
-// Verbundener Lade-Node (z. B. VHS Load Video: Widget „video“ = Datei in ComfyUI/input; Load Video (Path):
-// „video“/„video_path“ = Pfad) -> seine Datei direkt in der Live-Vorschau nehmen, ohne Run.
+// Connected loader node (e.g. VHS Load Video: widget "video" = file in ComfyUI/input; Load Video (Path):
+// "video"/"video_path" = path) -> use its file directly in the live preview, without a Run.
 function upstreamSource(node) {
   for (const name of ["video", "video_path", "images"]) {
     const inp = node.inputs?.find((i) => i.name === name && i.link != null);
@@ -101,7 +101,7 @@ async function refreshPreview(node) {
   try {
     const r = await api.fetchApi("/infinite_movie/gif_preview", { method: "POST", body: JSON.stringify(body) });
     const res = r.ok ? await r.json() : { ok: false, message: `preview failed (HTTP ${r.status})` };
-    if (req !== node._gif_req) return;   // eine neuere Anfrage läuft schon
+    if (req !== node._gif_req) return;   // a newer request is already running
     if (!res.ok) { setInfo(node, res.message || "preview failed", true); return; }
     showImage(node, res);
     setInfo(node, `Live: ${res.message}`);
@@ -149,7 +149,7 @@ app.registerExtension({
         const cb = w.callback;
         w.callback = (...a) => { const x = cb?.apply(w, a); schedule(this); return x; };
       }
-      // 💾 Save as… (Ordner-Browser aus infinite_movie.js, wie Settings › output_folder)
+      // 💾 Save as… (folder browser from infinite_movie.js, like Settings > output_folder)
       const of = this.widgets?.find((w) => w.name === "output_folder");
       if (of && !this.widgets.some((w) => w.name === "💾 Save as…")) {
         const btn = this.addWidget("button", "💾 Save as…", null, async () => {
@@ -159,13 +159,13 @@ app.registerExtension({
         });
         btn.serialize = false;
         btn.tooltip = "Choose where the GIF is saved (folder browser on the ComfyUI computer). Empty output_folder = ComfyUI output folder.";
-        // Knopf direkt unter output_folder einsortieren
+        // Insert the button directly below output_folder
         const i = this.widgets.indexOf(of);
         this.widgets.splice(this.widgets.indexOf(btn), 1);
         this.widgets.splice(i + 1, 0, btn);
       }
-      schedule(this, 800);   // nach dem Laden (Widget-Werte gesetzt)
-      // Datei im verbundenen Lade-Node gewechselt -> neue Vorschau (dessen Widgets kennen uns nicht)
+      schedule(this, 800);   // after loading (widget values are set)
+      // File changed in the connected loader node -> new preview (its widgets do not know about us)
       this._gif_up = "";
       this._gif_poll = setInterval(() => {
         if (!this.graph) { clearInterval(this._gif_poll); return; }
@@ -178,7 +178,7 @@ app.registerExtension({
     const conn = nodeType.prototype.onConnectionsChange;
     nodeType.prototype.onConnectionsChange = function () {
       const r = conn?.apply(this, arguments);
-      this._gif_token = null;   // andere Quelle -> erst wieder nach Run
+      this._gif_token = null;   // different source -> valid again only after a Run
       schedule(this);
       return r;
     };
