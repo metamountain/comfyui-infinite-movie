@@ -1334,8 +1334,8 @@
       "widgets_values": [
         "## ENGINE: Wan 2.2\nVideo generation engine (Wan 2.2 i2v, 14B, fp8, two-pass high/low noise).\n- **Infinite Movie · Engine Start** (from Director): `start_image`, `end_image`, `prompt`, `seed`, `width`, `height`, `length`.\n- **UNETLoader** (×2): high-noise and low-noise 14B models.\n- **LoraLoaderModelOnly** (×2): LightX2V distill LoRAs (1022) – run at 8 steps (4 high + 4 low, cfg 1).\n- **WanFirstLastFrameToVideo**: builds conditioning from start/end frames.\n- **KSamplerAdvanced** (×2): two-pass sampling, 8 steps: high-noise 0–4 → low-noise 4–8.\n- **VAEDecode**: decodes the latent to pixels.\n- **Infinite Movie · Engine Result** (to Director): outputs the rendered frames.\n- Copy this group into Infinite Movie (Ctrl+C / Ctrl+V) and mute the MiniMax group (Ctrl+M) – only ONE engine group may be active."
       ],
-      "color": "#432",
-      "bgcolor": "#653"
+      "color": "#322",
+      "bgcolor": "#533"
     }
   ],
   "links": [

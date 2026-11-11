@@ -46,7 +46,7 @@ The engine sits at the top, below it one row read from left to right. Every area
 Settings are passed along one chain: Settings → Prompt Style → Auto Prompts → Director → Assemble.
 
 **Node colours:** green = positive prompt, red = negative prompt, blue = model loader, cyan = engine connection
-(*Engine Start* / *Engine Result*), yellow = help notes.
+(*Engine Start* / *Engine Result*), red = help notes.
 
 ## Models and download sizes
 
