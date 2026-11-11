@@ -1,7 +1,7 @@
 """Infinite Movie · Story Mode (LLM) (2026-11-11, user: "node for a local LLM, the small ones are no good for complex prompts;
 plugs into settings, holds the LLM settings and the prompt prompt").
 
-Plugs into Settings › `prompt model ◀ LLM` (user: "threading it into the chain is counterintuitive, let story mode
+Plugs into Settings › `LLM` (user: "threading it into the chain is counterintuitive, let story mode
 flow into prompt model"): connected, the Auto Prompts write their prompt (still per image pair: JSON description,
 then the shot text) with a vision LLM on a server instead of the small model ComfyUI loads itself. `provider` fills
 endpoint/model/key name with the usual defaults (local server, Ollama, LM Studio, OpenAI, Gemini, OpenRouter); all
@@ -336,7 +336,7 @@ class InfiniteMovieStoryMode(io.ComfyNode):
             description="Story mode: a bigger vision LLM (local server, Ollama, LM Studio or a cloud API) first reads "
                         "ALL images and plans the film (arc + one beat per shot), then every Auto Prompt writes its "
                         "shot from its two images and its beat. The red thread (`story`) goes into every system "
-                        "prompt. Plug `LLM ▶ prompt model` into Settings › `prompt model ◀ LLM`: it replaces the "
+                        "prompt. Plug `LLM` into Settings › `LLM`: it replaces the "
                         "small prompt model. Unplugged or bypassed = off.",
             inputs=[
                 io.Combo.Input("provider", options=list(PROVIDERS), default=next(iter(PROVIDERS)),
@@ -374,8 +374,8 @@ class InfiniteMovieStoryMode(io.ComfyNode):
                                  tooltip="Unload ComfyUI's own models before asking, so a local LLM has room on the GPU."),
             ],
             outputs=[
-                STORY_MODE.Output("llm", display_name="LLM ▶ prompt model",
-                                  tooltip="Plug into Infinite Movie · Settings › prompt model ◀ LLM."),
+                STORY_MODE.Output("llm", display_name="LLM",
+                                  tooltip="Plug into Infinite Movie · Settings › LLM."),
             ],
         )
 

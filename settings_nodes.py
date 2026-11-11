@@ -136,7 +136,7 @@ class InfiniteMovieSettings(io.ComfyNode):
             description="Shared settings for the whole chain: the local prompt model, format and output. "
                         "Connect `settings ▶ chain` to Prompt Style (or the first Auto Prompt).",
             inputs=[
-                STORY_MODE.Input("llm", optional=True, display_name="prompt model ◀ LLM",
+                STORY_MODE.Input("llm", optional=True, display_name="LLM",
                                  tooltip="Plug in Infinite Movie · Story Mode (LLM): a bigger vision LLM on a server "
                                          "writes the shot prompts instead of prompt_model."),
                 io.Combo.Input("prompt_model", options=prompt_models(), default=default_prompt_model(),

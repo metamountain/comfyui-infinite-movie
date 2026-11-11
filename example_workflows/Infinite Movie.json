@@ -829,7 +829,7 @@
       "inputs": [
         {
           "name": "llm",
-          "label": "prompt model ◀ LLM",
+          "label": "LLM",
           "type": "IM_STORY_MODE",
           "shape": 7,
           "link": 2167
@@ -2976,7 +2976,7 @@
         {
           "name": "llm",
           "localized_name": "llm",
-          "label": "LLM ▶ prompt model",
+          "label": "LLM",
           "type": "IM_STORY_MODE",
           "links": [
             2167

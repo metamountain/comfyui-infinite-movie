@@ -112,7 +112,7 @@ function settingsNodeOf(node) {
   return settingsChainOf(node).settings;
 }
 
-// 2026-11-11: Story Mode (LLM) plugged into Settings › "prompt model ◀ LLM" (input name "llm"), active = not bypassed/muted.
+// 2026-11-11: Story Mode (LLM) plugged into Settings › "LLM" (input name "llm"), active = not bypassed/muted.
 function storyModeOf(settingsNode) {
   const inp = settingsNode?.inputs?.find((i) => i.name === "llm");
   if (inp?.link == null) return null;
@@ -914,7 +914,7 @@ function wireSettingsChain(director) {
   // Kette: Settings → AP0 → … → APn → Director → Assemble.
   // 66: Prompt Style (falls vorhanden) direkt hinter Settings
   const style = nodes.find((n) => n.comfyClass === "InfiniteMovieStyle" && (n.mode ?? 0) === 0);
-  // 2026-11-11: Story Mode (LLM) is not in the chain - it plugs into Settings › "prompt model ◀ LLM".
+  // 2026-11-11: Story Mode (LLM) is not in the chain - it plugs into Settings › "LLM".
   const story = nodes.find((n) => n.comfyClass === "InfiniteMovieStoryMode");
   const llmIn = slotIndex(snode, "llm");
   if (story && llmIn >= 0 && snode.inputs[llmIn].link == null && story.outputs?.length) story.connect(0, snode, llmIn);
@@ -3654,7 +3654,7 @@ app.registerExtension({
   },
 });
 
-// 2026-11-11: Settings – while Story Mode is plugged into "prompt model ◀ LLM", prompt_model is greyed out.
+// 2026-11-11: Settings – while Story Mode is plugged into "LLM", prompt_model is greyed out.
 app.registerExtension({
   name: "InfiniteMovie.SettingsLLMSocket",
   beforeRegisterNodeDef(nodeType, nodeData) {
