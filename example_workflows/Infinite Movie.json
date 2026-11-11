@@ -1053,12 +1053,12 @@
         "prompt_hint": null
       },
       "widgets_values": [
-        "",
+        "The rain cools and turns to sleet, then to soft snowflakes that settle on the rock-shaped house and dust the grass white while pale mist rises from the forest. The snow keeps falling gently, none hang still.",
         "",
         ""
       ],
       "widgets_values_named": {
-        "prompt": "",
+        "prompt": "The rain cools and turns to sleet, then to soft snowflakes that settle on the rock-shaped house and dust the grass white while pale mist rises from the forest. The snow keeps falling gently, none hang still.",
         "keywords": "",
         "regen": ""
       },
@@ -1611,12 +1611,12 @@
         "prompt_hint": null
       },
       "widgets_values": [
-        "",
+        "The snow melts away under warming light, the grass turns green and golden again and the mist lifts from the trees until the rock-shaped house stands in bright summer daylight. Leaves and grass keep swaying in a light breeze.",
         "",
         ""
       ],
       "widgets_values_named": {
-        "prompt": "",
+        "prompt": "The snow melts away under warming light, the grass turns green and golden again and the mist lifts from the trees until the rock-shaped house stands in bright summer daylight. Leaves and grass keep swaying in a light breeze.",
         "keywords": "",
         "regen": ""
       },
