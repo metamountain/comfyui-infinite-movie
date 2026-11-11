@@ -99,8 +99,15 @@ Infinite Movie · Engine Start (from Director)  →  your model chain  →  Infi
   press **🔗 AUTO LAYOUT**. Only **one** engine group may be active; muted groups never run.
 - The *Director* finds the one active *Engine Result* by itself. With several active groups, connect the wanted
   *Engine Result* to the Director's `engine` input.
-- **Own engine:** build any loader/sampler chain between *Engine Start* and *Engine Result*. There are no hidden
-  presets – what you see is what renders. Set the model's `fps` and frame grid (`length_grid`, advanced) in *Engine Result*.
+- **Own engine (any video model):** easiest is to copy an engine group and swap the model nodes. From scratch:
+  1. Add **Infinite Movie · Engine Start** and **Infinite Movie · Engine Result** (double-click the canvas, search "Engine").
+  2. Engine Start → your model: `start_image` / `end_image` → the image-to-video (first/last frame) node, `prompt` → text
+     encoder, `seed` → sampler, `width` / `height` / `length` → the video/latent size.
+  3. Decoded frames (IMAGE) → Engine Result › `images` (or a VIDEO → `video`), sound → `audio`.
+  4. Engine Result: `fps` = the model's fps, `length_grid` (advanced) = its frame step (Wan 4, LTX 8, H3 17).
+  5. Put it in a group, mute the other engine group (Ctrl+M), press **🔗 AUTO LAYOUT**.
+
+  There are no hidden presets – what you see is what renders.
 - **MiniMax H3 group:** first/last-frame model + 8-step turbo LoRA, KSampler (8 steps, cfg 1, `res_multistep`, `simple`,
   negative = *ConditioningZeroOut*). Without the LoRA: bypass it and use 20–25 steps.
 - The H3 and LTX text encoders cannot write prompts; Settings › `prompt_model` hides them.
