@@ -321,7 +321,13 @@ def shot_context(sb, k: int) -> str:
 
 
 def llm_label(cfg: dict) -> str:
-    return f"LLM {str(cfg.get('model') or '').strip() or '(server default)'}"
+    """'LLM <model>' for the log - the model that actually answers (resolved once and cached in cfg)."""
+    if not cfg.get("_model"):
+        try:
+            cfg["_model"] = resolve_model(cfg)
+        except RuntimeError:
+            pass
+    return f"LLM {cfg.get('_model') or str(cfg.get('model') or '').strip() or '(server default)'}"
 
 
 class InfiniteMovieStoryMode(io.ComfyNode):
@@ -419,7 +425,7 @@ def check_connection(cfg: dict) -> dict:
     if want and ids and want not in ids:
         return {"ok": False, "message": f"server has no model '{want}'"}
     model = want or pick_model(listing)
-    return {"ok": True, "message": f"connected – {model or 'server default'}"}
+    return {"ok": True, "model": model, "message": f"connected – {model or 'server default'}"}
 
 
 def _register_routes():

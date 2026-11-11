@@ -3651,7 +3651,34 @@ app.registerExtension({
         b.options = { ...(b.options || {}), serialize: false };   // not into the API prompt either
         b.tooltip = "Puts the original storyboard and shot instructions back.";
       }
-      // 2026-11-11 (user: "check connection button, green light"): one GET /models via the server, result as a light
+      // 2026-11-11 (user: "the prompts have no label - can the user read minds?"): a heading above each text box.
+      // serialize:false -> skipped when saving/loading widgets_values, so the order of the values is unchanged.
+      const LABELS = {
+        story: "① Story – red thread of your film (optional)",
+        storyboard_instruction: "② Plan – the LLM reads ALL images, plans the film",
+        instruction: "③ Shot – the LLM writes each shot from its 2 images",
+      };
+      for (const [target, text] of Object.entries(LABELS)) {
+        const name = `im_label_${target}`;
+        if (this.widgets?.find((w) => w.name === name)) continue;
+        const lw = this.addCustomWidget({
+          name, type: "im_label", value: null, serialize: false, options: { serialize: false },
+          computeSize: () => [0, 22],
+          draw(ctx, _node, _w, y) {
+            ctx.save();
+            ctx.fillStyle = "#e8e8e8";
+            ctx.font = "bold 13px Arial";
+            ctx.fillText(text, 14, y + 16);
+            ctx.restore();
+          },
+          mouse() { return false; },
+        });
+        const i = this.widgets.indexOf(lw);
+        const t = this.widgets.findIndex((w) => w.name === target);
+        if (i >= 0 && t >= 0) { this.widgets.splice(i, 1); this.widgets.splice(t, 0, lw); }
+      }
+      this.setSize?.([this.size[0], Math.max(this.size[1], this.computeSize()[1])]);
+      // 2026-11-11 (user: "the model could be shown"): after the check, an empty model field says which one answers
       const CHECK = "🔌 Check connection";
       if (!this.widgets?.find((w) => w.name === CHECK)) {
         const cb = this.addWidget("button", CHECK, null, async () => {
@@ -3666,6 +3693,8 @@ app.registerExtension({
           } catch (e) { res = { ok: false, message: String(e) }; }
           cb.label = `${res.ok ? "🟢" : "🔴"} ${res.message}`;
           cb.tooltip = res.message;
+          const mw = this.widgets?.find((x) => x.name === "model");
+          if (mw) mw.label = res.ok && res.model && !val("model") ? `model (auto: ${res.model})` : undefined;
           this.setDirtyCanvas?.(true, true);
         });
         cb.serialize = false;

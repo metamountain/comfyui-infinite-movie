@@ -1,7 +1,7 @@
 [project]
 name = "comfyui-infinite-movie"
 description = "Turn a few still images into one seamless, looping film with video models (MiniMax H3, LTX 2.5, Wan 2.2): auto prompts from the images, A/B shot review, motion-evened assembly, upscale, model download with size check."
-version = "0.3.2"
+version = "0.3.3"
 license = { file = "LICENSE" }
 dependencies = ["opencv-python", "matplotlib", "imageio-ffmpeg"]
 
