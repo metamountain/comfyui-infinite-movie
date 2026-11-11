@@ -685,13 +685,17 @@ function fcSetImageCount(chain, want) {
   chain._fcReady = false;                                   // no addPromptForNewImage in between
   try {
     if (want < imgs.length) {
+      // 2026-11-11 (user: "images and prompts disappear completely when the slider reduces the count"):
+      // delete the image chain and every Auto Prompt that uses one of its images (was: mute).
       for (const n of imgs.slice(want).reverse()) {
-        const path = fcImgPath(g, n);
-        const root = path[path.length - 1];
-        for (const p of path) p.mode = 2;
-        root.properties = root.properties || {};
-        root.properties.im_count_muted = chain.id;
-        root.properties.im_count_path = path.map((p) => p.id);
+        const ids = new Set(fcImgPath(g, n).map((p) => p.id));
+        const usesImg = (ap) => ["image_from", "image_to"].some((nm) => {
+          const inp = ap.inputs?.find((x) => x.name === nm);
+          const l = inp?.link != null ? getLink(g, inp.link) : null;
+          return l && ids.has(l.origin_id);
+        });
+        for (const ap of (g._nodes || []).filter((a) => a.comfyClass === "InfiniteMovieAutoPrompt" && usesImg(a))) g.remove(ap);
+        for (const id of ids) { const p = g.getNodeById(id); if (p) g.remove(p); }
       }
     } else {
       // 1) reclaim images muted by the counter (oldest first)
@@ -763,7 +767,7 @@ function addImageCounter(node) {
   }, { min: 1, max: 12, step: 10, round: 1, precision: 0, serialize: false });
   w.serialize = false;
   w.label = "images";
-  w.tooltip = "Number of images. More: adds Load Image nodes (copy of the last image – replace them) with their Auto Prompts and tidies the layout. Fewer: mutes the last images and their prompts (nothing is deleted).";
+  w.tooltip = "Number of images. More: adds Load Image nodes (copy of the last image – replace them) with their Auto Prompts and tidies the layout. Fewer: removes the last images and their prompts.";
   // directly via the AUTO LAYOUT button (both not saved → saved widget positions stay the same)
   const bi = node.widgets.findIndex((x) => x.name === "🔗 AUTO LAYOUT");
   if (bi >= 0 && bi < node.widgets.length - 1) {
