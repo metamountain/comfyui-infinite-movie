@@ -22,6 +22,8 @@ from . import vram
 
 # Pipe type (model SHOTS, nodes.py): a custom type that carries a plain dict.
 SETTINGS = io.Custom("SETTINGS")
+# 2026-11-11: Story Mode (LLM) -> Settings > prompt model < LLM (here: llm_nodes imports settings_nodes)
+STORY_MODE = io.Custom("IM_STORY_MODE")
 
 # Film size (user 2026-11-03): classic aspect ratio + longest side, both sides rounded to 32
 # (LTX-2 Model Card: "Width & height settings must be divisible by 32"; Wan needs 16 – that fits too).
@@ -134,6 +136,9 @@ class InfiniteMovieSettings(io.ComfyNode):
             description="Shared settings for the whole chain: the local prompt model, format and output. "
                         "Connect `settings ▶ chain` to Prompt Style (or the first Auto Prompt).",
             inputs=[
+                STORY_MODE.Input("llm", optional=True, display_name="prompt model ◀ LLM",
+                                 tooltip="Plug in Infinite Movie · Story Mode (LLM): a bigger vision LLM on a server "
+                                         "writes the shot prompts instead of prompt_model."),
                 io.Combo.Input("prompt_model", options=prompt_models(), default=default_prompt_model(),
                                tooltip="Local vision model (models/text_encoders) that writes the shot prompts inside "
                                        "ComfyUI, e.g. qwen3vl_4b_bf16.safetensors. 'off' = write the prompts yourself."),
@@ -160,9 +165,11 @@ class InfiniteMovieSettings(io.ComfyNode):
         )
 
     @classmethod
-    def execute(cls, **kw):
+    def execute(cls, llm=None, **kw):
         out = settings_defaults()
         out.update({k: kw[k] for k in SETTING_KEYS if k in kw})
+        if isinstance(llm, dict) and llm.get("llm"):   # Story Mode plugged in
+            out["llm"], out["llm_instruction"] = llm["llm"], llm.get("llm_instruction", "")
         out["free_vram"], out["free_ram"] = True, False
         out["min_free_mb"] = MIN_FREE_MB
         out["acquire_timeout_s"] = ACQUIRE_TIMEOUT_S

@@ -1,10 +1,12 @@
 """Infinite Movie · Story Mode (LLM) (2026-11-11, user: "node for a local LLM, the small ones are no good for complex prompts;
 plugs into settings, holds the LLM settings and the prompt prompt").
 
-Sits in the settings chain (Settings → LLM → Prompt Style → Auto Prompts). With an endpoint set, the Auto Prompts
-write their prompt (still per image pair, same two passes as before: JSON description, then the shot text) with any
-OpenAI-compatible chat server that can read images instead of the small model ComfyUI loads itself. Empty endpoint
-= the node changes nothing. Generic on purpose: no server program, port or path in here - the user enters the URL.
+Plugs into Settings › `prompt model ◀ LLM` (user: "threading it into the chain is counterintuitive, let story mode
+flow into prompt model"): connected, the Auto Prompts write their prompt (still per image pair: JSON description,
+then the shot text) with a vision LLM on a server instead of the small model ComfyUI loads itself. `provider` fills
+endpoint/model/key name with the usual defaults (local server, Ollama, LM Studio, OpenAI, Gemini, OpenRouter); all
+of them speak the OpenAI chat API. The API key is never stored in the workflow: only the NAME of an environment
+variable. Nothing here starts, stops or unloads another program.
 """
 
 from __future__ import annotations
@@ -12,14 +14,29 @@ from __future__ import annotations
 import base64
 import io as _io
 import json
+import os
 import re
 import urllib.request
 
 from comfy_api.latest import io
 
-from .settings_nodes import SETTINGS, chain_settings
+from .settings_nodes import STORY_MODE
 
 THINKING = ["off", "low", "medium", "high"]
+
+# provider -> endpoint, model, api_key_env, local (local = OpenAI-compatible server that takes chat_template_kwargs
+# for thinking and a seed; cloud APIs reject unknown fields). Ports are the programs' documented defaults.
+PROVIDERS = {
+    "local server (llama.cpp, vLLM)": {"endpoint": "http://127.0.0.1:8080/v1", "model": "", "api_key_env": "", "local": True},
+    "Ollama": {"endpoint": "http://127.0.0.1:11434/v1", "model": "", "api_key_env": "", "local": True},
+    "LM Studio": {"endpoint": "http://127.0.0.1:1234/v1", "model": "", "api_key_env": "", "local": True},
+    "OpenAI": {"endpoint": "https://api.openai.com/v1", "model": "gpt-4o", "api_key_env": "OPENAI_API_KEY", "local": False},
+    "Gemini": {"endpoint": "https://generativelanguage.googleapis.com/v1beta/openai", "model": "gemini-2.5-flash",
+               "api_key_env": "GEMINI_API_KEY", "local": False},
+    "OpenRouter": {"endpoint": "https://openrouter.ai/api/v1", "model": "", "api_key_env": "OPENROUTER_API_KEY",
+                   "local": False},
+    "custom": {"endpoint": "", "model": "", "api_key_env": "", "local": True},
+}
 
 LLM_SYSTEM = (
     "You write the prompt for one short video shot: image 1 is its first frame, image 2 its last frame. Describe in "
@@ -39,7 +56,11 @@ def _request(cfg: dict, path: str, payload: dict | None = None, timeout: float =
     data = json.dumps(payload).encode() if payload is not None else None
     req = urllib.request.Request(url, data=data, method="POST" if data is not None else "GET",
                                  headers={"Content-Type": "application/json"})
-    key = str(cfg.get("api_key") or "").strip()
+    env = str(cfg.get("api_key_env") or "").strip()
+    key = os.environ.get(env, "").strip() if env else ""
+    if env and not key:
+        raise RuntimeError(f"LLM: environment variable {env} is not set - set it to your API key and restart "
+                           f"ComfyUI (the key itself is never stored in the workflow).")
     if key:
         req.add_header("Authorization", f"Bearer {key}")
     try:
@@ -66,6 +87,8 @@ def pick_model(listing: dict) -> str:
 
 def resolve_model(cfg: dict) -> str:
     m = str(cfg.get("model") or "").strip()
+    if not m and not cfg.get("local", True):
+        raise RuntimeError("LLM: enter a vision model id in Story Mode › model (cloud APIs list many models).")
     return m or pick_model(_request(cfg, "/models", timeout=15))
 
 
@@ -101,10 +124,13 @@ def build_payload(cfg: dict, model: str, system: str, text: str, urls: list[str]
         "messages": [{"role": "system", "content": system}, {"role": "user", "content": content}],
         "max_tokens": int(max_tokens) + (0 if think == "off" else 4096),
         "temperature": float(cfg.get("temperature", temperature) if temperature >= 0.5 else temperature),
-        "seed": int(seed),
         "stream": False,
-        "chat_template_kwargs": ({"enable_thinking": False} if think == "off" else {"reasoning_effort": think}),
     }
+    if cfg.get("local", True):   # cloud APIs reject unknown fields; thinking there is the model's own business
+        payload["seed"] = int(seed)
+        payload["chat_template_kwargs"] = ({"enable_thinking": False} if think == "off" else {"reasoning_effort": think})
+    else:
+        payload["max_tokens"] = int(max_tokens)
     return payload
 
 
@@ -305,69 +331,91 @@ class InfiniteMovieStoryMode(io.ComfyNode):
             node_id="InfiniteMovieStoryMode",
             display_name="Infinite Movie · Story Mode (LLM)",
             category="Infinite Movie/0 Setup",
-            search_aliases=["infinite movie", "story", "story mode", "llm", "openai", "local llm", "vision", "prompt model", "server"],
-            description="Story mode: a bigger vision LLM on any OpenAI-compatible server first reads ALL images and "
-                        "plans the film (arc + one beat per shot), then every Auto Prompt writes its shot from its two "
-                        "images and its beat. The red thread (`story`) goes into every system prompt. Sits in the "
-                        "settings chain: Settings → Story Mode → Prompt Style → Auto Prompts (AUTO LAYOUT wires it). "
-                        "Empty endpoint = off.",
+            search_aliases=["infinite movie", "story", "story mode", "llm", "openai", "ollama", "lm studio", "gemini",
+                            "openrouter", "local llm", "vision", "prompt model", "server"],
+            description="Story mode: a bigger vision LLM (local server, Ollama, LM Studio or a cloud API) first reads "
+                        "ALL images and plans the film (arc + one beat per shot), then every Auto Prompt writes its "
+                        "shot from its two images and its beat. The red thread (`story`) goes into every system "
+                        "prompt. Plug `LLM ▶ prompt model` into Settings › `prompt model ◀ LLM`: it replaces the "
+                        "small prompt model. Unplugged or bypassed = off.",
             inputs=[
-                SETTINGS.Input("settings", optional=True, display_name="settings",
-                               tooltip="Settings from Infinite Movie · Settings."),
-                io.String.Input("endpoint", default="",
-                                tooltip="OpenAI-compatible base URL, e.g. http://127.0.0.1:<port>/v1. The model must "
-                                        "read images (vision). Empty = off, the small model from Settings writes."),
+                io.Combo.Input("provider", options=list(PROVIDERS), default=next(iter(PROVIDERS)),
+                               tooltip="Fills endpoint, model and api_key_env with the usual values; change them "
+                                       "freely afterwards. All providers speak the OpenAI chat API."),
+                io.String.Input("endpoint", default=PROVIDERS[next(iter(PROVIDERS))]["endpoint"],
+                                tooltip="Base URL of the OpenAI-compatible API, ending in /v1 (Ollama: "
+                                        "http://127.0.0.1:11434/v1). The model must read images (vision)."),
                 io.String.Input("model", default="",
-                                tooltip="Model id as the server lists it under /models. Empty = the loaded one "
-                                        "(or the first listed)."),
+                                tooltip="Model id as the server lists it under /models. Empty (local servers only) = "
+                                        "the loaded one, else the first listed."),
+                io.String.Input("api_key_env", default="",
+                                tooltip="NAME of the environment variable that holds your API key, e.g. "
+                                        "OPENAI_API_KEY. The key itself is never stored in the workflow. Empty = no key "
+                                        "(local servers)."),
                 io.String.Input("story", multiline=True, default="",
                                 tooltip="Red thread of the film, goes into every system prompt, e.g. 'one year at the "
                                         "rock house, calm, ends where it began'. Empty = the LLM finds it in the images."),
                 io.String.Input("storyboard_instruction", multiline=True, default=STORYBOARD_SYSTEM,
-                                tooltip="Pass 1 – what the LLM is told when it reads all images and plans the film. "
+                                tooltip="Pass 1 - what the LLM is told when it reads all images and plans the film. "
                                         "{loop} = loop note, {schema} = the JSON answer template (appended if missing). "
-                                        "↺ Restore default prompts brings the original back."),
+                                        "Restore default prompts brings the original back."),
                 io.String.Input("instruction", multiline=True, default=LLM_SYSTEM,
-                                tooltip="Pass 2 – what the LLM is told for each shot (system prompt). {words} = "
-                                        "max_words from Prompt Style. Overrides the Prompt Style text while this node "
-                                        "is active. ↺ Restore default prompts brings the original back."),
+                                tooltip="Pass 2 - what the LLM is told for each shot (system prompt). {words} = "
+                                        "max_words from Prompt Style. Replaces the Prompt Style text while Story Mode "
+                                        "is plugged in. Restore default prompts brings the original back."),
                 io.Combo.Input("thinking", options=THINKING, default="off",
-                               tooltip="Reasoning before answering (servers with chat_template_kwargs, e.g. llama.cpp, "
-                                       "vLLM). off = fastest; low/medium for tricky image pairs."),
+                               tooltip="Reasoning before answering (local servers with chat_template_kwargs, e.g. "
+                                       "llama.cpp, vLLM). off = fastest; low/medium for tricky image pairs."),
                 io.Float.Input("temperature", default=0.7, min=0.0, max=2.0, step=0.05,
                                tooltip="Creativity of the shot text (the image description pass always runs at 0.2)."),
                 io.Int.Input("timeout", advanced=True, default=180, min=10, max=1800,
                              tooltip="Seconds to wait for one answer (a sleeping server may need to load first)."),
-                io.String.Input("api_key", advanced=True, default="",
-                                tooltip="Only if the server wants one (Bearer token). Saved in the workflow!"),
                 io.Boolean.Input("free_vram", advanced=True, default=True,
-                                 tooltip="Unload ComfyUI's own models before asking, so the LLM has room on the GPU."),
+                                 tooltip="Unload ComfyUI's own models before asking, so a local LLM has room on the GPU."),
             ],
             outputs=[
-                SETTINGS.Output("settings", display_name="settings ▶ chain",
-                                tooltip="Settings with this LLM. Connect to Prompt Style or the first Auto Prompt."),
+                STORY_MODE.Output("llm", display_name="LLM ▶ prompt model",
+                                  tooltip="Plug into Infinite Movie · Settings › prompt model ◀ LLM."),
             ],
         )
 
     @classmethod
-    def execute(cls, settings=None, endpoint="", model="", story="", storyboard_instruction="", instruction="",
-                thinking="off", temperature=0.7, timeout=180, api_key="", free_vram=True) -> io.NodeOutput:
-        return io.NodeOutput(apply_llm(settings, endpoint, model, instruction, thinking, temperature, timeout,
-                                       api_key, free_vram, True, story, storyboard_instruction))
+    def execute(cls, provider="custom", endpoint="", model="", api_key_env="", story="", storyboard_instruction="",
+                instruction="", thinking="off", temperature=0.7, timeout=180, free_vram=True) -> io.NodeOutput:
+        return io.NodeOutput(story_mode(provider, endpoint, model, api_key_env, story, storyboard_instruction,
+                                        instruction, thinking, temperature, timeout, free_vram))
 
 
-def apply_llm(settings, endpoint, model, instruction, thinking="off", temperature=0.7, timeout=180, api_key="",
-              free_vram=True, story_mode=True, story="", storyboard_instruction="") -> dict:
-    """Pure function: settings dict (or defaults) with the LLM. Empty endpoint -> llm None (off)."""
-    out = dict(chain_settings(settings))
+def story_mode(provider="custom", endpoint="", model="", api_key_env="", story="", storyboard_instruction="",
+               instruction="", thinking="off", temperature=0.7, timeout=180, free_vram=True) -> dict:
+    """Pure function: what Story Mode hands to Settings. Empty endpoint -> llm None (off)."""
     ep = str(endpoint or "").strip()
-    out["llm"] = ({"endpoint": ep, "model": str(model or "").strip(), "thinking": thinking,
-                   "temperature": float(temperature), "timeout": int(timeout), "api_key": str(api_key or ""),
-                   "free_vram": bool(free_vram), "story_mode": bool(story_mode),
-                   "story": str(story or "").strip(),
-                   "storyboard_instruction": str(storyboard_instruction or "").strip()} if ep else None)
-    out["llm_instruction"] = str(instruction or "").strip() if ep else ""
-    return out
+    llm = None
+    if ep:
+        llm = {"provider": provider, "endpoint": ep, "model": str(model or "").strip(),
+               "api_key_env": str(api_key_env or "").strip(),
+               "local": PROVIDERS.get(provider, PROVIDERS["custom"])["local"],
+               "thinking": thinking, "temperature": float(temperature), "timeout": int(timeout),
+               "free_vram": bool(free_vram), "story_mode": True, "story": str(story or "").strip(),
+               "storyboard_instruction": str(storyboard_instruction or "").strip()}
+    return {"llm": llm, "llm_instruction": str(instruction or "").strip() if ep else ""}
 
 
 LLM_NODE_LIST = [InfiniteMovieStoryMode]
+
+
+def _register_routes():
+    """GET /infinite_movie/llm_providers -> the PROVIDERS table, so the provider combo fills the fields in the browser
+    (one table, not duplicated in JS)."""
+    try:
+        from aiohttp import web
+        from server import PromptServer
+
+        @PromptServer.instance.routes.get("/infinite_movie/llm_providers")
+        async def _providers(request):
+            return web.json_response(PROVIDERS)
+    except Exception as e:  # noqa: BLE001
+        print(f"[InfiniteMovieStoryMode] provider route not registered: {e}")
+
+
+_register_routes()

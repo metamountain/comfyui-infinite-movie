@@ -112,6 +112,14 @@ function settingsNodeOf(node) {
   return settingsChainOf(node).settings;
 }
 
+// 2026-11-11: Story Mode (LLM) plugged into Settings › "prompt model ◀ LLM" (input name "llm"), active = not bypassed/muted.
+function storyModeOf(settingsNode) {
+  const inp = settingsNode?.inputs?.find((i) => i.name === "llm");
+  if (inp?.link == null) return null;
+  const src = settingsNode.graph?.getNodeById(getLink(settingsNode.graph, inp.link)?.origin_id);
+  return src && (src.mode ?? 0) === 0 ? src : null;
+}
+
 const IM_REGEN = "🔄 Regenerate prompt";
 
 function addRegenerateButton(node) {
@@ -119,8 +127,9 @@ function addRegenerateButton(node) {
     const promptW = node.widgets?.find((w) => w.name === "prompt");
     const kwW = node.widgets?.find((w) => w.name === "keywords");
     if (!promptW || !kwW) return;
-    const model = settingsNodeOf(node)?.widgets?.find((w) => w.name === "prompt_model")?.value;
-    if (model === "off") {
+    const sNode = settingsNodeOf(node);
+    const model = sNode?.widgets?.find((w) => w.name === "prompt_model")?.value;
+    if (model === "off" && !storyModeOf(sNode)) {
       btn.name = "⚠ choose a prompt_model in Settings";
       node.setDirtyCanvas(true, true);
       return;
@@ -905,9 +914,11 @@ function wireSettingsChain(director) {
   // Kette: Settings → AP0 → … → APn → Director → Assemble.
   // 66: Prompt Style (falls vorhanden) direkt hinter Settings
   const style = nodes.find((n) => n.comfyClass === "InfiniteMovieStyle" && (n.mode ?? 0) === 0);
-  // 2026-11-11: Story Mode (LLM) right behind Settings (before Prompt Style)
-  const story = nodes.find((n) => n.comfyClass === "InfiniteMovieStoryMode" && (n.mode ?? 0) === 0);
-  const chainNodes = [snode, ...(story ? [story] : []), ...(style ? [style] : []), ...aps.map((a) => a.node), director];
+  // 2026-11-11: Story Mode (LLM) is not in the chain - it plugs into Settings › "prompt model ◀ LLM".
+  const story = nodes.find((n) => n.comfyClass === "InfiniteMovieStoryMode");
+  const llmIn = slotIndex(snode, "llm");
+  if (story && llmIn >= 0 && snode.inputs[llmIn].link == null && story.outputs?.length) story.connect(0, snode, llmIn);
+  const chainNodes = [snode, ...(style ? [style] : []), ...aps.map((a) => a.node), director];
   const assemble = nodes.find((n) => n.comfyClass === "InfiniteMovieAssemble");
   if (assemble) chainNodes.push(assemble);
   for (let i = 0; i < chainNodes.length - 1; i++) {
@@ -3616,8 +3627,65 @@ app.registerExtension({
           this.setDirtyCanvas?.(true, true);
         });
         b.serialize = false;
+        b.options = { ...(b.options || {}), serialize: false };   // not into the API prompt either
         b.tooltip = "Puts the original storyboard and shot instructions back.";
       }
+      // provider fills endpoint / model / api_key_env (table from llm_nodes.PROVIDERS), only on a user change
+      const pw = this.widgets?.find((w) => w.name === "provider");
+      if (pw && !pw._imWrapped) {
+        pw._imWrapped = true;
+        const cb = pw.callback;
+        pw.callback = async (v, ...rest) => {
+          const out = cb?.call(pw, v, ...rest);
+          try {
+            const table = await (await api.fetchApi("/infinite_movie/llm_providers")).json();
+            const p = table?.[pw.value];
+            if (p) for (const k of ["endpoint", "model", "api_key_env"]) {
+              const w = this.widgets?.find((x) => x.name === k);
+              if (w) w.value = p[k] ?? "";
+            }
+            this.setDirtyCanvas?.(true, true);
+          } catch (e) { console.warn("[InfiniteMovie] llm_providers", e); }
+          return out;
+        };
+      }
+      return r;
+    };
+  },
+});
+
+// 2026-11-11: Settings – while Story Mode is plugged into "prompt model ◀ LLM", prompt_model is greyed out.
+app.registerExtension({
+  name: "InfiniteMovie.SettingsLLMSocket",
+  beforeRegisterNodeDef(nodeType, nodeData) {
+    if (nodeData?.name !== "InfiniteMovieSettings") return;
+    const sync = (node) => {
+      const w = node.widgets?.find((x) => x.name === "prompt_model");
+      if (!w) return;
+      const on = !!storyModeOf(node);   // plugged in and not bypassed/muted
+      if (w.disabled === on && node._imLLMOn === on) return;
+      node._imLLMOn = on;
+      w.disabled = on;
+      w.label = on ? "prompt_model → Story Mode (LLM)" : undefined;
+      node.setDirtyCanvas?.(true, true);
+    };
+    const onConn = nodeType.prototype.onConnectionsChange;
+    nodeType.prototype.onConnectionsChange = function (...a) {
+      const r = onConn?.apply(this, a);
+      sync(this);
+      return r;
+    };
+    const onCfg = nodeType.prototype.onConfigure;
+    nodeType.prototype.onConfigure = function (...a) {
+      const r = onCfg?.apply(this, a);
+      setTimeout(() => sync(this), 0);
+      return r;
+    };
+    // bypassing Story Mode changes no connection -> also check while drawing (cheap, returns early)
+    const onDraw = nodeType.prototype.onDrawForeground;
+    nodeType.prototype.onDrawForeground = function (...a) {
+      const r = onDraw?.apply(this, a);
+      sync(this);
       return r;
     };
   },

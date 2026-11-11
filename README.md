@@ -125,7 +125,7 @@ stays silent then. Prompts can describe sound, e.g. `sound: howling wind`.
 | Node | What it does |
 |---|---|
 | **Settings** | Shared settings for the whole chain: `prompt_model`, `aspect` + `long_side` (both sides rounded to 32; 4:5 + 960 = 768×960), `output_folder` (**📂 Choose folder**), `film_name`, `audio`, **📦 Check models**. GPU check on Run: if another program holds too much GPU memory, nothing is queued and a message names it – the pack never closes other programs. |
-| **Story Mode (LLM)** | Optional, plugs in behind Settings (AUTO LAYOUT wires it). Uses a bigger vision LLM on any OpenAI-compatible server (`endpoint`, `model`): it first reads **all** images and plans the film – an arc plus one beat per shot – then every Auto Prompt writes its shot from its two images and its beat. `story` = your red thread (goes into every system prompt). Both instructions are editable; **↺ Restore default prompts** brings the originals back. Measured with a local 27B model: storyboard ~6 s per film, ~8 s per shot. Empty `endpoint` = off. |
+| **Story Mode (LLM)** | Optional. Plug `LLM ▶ prompt model` into Settings › `prompt model ◀ LLM` (AUTO LAYOUT does it): a bigger vision LLM then writes the prompts instead of `prompt_model` (greyed out while plugged in). It first reads **all** images and plans the film – an arc plus one beat per shot – then every Auto Prompt writes its shot from its two images and its beat. `story` = your red thread (goes into every system prompt). Both instructions are editable; **↺ Restore default prompts** brings the originals back. Bypass the node = off. Setup: [Story Mode setup](#story-mode-setup). |
 | **Prompt Style** | What the prompt model is told, `max_words`, `camera` (appended; `none` = no camera sentence). |
 | **Auto Prompt** | One per transition. Looks at both images and writes the prompt from your keywords when you press **🔄 Regenerate prompt** (only this node; ~20 s with Qwen3-VL 4B). Never writes on Run: a filled prompt is used as is. |
 | **Director** | 1–12 images + one prompt per transition → renders all shots. `images` sets the count: more adds Load Image nodes (copy of the last image) with Auto Prompts, fewer mutes the last ones. `seconds` per shot (snapped to the engine's frame grid), `loop`, `variants` (`2` = render A and B per shot). Rendered shots are kept: a shot is rendered again only when its seed changes (`reseed` or the base `seed`) – an edited prompt or image alone does not re-render it. Outputs `shots ▶ Assemble`, `settings ▶ chain`. Shows progress and remaining time. |
@@ -148,6 +148,38 @@ Changing only the pick never re-renders. **RERENDER** re-seeds only the marked s
 half-finished film.
 
 ![Choose: one tile per shot, quality line, KEEP / REDO](assets/choose.png)
+
+### Story Mode setup
+
+The small `prompt_model` writes each shot from its two images only. For a film that tells one story, use a bigger
+vision LLM through **Story Mode (LLM)**:
+
+1. Add **Infinite Movie · Story Mode (LLM)** (it sits under Settings in the example workflow – un-bypass it there).
+2. Plug its output `LLM ▶ prompt model` into Settings › `prompt model ◀ LLM`.
+3. Pick a `provider`: it fills `endpoint`, `model` and `api_key_env`. Change them freely afterwards.
+4. Write your red thread into `story` (optional), then **🔄 Regenerate prompt** on the Auto Prompts.
+
+| provider | endpoint | what to run |
+|---|---|---|
+| local server (llama.cpp, vLLM) | `http://127.0.0.1:8080/v1` | llama.cpp: `llama-server -m <model>.gguf --mmproj <mmproj>.gguf`; vLLM: `vllm serve <model>` (then port 8000) |
+| Ollama | `http://127.0.0.1:11434/v1` | `ollama pull <vision model>`; set `model` to its name (e.g. a Qwen-VL or Gemma 3 tag) |
+| LM Studio | `http://127.0.0.1:1234/v1` | load a vision model, start the server (Developer tab) |
+| OpenAI / Gemini / OpenRouter | filled in | an API key in the environment variable named in `api_key_env` |
+| custom | your URL | anything that speaks the OpenAI chat API (`/v1/chat/completions`) |
+
+- **The model must read images** (vision / multimodal). A text-only model answers without seeing the shots.
+- **`model` empty** (local servers only) = the loaded model, else the first one the server lists.
+- **API keys are never stored in the workflow** (workflows get shared). `api_key_env` holds only the *name* of an
+  environment variable, e.g. `OPENAI_API_KEY`. Set it before starting ComfyUI – Windows: `setx OPENAI_API_KEY "sk-…"`
+  (new console afterwards), Linux/macOS: `export OPENAI_API_KEY=sk-…`.
+- **`thinking`** works on local servers whose chat template supports it (llama.cpp, vLLM); `off` is fastest.
+- **GPU:** with `free_vram` (advanced, on) ComfyUI frees its own models before each question, so a local LLM has room.
+  The pack never stops or unloads the LLM server itself – before a render, make sure the GPU is free (the Run check
+  names the program that holds it).
+- Speed, measured with a local 27B model: storyboard ~6 s per film, ~8 s per shot. The storyboard is cached until the
+  images, `story` or the instruction change.
+- **Errors** show in the ComfyUI console: `not reachable` = server not running or wrong port; `answered 404` = the
+  endpoint lacks `/v1`; `environment variable … is not set` = see API keys above.
 
 ## Upscale
 

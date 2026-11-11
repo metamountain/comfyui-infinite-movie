@@ -2,7 +2,7 @@
   "id": "11de75b2-579e-4a82-9e7c-c98a0590e77e",
   "revision": 0,
   "last_node_id": 99,
-  "last_link_id": 2165,
+  "last_link_id": 2167,
   "nodes": [
     {
       "id": 1,
@@ -828,6 +828,13 @@
       "mode": 0,
       "inputs": [
         {
+          "name": "llm",
+          "label": "prompt model ◀ LLM",
+          "type": "IM_STORY_MODE",
+          "shape": 7,
+          "link": 2167
+        },
+        {
           "localized_name": "prompt_model",
           "name": "prompt_model",
           "type": "COMBO",
@@ -889,7 +896,7 @@
           "type": "SETTINGS",
           "slot_index": 0,
           "links": [
-            2164
+            2166
           ]
         }
       ],
@@ -1053,7 +1060,7 @@
         "prompt_hint": null
       },
       "widgets_values": [
-        "The rain cools and turns to sleet, then to soft snowflakes that settle on the rock-shaped house and dust the grass white while pale mist rises from the forest. The snow keeps falling gently.",
+        "The rain cools and turns to sleet, then to soft snowflakes that settle on the rock-shaped house and dust the grass white while pale mist rises from the forest.",
         "",
         ""
       ],
@@ -1384,7 +1391,7 @@
           "name": "settings",
           "shape": 7,
           "type": "SETTINGS",
-          "link": 2165
+          "link": 2166
         },
         {
           "localized_name": "instruction",
@@ -1611,7 +1618,7 @@
         "prompt_hint": null
       },
       "widgets_values": [
-        "The snow melts away under warming light, the grass turns green and golden again and the mist lifts from the trees until the rock-shaped house stands in bright summer daylight. Leaves and grass keep swaying in a light breeze.",
+        "The snow melts away under warming light, the grass turns spring again and the mist lifts from the trees until the rock-shaped house stands in daylight. Leaves and grass keep swaying in a light breeze.",
         "",
         ""
       ],
@@ -2874,24 +2881,105 @@
       ],
       "flags": {},
       "order": 1,
-      "mode": 0,
+      "mode": 4,
       "inputs": [
         {
-          "localized_name": "settings",
-          "name": "settings",
-          "shape": 7,
-          "type": "SETTINGS",
-          "link": 2164
+          "name": "provider",
+          "type": "COMBO",
+          "widget": {
+            "name": "provider"
+          },
+          "link": null
+        },
+        {
+          "name": "endpoint",
+          "type": "STRING",
+          "widget": {
+            "name": "endpoint"
+          },
+          "link": null
+        },
+        {
+          "name": "model",
+          "type": "STRING",
+          "widget": {
+            "name": "model"
+          },
+          "link": null
+        },
+        {
+          "name": "api_key_env",
+          "type": "STRING",
+          "widget": {
+            "name": "api_key_env"
+          },
+          "link": null
+        },
+        {
+          "name": "story",
+          "type": "STRING",
+          "widget": {
+            "name": "story"
+          },
+          "link": null
+        },
+        {
+          "name": "storyboard_instruction",
+          "type": "STRING",
+          "widget": {
+            "name": "storyboard_instruction"
+          },
+          "link": null
+        },
+        {
+          "name": "instruction",
+          "type": "STRING",
+          "widget": {
+            "name": "instruction"
+          },
+          "link": null
+        },
+        {
+          "name": "thinking",
+          "type": "COMBO",
+          "widget": {
+            "name": "thinking"
+          },
+          "link": null
+        },
+        {
+          "name": "temperature",
+          "type": "FLOAT",
+          "widget": {
+            "name": "temperature"
+          },
+          "link": null
+        },
+        {
+          "name": "timeout",
+          "type": "INT",
+          "widget": {
+            "name": "timeout"
+          },
+          "link": null
+        },
+        {
+          "name": "free_vram",
+          "type": "BOOLEAN",
+          "widget": {
+            "name": "free_vram"
+          },
+          "link": null
         }
       ],
       "outputs": [
         {
-          "localized_name": "settings",
-          "name": "settings",
-          "label": "settings ▶ chain",
-          "type": "SETTINGS",
+          "name": "llm",
+          "localized_name": "llm",
+          "label": "LLM ▶ prompt model",
+          "type": "IM_STORY_MODE",
           "links": [
-            2165
+            2167
           ]
         }
       ],
@@ -2899,6 +2987,8 @@
         "Node name for S&R": "InfiniteMovieStoryMode"
       },
       "widgets_values": [
+        "local server (llama.cpp, vLLM)",
+        "http://127.0.0.1:8080/v1",
         "",
         "",
         "",
@@ -2907,7 +2997,6 @@
         "off",
         0.7,
         180,
-        "",
         true
       ]
     }
@@ -3314,20 +3403,20 @@
       "STRING"
     ],
     [
-      2164,
+      2166,
       9,
-      0,
-      99,
-      0,
-      "SETTINGS"
-    ],
-    [
-      2165,
-      99,
       0,
       69,
       0,
       "SETTINGS"
+    ],
+    [
+      2167,
+      99,
+      0,
+      9,
+      0,
+      "IM_STORY_MODE"
     ]
   ],
   "groups": [
