@@ -404,16 +404,49 @@ def story_mode(provider="custom", endpoint="", model="", api_key_env="", story="
 LLM_NODE_LIST = [InfiniteMovieStoryMode]
 
 
+def check_connection(cfg: dict) -> dict:
+    """Check connection button (user: "green light only"): GET /models once. ok + the model that would answer,
+    or ok False + a short reason. Never raises."""
+    if not _endpoint(cfg):
+        return {"ok": False, "message": "no endpoint"}
+    try:
+        listing = _request(cfg, "/models", timeout=10)
+    except RuntimeError as e:
+        return {"ok": False, "message": str(e).replace("LLM: ", "", 1)[:200]}
+    want = str(cfg.get("model") or "").strip()
+    data = listing.get("data") or listing.get("models") or []
+    ids = [m.get("id") or m.get("model") or m.get("name") for m in data if isinstance(m, dict)]
+    if want and ids and want not in ids:
+        return {"ok": False, "message": f"server has no model '{want}'"}
+    model = want or pick_model(listing)
+    return {"ok": True, "message": f"connected – {model or 'server default'}"}
+
+
 def _register_routes():
     """GET /infinite_movie/llm_providers -> the PROVIDERS table, so the provider combo fills the fields in the browser
-    (one table, not duplicated in JS)."""
+    (one table, not duplicated in JS). POST /infinite_movie/llm_check -> check_connection (only from this computer:
+    the server would otherwise fetch any URL for anyone on the network)."""
+    import asyncio
     try:
         from aiohttp import web
         from server import PromptServer
 
+        from .settings_nodes import _own_addresses
+
         @PromptServer.instance.routes.get("/infinite_movie/llm_providers")
         async def _providers(request):
             return web.json_response(PROVIDERS)
+
+        @PromptServer.instance.routes.post("/infinite_movie/llm_check")
+        async def _check(request):
+            if (request.remote or "") not in _own_addresses():
+                return web.json_response({"ok": False, "message": "only from this computer"}, status=403)
+            try:
+                data = await request.json()
+            except Exception:  # noqa: BLE001
+                data = {}
+            cfg = {k: str(data.get(k) or "") for k in ("endpoint", "model", "api_key_env")}
+            return web.json_response(await asyncio.to_thread(check_connection, cfg))
     except Exception as e:  # noqa: BLE001
         print(f"[InfiniteMovieStoryMode] provider route not registered: {e}")
 

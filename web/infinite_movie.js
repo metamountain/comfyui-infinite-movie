@@ -247,7 +247,10 @@ function wrapQueue() {
     // 65 (user 2026-11-03: „the render must not be sent out!“): check the GPU BEFORE the queue (one measurement,
     // foreign programs are never touched). Not enough free -> message, NO queue.
     const director = (app.graph?._nodes || []).find((n) => n.comfyClass === "InfiniteMovieRender" && (n.mode ?? 0) === 0);
-    if (director && !window.__fc_skip_gpu_preflight) {
+    // 2026-11-11: Regenerate (only Auto Prompts as targets) renders nothing - and an LLM server must hold the GPU
+    // while it writes. The render check would block exactly that.
+    const promptOnly = partial && args[2].every((id) => app.graph?.getNodeById(Number(id))?.comfyClass === "InfiniteMovieAutoPrompt");
+    if (director && !promptOnly && !window.__fc_skip_gpu_preflight) {
       const min = MIN_FREE_MB;   // 74: constant (was the settings widget min_free_mb)
       fcReviewToast("Checking GPU memory ...");
       let res = null;
@@ -3629,6 +3632,27 @@ app.registerExtension({
         b.serialize = false;
         b.options = { ...(b.options || {}), serialize: false };   // not into the API prompt either
         b.tooltip = "Puts the original storyboard and shot instructions back.";
+      }
+      // 2026-11-11 (user: "check connection button, green light"): one GET /models via the server, result as a light
+      const CHECK = "🔌 Check connection";
+      if (!this.widgets?.find((w) => w.name === CHECK)) {
+        const cb = this.addWidget("button", CHECK, null, async () => {
+          const val = (k) => String(this.widgets?.find((x) => x.name === k)?.value ?? "");
+          cb.label = "⏳ checking ...";
+          this.setDirtyCanvas?.(true, true);
+          let res;
+          try {
+            const r = await api.fetchApi("/infinite_movie/llm_check", { method: "POST",
+              body: JSON.stringify({ endpoint: val("endpoint"), model: val("model"), api_key_env: val("api_key_env") }) });
+            res = await r.json();
+          } catch (e) { res = { ok: false, message: String(e) }; }
+          cb.label = `${res.ok ? "🟢" : "🔴"} ${res.message}`;
+          cb.tooltip = res.message;
+          this.setDirtyCanvas?.(true, true);
+        });
+        cb.serialize = false;
+        cb.options = { ...(cb.options || {}), serialize: false };
+        cb.tooltip = "Asks the server once for its models. Green = reachable (shows the model that will answer).";
       }
       // provider fills endpoint / model / api_key_env (table from llm_nodes.PROVIDERS), only on a user change
       const pw = this.widgets?.find((w) => w.name === "provider");

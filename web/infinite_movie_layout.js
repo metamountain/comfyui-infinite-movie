@@ -134,15 +134,17 @@ export function fcWorkflowLayout(director, second = false) {
   for (const p of byType("InfiniteMovieAutoPrompt")) if (!prompts.includes(p)) prompts.push(p);
   const G = (re) => findGroup(groups.filter((x) => !isEngineGroup(x)), re);
   // ONE row, order = numbers 2…7
+  // 2026-11-11: help note "Story Mode …" sits right under the Story Mode node (not with the README)
+  const storyHelp = byType("InfiniteMovieStoryMode").length ? allNotes.filter((n) => /story mode/i.test(n.title || "")) : [];
   const row = [
-    [G(/settings/i), [...byType("InfiniteMovieSettings"), ...byType("InfiniteMovieStoryMode")]],
+    [G(/settings/i), [...byType("InfiniteMovieSettings"), ...byType("InfiniteMovieStoryMode"), ...storyHelp]],
     [G(/images/i), imgRows.flat()],
     [G(/prompt/i), [...byType("InfiniteMovieStyle"), ...prompts]],
     [G(/director/i), [director]],
     [G(/choose/i), byType("InfiniteMovieChooser")],
     [G(/assemble/i), [...byType("InfiniteMovieAssemble"), ...byType("InfiniteMovieFilm")], true],
   ];
-  const used = new Set([...engineHelp, upHelp].filter(Boolean));
+  const used = new Set([...engineHelp, upHelp, ...storyHelp].filter(Boolean));
   const rowHelp = row.map(([grp]) => {
     const h = grp && allNotes.find((n) => isHelp(n) && !used.has(n) && helpFits(n, grp));
     if (h) used.add(h);
