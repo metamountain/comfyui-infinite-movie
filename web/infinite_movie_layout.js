@@ -198,7 +198,8 @@ export function fcWorkflowLayout(director, second = false) {
   // row (2…8) = the tallest; width = group width minus PAD on both sides (set after the widths are known).
   const rowHelps = [...rowHelp, upHelp].filter(Boolean);
   const HH = rowHelps.length ? Math.max(...rowHelps.map((h) => h.size[1])) : 0;
-  for (const h of rowHelps) h.size = [h.size[0], HH];
+  // the help never makes a group wider: the nodes set the width, the help is stretched to it afterwards
+  for (const h of rowHelps) h.size = [MINW - 2 * PAD, HH];
   const rowW = (r) => r.reduce((s, n) => s + n.size[0], 0) + PAD * (r.length - 1);
   const rowH = (r) => T + Math.max(...r.map((n) => n.size[1]));
   const sizes = row.map(([, ns, side], k) => {
@@ -250,8 +251,18 @@ export function fcWorkflowLayout(director, second = false) {
   }
   // Group height from the real content (prompts can reach below the last image)
   const bottom = Math.max(...row.flatMap(([, ns]) => ns.map((n) => n.pos[1] + n.size[1])));
-  const H = Math.max(...sizes.map((s) => s[1]), bottom - Y + PAD);
+  // Upscale content (block + Film players below) also counts, so 8 has exactly the height of the row (user: "7-8 the
+  // same height as everything")
+  let upNeed = 0;
+  if (upGrp && upMembers.length) {
+    const ms = upBlock.length ? upBlock : upMembers;
+    const blockH = Math.max(...ms.map((n) => n.pos[1] + n.size[1])) - Math.min(...ms.map((n) => n.pos[1] - T));
+    upNeed = HEAD + helpH(upHelp) + blockH + (upBlock.length ? upFilms.reduce((s, f) => s + NGAP + T + f.size[1], 0) : 0) + PAD;
+  }
+  const H = Math.max(...sizes.map((s) => s[1]), bottom - Y + PAD, upNeed);
   row.forEach(([grp, ns], k) => { if (grp && (ns.length || grp)) grp.size = [sizes[k][0], H]; });
+  // Film player(s) of 7 sit at the bottom edge of the group (user: "films at the bottom")
+  { let b = Y + H - PAD; for (const f of [...asmFilms].reverse()) { f.pos = [f.pos[0], b - f.size[1]]; b -= T + f.size[1] + NGAP; } }
   // 8 Upscale right of 7, content as a block, help centered on top, same height as the row
   if (upGrp && upMembers.length) {
     // block = loaders + upscaler as they are arranged; the Film player(s) below it (same width as group 7)
@@ -263,10 +274,11 @@ export function fcWorkflowLayout(director, second = false) {
     if (upHelp) upHelp.pos = [x + (w - upHelp.size[0]) / 2, Y + HEAD + T];
     const dx = x + PAD - minX, dy = Y + HEAD + helpH(upHelp) - minY;
     for (const n of ms) n.pos = [n.pos[0] + dx, n.pos[1] + dy];
-    let top = maxY + dy + NGAP;
-    for (const f of upBlock.length ? upFilms : []) { f.pos = [x + PAD, top + T]; top += T + f.size[1] + NGAP; }
+    // Film player(s) at the bottom edge, level with the one in 7
+    let b = Y + H - PAD;
+    for (const f of upBlock.length ? [...upFilms].reverse() : []) { f.pos = [x + PAD, b - f.size[1]]; b -= T + f.size[1] + NGAP; }
     upGrp.pos = [x, Y];
-    upGrp.size = [w, Math.max(H, top - NGAP + PAD - Y)];
+    upGrp.size = [w, H];
   }
 
   // 0 README at the front, separate, at the height of the row
