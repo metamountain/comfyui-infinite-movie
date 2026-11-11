@@ -125,7 +125,7 @@ stays silent then. Prompts can describe sound, e.g. `sound: howling wind`.
 | Node | What it does |
 |---|---|
 | **Settings** | Shared settings for the whole chain: `prompt_model`, `aspect` + `long_side` (both sides rounded to 32; 4:5 + 960 = 768×960), `output_folder` (**📂 Choose folder**), `film_name`, `audio`, **📦 Check models**. GPU check on Run: if another program holds too much GPU memory, nothing is queued and a message names it – the pack never closes other programs. |
-| **Story Mode (LLM)** | Optional. Plug `LLM` into Settings › `LLM` (AUTO LAYOUT does it): a bigger vision LLM then writes the prompts instead of `prompt_model` (greyed out while plugged in). It first reads **all** images and plans the film – an arc plus one beat per shot – then every Auto Prompt writes its shot from its two images and its beat. `story` = your red thread (goes into every system prompt). Both instructions are editable; **↺ Restore default prompts** brings the originals back. Bypass the node = off. Setup: [Story Mode setup](#story-mode-setup). |
+| **Story Mode (LLM)** | Optional. Plug `LLM` into Settings › `LLM` (AUTO LAYOUT does it): a bigger vision LLM then writes the prompts instead of `prompt_model` (greyed out while plugged in). It first reads **all** images and plans the film – an arc plus one beat per shot – then every Auto Prompt writes its shot from its two images and its beat. `story` = your red thread (goes into every system prompt). Both instructions are editable; **↺ Restore default prompts** brings the originals back. The plan shows in the node (**④ Plan result**). **Simple prompts:** unplug the `LLM` cable (or bypass the node) – `prompt_model` writes again. Setup: [Story Mode setup](#story-mode-setup). |
 | **Prompt Style** | What the prompt model is told, `max_words`, `camera` (appended; `none` = no camera sentence). |
 | **Auto Prompt** | One per transition. Looks at both images and writes the prompt from your keywords when you press **🔄 Regenerate prompt** (only this node; ~20 s with Qwen3-VL 4B). Never writes on Run: a filled prompt is used as is. |
 | **Director** | 1–12 images + one prompt per transition → renders all shots. `images` sets the count: more adds Load Image nodes (copy of the last image) with Auto Prompts, fewer mutes the last ones. `seconds` per shot (snapped to the engine's frame grid), `loop`, `variants` (`2` = render A and B per shot). Rendered shots are kept: a shot is rendered again only when its seed changes (`reseed` or the base `seed`) – an edited prompt or image alone does not re-render it. Outputs `shots ▶ Assemble`, `settings ▶ chain`. Shows progress and remaining time. |
@@ -157,7 +157,12 @@ vision LLM through **Story Mode (LLM)**:
 1. Add **Infinite Movie · Story Mode (LLM)** (it sits under Settings in the example workflow – un-bypass it there).
 2. Plug its output `LLM` into Settings › `LLM`.
 3. Pick a `provider`: it fills `endpoint`, `model` and `api_key_env`. Change them freely afterwards.
-4. Write your red thread into `story` (optional), then **🔄 Regenerate prompt** on the Auto Prompts.
+4. Write your red thread into `story` (optional), then **🔄 Regenerate prompt** on the Auto Prompts. The plan
+   (arc + one line per shot) appears in the node under **④ Plan result**.
+
+**Simple prompts – back to the small model:** unplug the `LLM` cable from Settings (or bypass Story Mode with
+Ctrl+B). `prompt_model` is active again and writes each shot from its two images – no server needed, nothing else to
+change. Plug it back in for the next story film.
 
 | provider | endpoint | what to run |
 |---|---|---|

@@ -2877,7 +2877,7 @@
       ],
       "size": [
         420,
-        640
+        880
       ],
       "flags": {},
       "order": 1,
@@ -3005,11 +3005,11 @@
       "type": "MarkdownNote",
       "pos": [
         1375,
-        942
+        1182
       ],
       "size": [
         420,
-        420
+        470
       ],
       "flags": {},
       "order": 0,
@@ -3019,7 +3019,7 @@
       "title": "Story Mode (LLM) · how it works",
       "properties": {},
       "widgets_values": [
-        "## Story Mode (LLM) · how it works\n**Idea:** the small `prompt_model` sees only the two images of one shot. Story Mode lets a bigger vision LLM on a server read **all** images first and plan the film – an arc plus one beat per shot. Every Auto Prompt then writes its shot from its two images **and** its beat, so the shots tell one story. `story` = your red thread, it goes into every system prompt.\n\n**Connection:** `LLM` (output, right) → Settings › `LLM` (input, top). Plugged in, `prompt_model` is greyed out – the LLM writes instead. Nothing else to wire; Prompt Style stays behind Settings as before. **Bypass** this node (Ctrl+B) = back to `prompt_model`.\n\n**Setup:** pick a `provider` (fills `endpoint`, `model`, `api_key_env`), press **🔌 Check connection** – green = ready. Then **🔄 Regenerate prompt** on the Auto Prompts.\n- local server / Ollama / LM Studio: start the server with a **vision** model; `model` empty = the loaded one.\n- OpenAI / Gemini / OpenRouter: `api_key_env` = *name* of the environment variable with your key (the key is never saved in the workflow).\n- The two instructions are editable; **↺ Restore default prompts** brings them back. Errors show in the ComfyUI console.\n"
+        "## Story Mode (LLM) · how it works\n**Idea:** the small `prompt_model` sees only the two images of one shot. Story Mode lets a bigger vision LLM on a server read **all** images first and plan the film – an arc plus one beat per shot. Every Auto Prompt then writes its shot from its two images **and** its beat, so the shots tell one story. `story` = your red thread, it goes into every system prompt.\n\n**Connection:** `LLM` (output, right) → Settings › `LLM` (input, top). Plugged in, `prompt_model` is greyed out – the LLM writes instead. Nothing else to wire; Prompt Style stays behind Settings as before.\n\n**Simple prompts:** unplug the `LLM` cable (or bypass this node, Ctrl+B) – the small `prompt_model` writes again, no server needed. Plug it back in for a story film.\n\n**Setup:** pick a `provider` (fills `endpoint`, `model`, `api_key_env`), press **🔌 Check connection** – green = ready. Then **🔄 Regenerate prompt** on the Auto Prompts – the plan appears in **④ Plan result** at the bottom of this node.\n- local server / Ollama / LM Studio: start the server with a **vision** model; `model` empty = the loaded one.\n- OpenAI / Gemini / OpenRouter: `api_key_env` = *name* of the environment variable with your key (the key is never saved in the workflow).\n- The two instructions are editable; **↺ Restore default prompts** brings them back. Errors show in the ComfyUI console.\n"
       ],
       "color": "#322",
       "bgcolor": "#533"
@@ -3499,7 +3499,7 @@
         1355,
         -512,
         460,
-        2158
+        2184
       ],
       "color": "#8a6d3a",
       "flags": {}

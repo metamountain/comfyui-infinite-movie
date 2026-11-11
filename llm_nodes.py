@@ -297,7 +297,9 @@ def storyboard(cfg: dict, files: list, loop: bool, story: str, seed: int = 0, ca
     path = os.path.join(cache_dir, f"im_storyboard_{key}.json")
     if os.path.isfile(path):
         with open(path, encoding="utf-8") as f:
-            return json.load(f)
+            sb = json.load(f)
+        announce_storyboard(sb, cached=True)
+        return sb
     system = red_thread(storyboard_system(cfg.get("storyboard_instruction"), n, len(files), loop), story)
     lines = "\n".join(f"Shot {k + 1}: image {k + 1} -> image {(k + 1) % len(files) + 1}" for k in range(n))
     ask = ask or (lambda c, t, fs, sy, mt: llm_gen(c, t, fs, sy, mt, 0.7, seed))
@@ -310,7 +312,26 @@ def storyboard(cfg: dict, files: list, loop: bool, story: str, seed: int = 0, ca
         with open(path, "w", encoding="utf-8") as f:
             json.dump(sb, f, ensure_ascii=False, indent=1)
         print(f"[InfiniteMovieStoryMode] storyboard: {sb['arc']}\n" + "\n".join(f"  {k + 1}. {b}" for k, b in enumerate(sb["shots"])))
+    announce_storyboard(sb, raw=None if sb else str(raw)[:600])
     return sb
+
+
+def storyboard_text(sb, raw=None) -> str:
+    """Plan as plain text for the Story Mode node (user: "can't see the result of the plan")."""
+    if not sb:
+        return "Plan failed - shots are written from their image pairs only.\nLLM answer:\n" + str(raw or "")
+    return f"Arc: {sb['arc']}\n\n" + "\n".join(f"Shot {k + 1}: {b}" for k, b in enumerate(sb["shots"]))
+
+
+def announce_storyboard(sb, cached: bool = False, raw=None):
+    """Send the plan to the browser (event infinite_movie.storyboard), shown in the Story Mode node."""
+    try:
+        from server import PromptServer
+        inst = PromptServer.instance
+        if inst is not None:
+            inst.send_sync("infinite_movie.storyboard", {"text": storyboard_text(sb, raw), "cached": bool(cached)})
+    except Exception:  # noqa: BLE001 - without ComfyUI (tests)
+        pass
 
 
 def shot_context(sb, k: int) -> str:

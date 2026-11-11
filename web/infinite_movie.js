@@ -3701,6 +3701,29 @@ app.registerExtension({
         cb.options = { ...(cb.options || {}), serialize: false };
         cb.tooltip = "Asks the server once for its models. Green = reachable (shows the model that will answer).";
       }
+      // 2026-11-11 (user: "can't see the result of the plan"): plan shown read-only (selectable, copyable) at the
+      // bottom; kept in properties.im_plan so it survives a reload. Filled by the event infinite_movie.storyboard.
+      if (!this.widgets?.find((w) => w.name === "im_plan")) {
+        const lbl = this.addCustomWidget({
+          name: "im_label_plan", type: "im_label", value: null, serialize: false, options: { serialize: false },
+          computeSize: () => [0, 22],
+          draw(ctx, _n, _w, y) {
+            ctx.save(); ctx.fillStyle = "#e8e8e8"; ctx.font = "bold 13px Arial";
+            ctx.fillText("④ Plan result – written on Regenerate", 14, y + 16); ctx.restore();
+          },
+          mouse() { return false; },
+        });
+        const ta = document.createElement("textarea");
+        ta.readOnly = true;
+        ta.placeholder = "The plan appears here after the first 🔄 Regenerate prompt.";
+        ta.style.cssText = "width:100%;height:100%;resize:none;box-sizing:border-box;font:11px monospace;" +
+          "background:#1a1a1a;color:#ddd;border:1px solid #444;border-radius:4px;padding:4px;";
+        ta.value = this.properties?.im_plan || "";
+        this._imPlanEl = ta;
+        this.addDOMWidget("im_plan", "textarea", ta, { serialize: false, getMinHeight: () => 120,
+          getValue: () => ta.value, setValue: () => {} });
+        void lbl;
+      }
       // provider fills endpoint / model / api_key_env (table from llm_nodes.PROVIDERS), only on a user change
       const pw = this.widgets?.find((w) => w.name === "provider");
       if (pw && !pw._imWrapped) {
@@ -3720,6 +3743,30 @@ app.registerExtension({
           return out;
         };
       }
+      return r;
+    };
+  },
+});
+
+// 2026-11-11: the plan from the server -> every Story Mode node (text box ④ + properties, saved with the workflow)
+api.addEventListener("infinite_movie.storyboard", (e) => {
+  const text = String(e.detail?.text || "") + (e.detail?.cached ? "\n\n(from cache - same images, story and instruction)" : "");
+  for (const n of app.graph?._nodes || []) {
+    if (n.comfyClass !== "InfiniteMovieStoryMode") continue;
+    n.properties = n.properties || {};
+    n.properties.im_plan = text;
+    if (n._imPlanEl) n._imPlanEl.value = text;
+    n.setDirtyCanvas?.(true, true);
+  }
+});
+app.registerExtension({
+  name: "InfiniteMovie.StoryModePlanRestore",
+  beforeRegisterNodeDef(nodeType, nodeData) {
+    if (nodeData?.name !== "InfiniteMovieStoryMode") return;
+    const onCfg = nodeType.prototype.onConfigure;
+    nodeType.prototype.onConfigure = function (...a) {
+      const r = onCfg?.apply(this, a);
+      if (this._imPlanEl) this._imPlanEl.value = this.properties?.im_plan || "";
       return r;
     };
   },
