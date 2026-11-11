@@ -682,19 +682,36 @@ function fcSetImageCount(chain, want) {
   want = Math.max(1, Math.min(12, Math.round(Number(want) || 1)));
   let imgs = fcChainImages(chain);
   if (want === imgs.length) return;
+  const restored = [];                                      // [new Load Image, remembered entry]
   chain._fcReady = false;                                   // no addPromptForNewImage in between
   try {
     if (want < imgs.length) {
       // 2026-11-11 (user: "images and prompts disappear completely when the slider reduces the count"):
       // delete the image chain and every Auto Prompt that uses one of its images (was: mute).
+      // user: "deleted - so they are gone when I raise it again?" -> remembered in chain.properties.im_removed
+      // (image file + prompt texts, saved with the workflow); raising the count brings them back.
+      const firstId = imgs[0]?.id;
+      const srcIs = (ap, nm, ids) => {
+        const inp = ap.inputs?.find((x) => x.name === nm);
+        const l = inp?.link != null ? getLink(g, inp.link) : null;
+        return !!(l && ids.has(l.origin_id));
+      };
+      const promptOf = (ap) => String(ap?.widgets?.find((w) => w.name === "prompt")?.value ?? "");
+      chain.properties = chain.properties || {};
+      const stack = chain.properties.im_removed = chain.properties.im_removed || [];
       for (const n of imgs.slice(want).reverse()) {
-        const ids = new Set(fcImgPath(g, n).map((p) => p.id));
-        const usesImg = (ap) => ["image_from", "image_to"].some((nm) => {
-          const inp = ap.inputs?.find((x) => x.name === nm);
-          const l = inp?.link != null ? getLink(g, inp.link) : null;
-          return l && ids.has(l.origin_id);
+        const path = fcImgPath(g, n);
+        const root = path[path.length - 1];
+        const ids = new Set(path.map((p) => p.id));
+        const aps = (g._nodes || []).filter((a) => a.comfyClass === "InfiniteMovieAutoPrompt"
+          && (srcIs(a, "image_from", ids) || srcIs(a, "image_to", ids)));
+        const apIn = aps.find((a) => srcIs(a, "image_to", ids));
+        const apClose = aps.find((a) => srcIs(a, "image_from", ids) && srcIs(a, "image_to", new Set([firstId])));
+        stack.push({
+          file: root.comfyClass === "LoadImage" ? root.widgets?.find((w) => w.name === "image")?.value ?? null : null,
+          title: root.title, promptIn: promptOf(apIn), promptClose: apClose ? promptOf(apClose) : "",
         });
-        for (const ap of (g._nodes || []).filter((a) => a.comfyClass === "InfiniteMovieAutoPrompt" && usesImg(a))) g.remove(ap);
+        for (const ap of aps) g.remove(ap);
         for (const id of ids) { const p = g.getNodeById(id); if (p) g.remove(p); }
       }
     } else {
@@ -720,15 +737,19 @@ function fcSetImageCount(chain, want) {
         ? lastRoot.widgets?.find((w) => w.name === "image")?.value : null;
       const imgTpl = (chain.inputs || []).find((i) => i.name?.startsWith(IMG));
       let prev = lastRoot;
+      const stack = chain.properties?.im_removed || [];
       for (let k = imgs.length; k < want; k++) {
         const ni = LiteGraph.createNode("LoadImage");
         if (!ni) break;
         g.add(ni);
-        ni.title = `image ${k + 1} – replace`;
+        const back = stack.pop();   // an image removed by the counter comes back first (file + prompts)
+        ni.title = back?.title || `image ${k + 1} – replace`;
         ni.properties = ni.properties || {};
         ni.properties.im_count_created = chain.id;
+        if (back) restored.push([ni, back]);
+        const file = back?.file || tplFile;
         const iw = ni.widgets?.find((w) => w.name === "image");
-        if (iw && tplFile) { iw.value = tplFile; iw.callback?.(tplFile); }   // the callback loads the preview
+        if (iw && file) { iw.value = file; iw.callback?.(file); }   // the callback loads the preview
         if (prev) {
           ni.size = [...prev.size];
           ni.pos = [prev.pos[0], prev.pos[1] + prev.size[1] + 60];
@@ -753,6 +774,20 @@ function fcSetImageCount(chain, want) {
   }
   reconcileChain(chain);
   removeStaleModeAPs(chain);
+  // remembered prompt texts back into the Auto Prompts of the restored images (only into empty ones)
+  if (restored.length) {
+    const first = fcChainImages(chain)[0];
+    const lastNew = restored[restored.length - 1][0];
+    for (const ap of (g._nodes || []).filter((a) => a.comfyClass === "InfiniteMovieAutoPrompt")) {
+      const src = (nm) => { const i = ap.inputs?.find((x) => x.name === nm); return i?.link != null ? getLink(g, i.link)?.origin_id : null; };
+      const pw = ap.widgets?.find((w) => w.name === "prompt");
+      if (!pw || String(pw.value ?? "").trim()) continue;
+      const hit = restored.find(([ni]) => ni.id === src("image_to"));
+      let text = hit ? hit[1].promptIn : "";
+      if (!text && src("image_from") === lastNew.id && first && src("image_to") === first.id) text = restored[restored.length - 1][1].promptClose;
+      if (text) pw.value = text;
+    }
+  }
   // AUTO LAYOUT like via the button (wires the settings chain + arranges all groups)
   chain.widgets?.find((w) => w.name === "🔗 AUTO LAYOUT")?.callback?.();
   g.setDirtyCanvas?.(true, true);
