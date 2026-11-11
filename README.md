@@ -38,7 +38,7 @@ The engine sits at the top, below it one row read from left to right. Every area
 | **2 · Settings** | Prompt model, picture size, output folder, film name, sound on/off, **📦 Check models**. |
 | **3 · Images** | Your stills, top to bottom = order in the film. |
 | **4 · Prompts** | *Prompt Style* (how prompts are written) and one *Auto Prompt* per transition. |
-| **5 · Director** | `images` (how many), seconds per shot, `loop` (last image back to the first), `variants` (1 or 2 per shot). |
+| **5 · Director** | `images` (how many), the image list (drag to reorder, ✕ to remove), seconds per shot, `loop` (last image back to the first), `variants` (1 or 2 per shot). |
 | **6 · Choose** | Check the shots, pick A/B, mark shots to redo, **ASSEMBLE** / **RERENDER**. |
 | **7 · Assemble + Film** | Joins the shots, evens out the motion, shows and saves the film. |
 | **8 · Upscale** | Optional (muted): sharper, larger film. Select the group and press Ctrl+M to turn it on. |
@@ -112,7 +112,9 @@ Infinite Movie · Engine Start (from Director)  →  your model chain  →  Infi
 
 ### Leave images out
 
-Lower Director › `images`: the last images are muted (not deleted), their Auto Prompts too, and keep their text – raise it again to bring them back. Or select any *Load Image* and press Ctrl+M: the Director skips it the same way.
+Lower Director › `images`: the last images and their Auto Prompts are removed; the Director remembers them (file + prompt text, saved with the workflow) – raise it again to bring them back. Or select any *Load Image* and press Ctrl+M: the Director skips it while it stays muted.
+
+**Image order:** the Director shows the images as a list, top = first. Drag a row up or down to move an image, ✕ removes it (raising `images` brings it back at the end). Transitions whose image pair changed get an empty prompt and the button **⚠ new pair – 🔄 regenerate**; unchanged transitions keep their text. To put an image in between: raise `images`, load the picture, drag it into place.
 
 ## Sound
 
@@ -128,7 +130,7 @@ stays silent then. Prompts can describe sound, e.g. `sound: howling wind`.
 | **Story Mode (LLM)** | Optional. Plug `LLM` into Settings › `LLM` (AUTO LAYOUT does it): a bigger vision LLM then writes the prompts instead of `prompt_model` (greyed out while plugged in). It first reads **all** images and plans the film – an arc plus one beat per shot – then every Auto Prompt writes its shot from its two images and its beat. `story` = your red thread (goes into every system prompt). Both instructions are editable; **↺ Restore default prompts** brings the originals back. The plan shows in the node (**④ Plan result**). **Simple prompts:** unplug the `LLM` cable (or bypass the node) – `prompt_model` writes again. Setup: [Story Mode setup](#story-mode-setup). |
 | **Prompt Style** | What the prompt model is told, `max_words`, `camera` (appended; `none` = no camera sentence). |
 | **Auto Prompt** | One per transition. Looks at both images and writes the prompt from your keywords when you press **🔄 Regenerate prompt** (only this node; ~20 s with Qwen3-VL 4B). Never writes on Run: a filled prompt is used as is. |
-| **Director** | 1–12 images + one prompt per transition → renders all shots. `images` sets the count: more adds Load Image nodes (copy of the last image) with Auto Prompts, fewer mutes the last ones. `seconds` per shot (snapped to the engine's frame grid), `loop`, `variants` (`2` = render A and B per shot). Rendered shots are kept: a shot is rendered again only when its seed changes (`reseed` or the base `seed`) – an edited prompt or image alone does not re-render it. Outputs `shots ▶ Assemble`, `settings ▶ chain`. Shows progress and remaining time. |
+| **Director** | 1–12 images + one prompt per transition → renders all shots. `images` sets the count: more adds Load Image nodes (copy of the last image) with Auto Prompts, fewer removes the last ones (remembered). The image list below it reorders (drag) and removes (✕) images. `seconds` per shot (snapped to the engine's frame grid), `loop`, `variants` (`2` = render A and B per shot). Rendered shots are kept: a shot is rendered again only when its seed changes (`reseed` or the base `seed`) – an edited prompt or image alone does not re-render it. Outputs `shots ▶ Assemble`, `settings ▶ chain`. Shows progress and remaining time. |
 | **Engine Start / Engine Result** | Left and right edge of an engine group (see [Engines](#engines)). |
 | **Choose** | One tile per shot (A above B with variants). Hover plays, click picks; **✓ KEEP / ✗ REDO** per shot. Each tile shows a check in plain words: green *✓ smooth*, yellow *△ slight flicker*, red *⚠ HARD CUT / HARD SEAM*. **✎ prompt** and **⏱ seconds** change one shot and mark it REDO. Big button: **ASSEMBLE ▶** (build the film from your picks) or **RERENDER n ↻** (only the marked shots). 3×3 contact sheet of the shot under the mouse. |
 | **Assemble** | Joins the shots into the film. `even_motion` re-picks frames so each carries about the same change. `interpolate` RIFE x2 (fewer repeated frames). Runs only on **ASSEMBLE**. The film mp4 contains the prompt and the workflow. Viewer (3×3 Load-Image tiles, all tabs the same size): **Graph**, **Timeline**, **Heatmap**, **Frames** (slider, ▶, onion skin), **Particles** (motion trails), **Sheet** (3×3 … 8×8, click = open frame). Outputs `video_path`, `last_frame`, `first_frame`. |

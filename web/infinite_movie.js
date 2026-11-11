@@ -33,7 +33,15 @@ function fcImgRoot(g, n, depth = 0) {
   const o = l && g.getNodeById(l.origin_id);
   return o ? fcImgRoot(g, o, depth + 1) : n;
 }
-const fcImgOrder = (g) => (a, b) => (fcImgRoot(g, a).id - fcImgRoot(g, b).id) || (a.id - b.id);
+// 2026-11-11 (user: "insert an image later / swap images"): sort key = root.properties.im_order (saved with the
+// workflow), fallback the root id. ▲▼ swap two keys, ➕ insert gives the new image a key between its neighbours.
+function fcOrderKey(g, n) {
+  const r = fcImgRoot(g, n);
+  const k = r?.properties?.im_order;
+  // node ids are strings in the current frontend ("70") – always compare numbers
+  return k != null && Number.isFinite(Number(k)) ? Number(k) : Number(r.id);
+}
+const fcImgOrder = (g) => (a, b) => (fcOrderKey(g, a) - fcOrderKey(g, b)) || (a.id - b.id);
 // Image source active = itself and the root of its image chain not muted/bypassed
 const fcImgActive = (g, n) => fcActive(n) && fcActive(fcImgRoot(g, n));
 
@@ -691,29 +699,7 @@ function fcSetImageCount(chain, want) {
       // user: "deleted - so they are gone when I raise it again?" -> remembered in chain.properties.im_removed
       // (image file + prompt texts, saved with the workflow); raising the count brings them back.
       const firstId = imgs[0]?.id;
-      const srcIs = (ap, nm, ids) => {
-        const inp = ap.inputs?.find((x) => x.name === nm);
-        const l = inp?.link != null ? getLink(g, inp.link) : null;
-        return !!(l && ids.has(l.origin_id));
-      };
-      const promptOf = (ap) => String(ap?.widgets?.find((w) => w.name === "prompt")?.value ?? "");
-      chain.properties = chain.properties || {};
-      const stack = chain.properties.im_removed = chain.properties.im_removed || [];
-      for (const n of imgs.slice(want).reverse()) {
-        const path = fcImgPath(g, n);
-        const root = path[path.length - 1];
-        const ids = new Set(path.map((p) => p.id));
-        const aps = (g._nodes || []).filter((a) => a.comfyClass === "InfiniteMovieAutoPrompt"
-          && (srcIs(a, "image_from", ids) || srcIs(a, "image_to", ids)));
-        const apIn = aps.find((a) => srcIs(a, "image_to", ids));
-        const apClose = aps.find((a) => srcIs(a, "image_from", ids) && srcIs(a, "image_to", new Set([firstId])));
-        stack.push({
-          file: root.comfyClass === "LoadImage" ? root.widgets?.find((w) => w.name === "image")?.value ?? null : null,
-          title: root.title, promptIn: promptOf(apIn), promptClose: apClose ? promptOf(apClose) : "",
-        });
-        for (const ap of aps) g.remove(ap);
-        for (const id of ids) { const p = g.getNodeById(id); if (p) g.remove(p); }
-      }
+      for (const n of imgs.slice(want).reverse()) fcRemoveImage(chain, n, firstId);
     } else {
       // 1) reclaim images muted by the counter (oldest first)
       const muted = (g._nodes || []).filter((n) => n.properties?.im_count_muted === chain.id)
@@ -791,6 +777,184 @@ function fcSetImageCount(chain, want) {
   // AUTO LAYOUT like via the button (wires the settings chain + arranges all groups)
   chain.widgets?.find((w) => w.name === "🔗 AUTO LAYOUT")?.callback?.();
   g.setDirtyCanvas?.(true, true);
+}
+
+// Removes one image (its image chain + every Auto Prompt using it) and remembers file + prompts in
+// chain.properties.im_removed – raising the images counter brings it back.
+function fcRemoveImage(chain, n, firstId, keepPrompts = true) {
+  const g = chain.graph;
+  const srcIs = (ap, nm, ids) => {
+    const inp = ap.inputs?.find((x) => x.name === nm);
+    const l = inp?.link != null ? getLink(g, inp.link) : null;
+    return !!(l && ids.has(l.origin_id));
+  };
+  const promptOf = (ap) => String(ap?.widgets?.find((w) => w.name === "prompt")?.value ?? "");
+  chain.properties = chain.properties || {};
+  const stack = chain.properties.im_removed = chain.properties.im_removed || [];
+  const path = fcImgPath(g, n);
+  const root = path[path.length - 1];
+  const ids = new Set(path.map((p) => p.id));
+  const aps = (g._nodes || []).filter((a) => a.comfyClass === "InfiniteMovieAutoPrompt"
+    && (srcIs(a, "image_from", ids) || srcIs(a, "image_to", ids)));
+  const apIn = aps.find((a) => srcIs(a, "image_to", ids));
+  const apClose = aps.find((a) => srcIs(a, "image_from", ids) && srcIs(a, "image_to", new Set([firstId])));
+  stack.push({
+    file: root.comfyClass === "LoadImage" ? root.widgets?.find((w) => w.name === "image")?.value ?? null : null,
+    // ✕ in the image list (any position): the image comes back at the end with other neighbours → no old prompts
+    title: root.title, promptIn: keepPrompts ? promptOf(apIn) : "", promptClose: keepPrompts && apClose ? promptOf(apClose) : "",
+  });
+  for (const ap of aps) g.remove(ap);
+  for (const id of ids) { const p = g.getNodeById(id); if (p) g.remove(p); }
+}
+
+// 2026-11-11 (user: "rows in the director you can drag, like layers in Photoshop? auto layout follows.
+// no in-between image, just drag up/down + remove"): image list on the director.
+const fcApSrc = (g, ap, nm) => {
+  const i = ap.inputs?.find((x) => x.name === nm);
+  return i?.link != null ? g.getNodeById(getLink(g, i.link)?.origin_id) : null;
+};
+function fcApPairs(g) {
+  const m = new Map();
+  for (const ap of (g._nodes || []).filter((a) => a.comfyClass === "InfiniteMovieAutoPrompt")) {
+    const f = fcApSrc(g, ap, "image_from"), t = fcApSrc(g, ap, "image_to");
+    m.set(ap.id, (f ? fcImgRoot(g, f).id : "-") + ">" + (t ? fcImgRoot(g, t).id : "-"));
+  }
+  return m;
+}
+// Auto Prompts whose image pair changed and that are empty now: old hints off, the button says what to do.
+function fcMarkChangedPairs(g, before) {
+  const now = fcApPairs(g);
+  for (const ap of (g._nodes || []).filter((a) => a.comfyClass === "InfiniteMovieAutoPrompt")) {
+    if (before.get(ap.id) === now.get(ap.id)) continue;
+    const pw = ap.widgets?.find((w) => w.name === "prompt");
+    if (pw && String(pw.value ?? "").trim()) continue;
+    ap.properties = ap.properties || {};
+    ap.properties.prompt_hint = null;
+    delete ap.properties.im_last_generated;
+    if (ap._fcRegenBtn) ap._fcRegenBtn.name = "⚠ new pair – 🔄 regenerate";
+  }
+}
+function fcAfterReorder(chain, before) {
+  reconcileChain(chain);
+  removeStaleModeAPs(chain);
+  fcMarkChangedPairs(chain.graph, before);
+  chain.widgets?.find((w) => w.name === "🔗 AUTO LAYOUT")?.callback?.();
+  chain.graph.setDirtyCanvas?.(true, true);
+}
+function fcReorderImages(chain, from, to) {
+  const g = chain.graph;
+  const imgs = fcChainImages(chain);
+  if (from === to || !imgs[from] || to < 0 || to >= imgs.length) return;
+  const keys = imgs.map((n) => fcOrderKey(g, n)).sort((a, b) => a - b);
+  const roots = imgs.map((n) => fcImgRoot(g, n));
+  const [r] = roots.splice(from, 1);
+  roots.splice(to, 0, r);
+  const before = fcApPairs(g);
+  roots.forEach((x, i) => { x.properties = x.properties || {}; x.properties.im_order = keys[i]; });
+  fcAfterReorder(chain, before);
+}
+function fcDeleteImage(chain, k) {
+  const g = chain.graph;
+  const imgs = fcChainImages(chain);
+  if (imgs.length <= 1 || !imgs[k]) return;
+  const before = fcApPairs(g);
+  chain._fcReady = false;
+  try { fcRemoveImage(chain, imgs[k], imgs[0].id, k === imgs.length - 1); } finally { chain._fcReady = true; }
+  fcAfterReorder(chain, before);
+}
+
+const IM_ROW = 64;
+function addImageLayers(node) {
+  if (node.widgets?.find((w) => w.name === "im_layers")) return;
+  const M = 15, DEL = 28;
+  const rowAt = (w, y) => Math.floor((y - w._y - 4) / IM_ROW);
+  node.addCustomWidget({
+    name: "im_layers",
+    type: "im_layers",
+    value: null,
+    serialize: false,
+    options: { serialize: false },
+    tooltip: "Image order of the film, top = first. Drag a row up or down to move the image; ✕ removes it " +
+      "(raising the images counter brings it back). Transitions that change get an empty prompt – regenerate them.",
+    computeSize: (width) => [width, Math.max(1, fcChainImages(node).length) * IM_ROW + 8],
+    draw(ctx, n, width, y) {
+      this._y = y; this._w = width;
+      const g = n.graph;
+      const imgs = fcChainImages(n);
+      const rows = imgs.map((x, i) => [x, i]);
+      const d = this._drag;
+      if (d && d.to !== d.from) { const [r] = rows.splice(d.from, 1); rows.splice(d.to, 0, r); }
+      ctx.save();
+      rows.forEach(([img, orig], k) => {
+        const root = fcImgRoot(g, img);
+        const x = M, bw = width - 2 * M, ry = y + 4 + k * IM_ROW, rh = IM_ROW - 6, cy = ry + rh / 2;
+        const dragged = d && orig === d.from;
+        ctx.fillStyle = dragged ? "#2f4f6f" : "#262626";
+        ctx.strokeStyle = dragged ? "#6af" : "#444";
+        ctx.lineWidth = dragged ? 2 : 1;
+        ctx.beginPath();
+        if (ctx.roundRect) ctx.roundRect(x, ry, bw, rh, 6); else ctx.rect(x, ry, bw, rh);
+        ctx.fill(); ctx.stroke();
+        ctx.textBaseline = "middle";
+        ctx.textAlign = "center";
+        ctx.fillStyle = "#bbb"; ctx.font = "bold 13px sans-serif";
+        ctx.fillText(String(k + 1), x + 14, cy);
+        // the image is the drag element (aspect kept), the name sits quietly next to it
+        let tx = x + 28;
+        const im = root.imgs?.[0];
+        const ih = rh - 8;
+        if (im?.naturalWidth) {
+          const iw = Math.min(ih * 1.8, ih * im.naturalWidth / im.naturalHeight);
+          ctx.drawImage(im, tx, ry + 4, iw, ih);
+          tx += iw + 10;
+        } else {
+          ctx.fillStyle = "#333"; ctx.fillRect(tx, ry + 4, ih * 0.8, ih);
+          tx += ih * 0.8 + 10;
+        }
+        ctx.textAlign = "left";
+        ctx.fillStyle = "#999"; ctx.font = "12px sans-serif";
+        let t = String(root.title || root.type || "");
+        const maxW = x + bw - DEL - 6 - tx;
+        while (t.length > 1 && ctx.measureText(t).width > maxW) t = t.slice(0, -1);
+        if (maxW > 20) ctx.fillText(t, tx, cy);
+        ctx.textAlign = "center";
+        ctx.fillStyle = this._del === orig ? "#f66" : "#a77"; ctx.font = "15px sans-serif";
+        ctx.fillText("✕", x + bw - DEL / 2, cy);
+      });
+      ctx.restore();
+    },
+    mouse(e, pos, n) {
+      const t = e.type;
+      const N = fcChainImages(n).length;
+      const k = rowAt(this, pos[1]);
+      if (t === "pointerdown" || t === "mousedown") {
+        if (k < 0 || k >= N) return false;
+        if (pos[0] > (this._w || n.size[0]) - M - DEL - 4) this._del = k;
+        else this._drag = { from: k, to: k };
+        n.setDirtyCanvas(true, false);
+        return true;
+      }
+      if (t === "pointermove" || t === "mousemove") {
+        if (!this._drag) return false;
+        this._drag.to = Math.max(0, Math.min(N - 1, k));
+        n.setDirtyCanvas(true, false);
+        return true;
+      }
+      if (t === "pointerup" || t === "mouseup") {
+        const d = this._drag, del = this._del;
+        this._drag = null; this._del = null;
+        if (d && d.to !== d.from) setTimeout(() => fcReorderImages(n, d.from, d.to), 0);
+        if (del != null && del === k) setTimeout(() => fcDeleteImage(n, del), 0);
+        n.setDirtyCanvas(true, true);
+        return true;
+      }
+      return false;
+    },
+  });
+  // directly below the images counter (both not saved → saved widget positions stay the same)
+  const w = node.widgets[node.widgets.length - 1];
+  const ci = node.widgets.findIndex((x) => x.name === "image_count");
+  if (ci >= 0) { node.widgets.splice(node.widgets.length - 1, 1); node.widgets.splice(ci + 1, 0, w); }
 }
 
 function addImageCounter(node) {
@@ -1317,6 +1481,11 @@ function reconcileChain(chain) {
     wireSettingsChain(chain);                                 // 57c2: rewire the chain after reconciliation
     const cw = chain.widgets?.find((w) => w.name === "image_count");   // 92: counter = active images
     if (cw && N > 0) cw.value = N;
+    // image list (im_layers) one row per image: director height follows the count
+    if (chain.widgets?.find((w) => w.name === "im_layers") && chain._fcLayN !== N) {
+      chain._fcLayN = N;
+      chain.setSize([chain.size[0], chain.computeSize()[1]]);
+    }
     chain.setDirtyCanvas?.(true, true);
   } finally {
     chain._fcRec = false;
@@ -1458,6 +1627,7 @@ app.registerExtension({
           _fcSetupWidgetHooks(this);
           addLayoutButton(this);
           addImageCounter(this);
+          addImageLayers(this);
           // 82: shot_seconds is edited in Choose (⏱) – hidden in the node.
           imToggleWidget(this.widgets?.find((w) => w.name === "shot_seconds"), false);
           this.setSize([this.size[0], this.computeSize()[1]]);
@@ -1511,6 +1681,7 @@ app.registerExtension({
     if (node.comfyClass !== "InfiniteMovieRender") return;
     addLayoutButton(node);
     addImageCounter(node);
+    addImageLayers(node);
     // 82: shot_seconds is edited in Choose (⏱) – hidden in the node.
     setTimeout(() => {
       imToggleWidget(node.widgets?.find((w) => w.name === "shot_seconds"), false);
