@@ -217,6 +217,102 @@ def _resolve_source(video_path: str, tmp: str, images=None, audio=None, fps: flo
     raise ValueError("LTX Refine: images oder video_path anschließen.")
 
 
+def stream_chunks(src: str, n_src: int, starts: list[int], chunk: int, ov: int, loop: bool, fps: float, tw: int, th: int,
+                  crf: int, out_path: str, cache: str, upscale_fn, label: str) -> None:
+    """Shared divider loop (LTX Refine, RelayVSR Upscale): upscale_fn(i, start) returns uint8 [chunk,th,tw,3]
+    for the frames start..start+chunk-1 (virtual time axis, loop runs past the end into the start).
+    Overlaps are cross-faded linearly, finished frames go to ffmpeg immediately (RAM stays at one chunk),
+    every chunk is cached as .npy in cache (re-run resumes), loop seam end->start is cross-faded too,
+    audio is taken from src. Writes out_path."""
+    n_virt = n_src + ov if loop else n_src     # loop: ov frames past the end (= start)
+    import comfy.utils
+    tmp_video = out_path + ".noaudio.mp4"
+    enc = _encoder(tmp_video, tw, th, fps, crf)
+    head, wrap = {}, {}   # loop: start (frames 0..ov-1) and continuation (n_src..n_src+ov-1) for the seam
+
+    def emit(f, arr):
+        arr = np.clip(arr + 0.5, 0, 255).astype(np.uint8) if arr.dtype != np.uint8 else arr
+        if loop and f < ov:
+            head[f] = arr           # cross-faded with the continuation only at the end
+        elif loop and n_src <= f < n_virt:
+            wrap[f - n_src] = arr
+        elif f < n_src:
+            enc.stdin.write(arr.tobytes())
+
+    pbar = comfy.utils.ProgressBar(len(starts))
+    written, tail = 0, None   # tail = (start frame, frames) of the previous chunk from the next start
+    try:
+        for i, s in enumerate(starts):
+            cpath = os.path.join(cache, f"chunk_{s:06d}.npy")
+            if os.path.isfile(cpath):
+                up = np.load(cpath)
+            else:
+                up = upscale_fn(i, s)
+                np.save(cpath + ".part.npy", up)
+                os.replace(cpath + ".part.npy", cpath)
+            # Cross-fade the overlap with the previous chunk linearly.
+            if tail is not None:
+                t0, prev = tail
+                n_ov = len(prev)
+                for j in range(n_ov):
+                    a = (j + 1) / (n_ov + 1)
+                    emit(t0 + j, prev[j].astype(np.float32) * (1 - a) + up[t0 - s + j].astype(np.float32) * a)
+                written = t0 + n_ov
+            nxt = starts[i + 1] if i + 1 < len(starts) else None
+            end = (nxt if nxt is not None else s + chunk)
+            for f in range(written, end):
+                emit(f, up[f - s])
+            written = max(written, end)
+            tail = (nxt, up[nxt - s:]) if nxt is not None else None
+            pbar.update(1)
+    finally:
+        enc.stdin.close()
+        enc.wait()
+    if enc.returncode != 0:
+        raise RuntimeError(f"{label}: ffmpeg-Encode fehlgeschlagen")
+    if loop:
+        # Seam end -> start: cross-fade the continuation of the last chunk into the start of chunk 1,
+        # encode it as a separate head chunk and prepend it to the rest (concat without re-encoding).
+        head_video = out_path + ".head.mp4"
+        henc = _encoder(head_video, tw, th, fps, crf)
+        for f in range(ov):
+            a = (f + 1) / (ov + 1)
+            arr = wrap[f].astype(np.float32) * (1 - a) + head[f].astype(np.float32) * a
+            henc.stdin.write(np.clip(arr + 0.5, 0, 255).astype(np.uint8).tobytes())
+        henc.stdin.close()
+        henc.wait()
+        lst = out_path + ".concat.txt"
+        with open(lst, "w", encoding="utf-8") as fh:
+            for p_ in (head_video, tmp_video):
+                fh.write("file '" + p_.replace("\\", "/").replace("'", "'\\''") + "'\n")
+        joined = out_path + ".joined.mp4"
+        subprocess.run([_ffmpeg(), "-y", "-v", "error", "-f", "concat", "-safe", "0", "-i", lst, "-c", "copy",
+                        joined], check=True, **_no_window())
+        for p_ in (head_video, lst, tmp_video):
+            os.remove(p_)
+        os.replace(joined, tmp_video)
+    # Take the audio from the source (if present), faststart.
+    subprocess.run([_ffmpeg(), "-y", "-v", "error", "-i", tmp_video, "-i", src, "-map", "0:v", "-map", "1:a?",
+                    "-c:v", "copy", "-c:a", "aac", "-shortest", "-movflags", "+faststart", out_path],
+                   check=True, **_no_window())
+    os.remove(tmp_video)
+    if not os.environ.get("IM_CHUNK_KEEP"):   # measurement: keep the chunks (overlap comparison)
+        shutil.rmtree(cache, ignore_errors=True)
+
+
+def output_with_preview(out_path: str) -> io.NodeOutput:
+    import folder_paths
+    # Preview only when the file is in the ComfyUI output (otherwise the film node behind shows it).
+    outd = os.path.abspath(folder_paths.get_output_directory())
+    if os.path.abspath(out_path).lower().startswith(outd.lower() + os.sep):
+        sub_ = os.path.relpath(os.path.dirname(os.path.abspath(out_path)), outd)
+        return io.NodeOutput(out_path,
+                             ui=ui.PreviewVideo([ui.SavedResult(os.path.basename(out_path),
+                                                                "" if sub_ == "." else sub_,
+                                                                io.FolderType.output)]))
+    return io.NodeOutput(out_path)
+
+
 class InfiniteMovieLTXRefine(io.ComfyNode):
     @classmethod
     def define_schema(cls):
@@ -324,91 +420,16 @@ class InfiniteMovieLTXRefine(io.ComfyNode):
         os.makedirs(cache, exist_ok=True)
 
         vram.wait_acquire(min_free_mb=8000, timeout_s=3600)
-        tmp_video = out_path + ".noaudio.mp4"
-        enc = _encoder(tmp_video, tw, th, fps, crf)
-        head, wrap = {}, {}   # loop: start (frames 0..ov-1) and continuation (n_src..n_src+ov-1) for the seam
 
-        def emit(f, arr):
-            arr = np.clip(arr + 0.5, 0, 255).astype(np.uint8) if arr.dtype != np.uint8 else arr
-            if loop and f < ov:
-                head[f] = arr           # cross-faded with the continuation only at the end
-            elif loop and n_src <= f < n_virt:
-                wrap[f - n_src] = arr
-            elif f < n_src:
-                enc.stdin.write(arr.tobytes())
+        def upscale(i, s):
+            _send_progress(f"chunk {i + 1}/{len(starts)} (frames {s}-{s + chunk - 1})", uid)
+            frames = _read_virtual(src, s, chunk, tw, th, n_src, loop)
+            return _upscale_chunk(frames, model, vae, positive, negative, latent_downscale_factor, sig,
+                                  seed, s // 8, use_guide=(mode == "ic-lora upscale x2"))
 
-        pbar = comfy.utils.ProgressBar(len(starts))
-        written, tail = 0, None   # tail = (start frame, frames) of the previous chunk from the next start
-        try:
-            for i, s in enumerate(starts):
-                cpath = os.path.join(cache, f"chunk_{s:06d}.npy")
-                if os.path.isfile(cpath):
-                    up = np.load(cpath)
-                else:
-                    _send_progress(f"chunk {i + 1}/{len(starts)} (frames {s}-{s + chunk - 1})", uid)
-                    frames = _read_virtual(src, s, chunk, tw, th, n_src, loop)
-                    up = _upscale_chunk(frames, model, vae, positive, negative, latent_downscale_factor, sig,
-                                        seed, s // 8, use_guide=(mode == "ic-lora upscale x2"))
-                    np.save(cpath + ".part.npy", up)
-                    os.replace(cpath + ".part.npy", cpath)
-                # Cross-fade the overlap with the previous chunk linearly.
-                if tail is not None:
-                    t0, prev = tail
-                    n_ov = len(prev)
-                    for j in range(n_ov):
-                        a = (j + 1) / (n_ov + 1)
-                        emit(t0 + j, prev[j].astype(np.float32) * (1 - a) + up[t0 - s + j].astype(np.float32) * a)
-                    written = t0 + n_ov
-                nxt = starts[i + 1] if i + 1 < len(starts) else None
-                end = (nxt if nxt is not None else s + chunk)
-                for f in range(written, end):
-                    emit(f, up[f - s])
-                written = max(written, end)
-                tail = (nxt, up[nxt - s:]) if nxt is not None else None
-                pbar.update(1)
-        finally:
-            enc.stdin.close()
-            enc.wait()
-        if enc.returncode != 0:
-            raise RuntimeError("LTX Refine: ffmpeg-Encode fehlgeschlagen")
-        if loop:
-            # Seam end -> start: cross-fade the continuation of the last chunk into the start of chunk 1,
-            # encode it as a separate head chunk and prepend it to the rest (concat without re-encoding).
-            head_video = out_path + ".head.mp4"
-            henc = _encoder(head_video, tw, th, fps, crf)
-            for f in range(ov):
-                a = (f + 1) / (ov + 1)
-                arr = wrap[f].astype(np.float32) * (1 - a) + head[f].astype(np.float32) * a
-                henc.stdin.write(np.clip(arr + 0.5, 0, 255).astype(np.uint8).tobytes())
-            henc.stdin.close()
-            henc.wait()
-            lst = out_path + ".concat.txt"
-            with open(lst, "w", encoding="utf-8") as fh:
-                for p_ in (head_video, tmp_video):
-                    fh.write("file '" + p_.replace("\\", "/").replace("'", "'\\''") + "'\n")
-            joined = out_path + ".joined.mp4"
-            subprocess.run([_ffmpeg(), "-y", "-v", "error", "-f", "concat", "-safe", "0", "-i", lst, "-c", "copy",
-                            joined], check=True, **_no_window())
-            for p_ in (head_video, lst, tmp_video):
-                os.remove(p_)
-            os.replace(joined, tmp_video)
-        # Take the audio from the source (if present), faststart.
-        subprocess.run([_ffmpeg(), "-y", "-v", "error", "-i", tmp_video, "-i", src, "-map", "0:v", "-map", "1:a?",
-                        "-c:v", "copy", "-c:a", "aac", "-shortest", "-movflags", "+faststart", out_path],
-                       check=True, **_no_window())
-        os.remove(tmp_video)
-        if not os.environ.get("IM_CHUNK_KEEP"):   # measurement: keep the chunks (overlap comparison)
-            shutil.rmtree(cache, ignore_errors=True)
+        stream_chunks(src, n_src, starts, chunk, ov, loop, fps, tw, th, crf, out_path, cache, upscale, "LTX Refine")
         _send_progress(f"done {tw}x{th}, {len(starts)} chunks", uid)
-        # Preview only when the file is in the ComfyUI output (otherwise the film node behind shows it).
-        outd = os.path.abspath(folder_paths.get_output_directory())
-        if os.path.abspath(out_path).lower().startswith(outd.lower() + os.sep):
-            sub_ = os.path.relpath(os.path.dirname(os.path.abspath(out_path)), outd)
-            return io.NodeOutput(out_path,
-                                 ui=ui.PreviewVideo([ui.SavedResult(os.path.basename(out_path),
-                                                                    "" if sub_ == "." else sub_,
-                                                                    io.FolderType.output)]))
-        return io.NodeOutput(out_path)
+        return output_with_preview(out_path)
 
 
 CHUNK_UPSCALE_NODE_LIST = [InfiniteMovieLTXRefine]

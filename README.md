@@ -135,7 +135,7 @@ stays silent then. Prompts can describe sound, e.g. `sound: howling wind`.
 | **Last Frame** | Last frame of a film – e.g. the start image of the next part. Reads frame by frame. |
 | **Movie to GIF** | Film → GIF or WebP with live preview and size estimate (crop, fps, trim, speed, boomerang, palette, `max_mb`). |
 | **H3 Loop / H3 Loop Decode** | Seamless loops in one MiniMax H3 pass (end wrapped around to the start while sampling). |
-| **LTX Refine** | See [Upscale](#upscale). |
+| **LTX Refine / RelayVSR Upscale** | See [Upscale](#upscale). |
 
 *(internal)* nodes are used by the engine expansion and are not meant to be placed by hand.
 
@@ -150,17 +150,26 @@ half-finished film.
 
 ## Upscale
 
-Group **8 · Upscale** (muted) in the main workflow, or the separate workflow `Infinite Movie - LTX Upscale` for any film:
+Group **8 · Upscale** (muted, Ctrl+M turns it on) in the main workflow upscales the assembled film with RelayVSR x4:
+
+```
+Assemble › video_path  →  Infinite Movie · RelayVSR Upscale (x4 → 1920, ram_gb 16)  →  Film
+```
+
+LTX Refine is no longer in the main workflow; it lives in its own workflow `Upscaler/Infinite Movie - LTX Upscale`
+for any film:
 
 ```
 VHS Load Video  →  Upscale Crop Universal (×1.3334, multiple of 64)  →  Infinite Movie · LTX Refine (1:1)
 ```
 
-- **LTX Refine** re-renders the film with LTX 2.5 in overlapping chunks (49 frames, 17 overlap) at low denoise to bring
-  back detail. Works for any length, keeps loops seamless and the sound, saves `<name>_upscale.mp4` next to the film.
-  Needs the LTX 2.5 models (🔒 gated).
-- Prompt `photographic, 4k`, negative empty, sigmas `0.421875, 0.0` (higher = softer, more flicker).
-- Base upscale model: [2x-LiveActionV1-SPAN](https://openmodeldb.info/models/2x-LiveActionV1-SPAN) by jcj83429
+- **RelayVSR Upscale** (core RelayVSR x2/x4, ComfyUI ≥ 0.45): UNETLoader `relayvsr_x2_…`/`relayvsr_x4_…` + VAELoader
+  `relayvsr_flash_vae_x2/x4` → this node. It cuts the film into segments that fit `ram_gb` (x4 on 768×960:
+  16 GB = 46 frames per segment), upscales each one, scales it down to `longest_side` (default 1920; x4 → 1920 is the
+  calmest and sharpest result) and writes it straight to the file – any film length, loops seamless, sound kept,
+  saves `<name>_upscale.mp4`. Lower `ram_gb` if RAM runs out.
+- LTX Refine: prompt `photographic, 4k`, negative empty, sigmas `0.421875, 0.0` (higher = softer, more flicker).
+- LTX Refine base upscale model: [2x-LiveActionV1-SPAN](https://openmodeldb.info/models/2x-LiveActionV1-SPAN) by jcj83429
   (CC-BY-NC-SA-4.0) – [download](https://raw.githubusercontent.com/jcj83429/upscaling/f73a3a02874360ec6ced18f8bdd8e43b5d7bba57/2xLiveActionV1_SPAN/2xLiveActionV1_SPAN_490000.pth)
   (9 MB) into `models/upscale_models/`. *Upscale Crop Universal* ships with this pack.
 
