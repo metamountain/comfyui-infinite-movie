@@ -205,7 +205,6 @@ def list_dirs(path: str) -> dict:
             quick.append(folder_paths.get_output_directory())
         except Exception:  # noqa: BLE001
             pass
-        quick.append(r"D:\AiImages\infinite_movie")
         return {"ok": True, "path": "", "parent": None, "dirs": drives,
                 "quick": [q for q in quick if os.path.isdir(q)]}
     path = os.path.abspath(path)
