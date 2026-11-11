@@ -142,8 +142,17 @@ export function fcWorkflowLayout(director, second = false) {
     [G(/prompt/i), [...byType("InfiniteMovieStyle"), ...prompts]],
     [G(/director/i), [director]],
     [G(/choose/i), byType("InfiniteMovieChooser")],
-    [G(/assemble/i), [...byType("InfiniteMovieAssemble"), ...byType("InfiniteMovieFilm")], true],
+    [G(/assemble/i), [...byType("InfiniteMovieAssemble"), ...byType("InfiniteMovieFilm")], false],
   ];
+  // 2026-11-11 (user: "7-8 same width, preview below, square"): Assemble / Upscale on top, the Film player below
+  // with a square video (fits portrait and landscape), groups 7 and 8 equally wide.
+  const FILM_SIDE = 20, FILM_EXTRA = 152;   // measured: Film node 400×622 -> video 380×470
+  const isFilm = (n) => n.comfyClass === "InfiniteMovieFilm";
+  const upBlock = upMembers.filter((n) => !isFilm(n)), upFilms = upMembers.filter(isFilm);
+  const asmFilms = byType("InfiniteMovieFilm"), asm = byType("InfiniteMovieAssemble");
+  const blockW = upBlock.length ? Math.max(...upBlock.map((n) => n.pos[0] + n.size[0])) - Math.min(...upBlock.map((n) => n.pos[0])) : 0;
+  const inner78 = Math.max(MINW - 2 * PAD, ...asm.map((n) => n.size[0]), blockW);
+  for (const f of [...asmFilms, ...upFilms]) f.size = [inner78, inner78 - FILM_SIDE + FILM_EXTRA];
   const used = new Set([...engineHelp, upHelp, ...storyHelp].filter(Boolean));
   const rowHelp = row.map(([grp]) => {
     const h = grp && allNotes.find((n) => isHelp(n) && !used.has(n) && helpFits(n, grp));
@@ -239,15 +248,18 @@ export function fcWorkflowLayout(director, second = false) {
   row.forEach(([grp, ns], k) => { if (grp && (ns.length || grp)) grp.size = [sizes[k][0], H]; });
   // 8 Upscale right of 7, content as a block, help centered on top, same height as the row
   if (upGrp && upMembers.length) {
-    const ms = upMembers;
+    // block = loaders + upscaler as they are arranged; the Film player(s) below it (same width as group 7)
+    const ms = upBlock.length ? upBlock : upMembers;
     const minX = Math.min(...ms.map((n) => n.pos[0])), minY = Math.min(...ms.map((n) => n.pos[1] - T));
-    const maxX = Math.max(...ms.map((n) => n.pos[0] + n.size[0])), maxY = Math.max(...ms.map((n) => n.pos[1] + n.size[1]));
-    const w = Math.max(MINW, maxX - minX + 2 * PAD, (upHelp ? upHelp.size[0] : 0) + 2 * PAD);
+    const maxY = Math.max(...ms.map((n) => n.pos[1] + n.size[1]));
+    const w = Math.max(MINW, inner78 + 2 * PAD, (upHelp ? upHelp.size[0] : 0) + 2 * PAD);
     if (upHelp) upHelp.pos = [x + (w - upHelp.size[0]) / 2, Y + HEAD + T];
     const dx = x + PAD - minX, dy = Y + HEAD + helpH(upHelp) - minY;
     for (const n of ms) n.pos = [n.pos[0] + dx, n.pos[1] + dy];
+    let top = maxY + dy + NGAP;
+    for (const f of upBlock.length ? upFilms : []) { f.pos = [x + PAD, top + T]; top += T + f.size[1] + NGAP; }
     upGrp.pos = [x, Y];
-    upGrp.size = [w, Math.max(H, HEAD + helpH(upHelp) + maxY - minY + PAD)];
+    upGrp.size = [w, Math.max(H, top - NGAP + PAD - Y)];
   }
 
   // 0 README at the front, separate, at the height of the row
