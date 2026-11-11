@@ -263,7 +263,7 @@ function wrapQueue() {
       }
       if (res && res.ok === false) {
         console.warn("[InfiniteMovie] NOT queued:", res.message);
-        window.alert(res.message);
+        imErrorToast("GPU not free – render not started", res.message);
         return false;
       }
       if (res) console.log("[InfiniteMovie] gpu_preflight:", res.message);
@@ -2281,6 +2281,24 @@ app.registerExtension({
 // ---------------------------------------------------------------------------
 
 const FC_REVIEW_LINE_COLORS = ["transparent", "#e6c229", "#e68929", "#d93025"];  // Verdachts-Linie (Choose)
+
+// 2026-11-11 (user: "error messages can't be copied - I hate that"): errors as ComfyUI toast (stays until closed,
+// text selectable) instead of window.alert; fallback = selectable fixed box.
+function imErrorToast(summary, detail) {
+  const toast = app.extensionManager?.toast;
+  if (toast?.add) { toast.add({ severity: "error", summary, detail }); return; }
+  const t = document.createElement("div");
+  t.textContent = `${summary}\n\n${detail}`;
+  t.title = "click × to close";
+  t.style.cssText = "position:fixed;top:60px;right:20px;max-width:480px;white-space:pre-wrap;user-select:text;" +
+    "background:#533;color:#fff;padding:12px 16px;border-radius:4px;z-index:9999;font-size:13px;";
+  const x = document.createElement("button");
+  x.textContent = "×";
+  x.style.cssText = "position:absolute;top:2px;right:6px;background:none;border:none;color:#fff;cursor:pointer;";
+  x.onclick = () => t.remove();
+  t.appendChild(x);
+  document.body.appendChild(t);
+}
 
 function fcReviewToast(msg, color) {
   const t = document.createElement("div");

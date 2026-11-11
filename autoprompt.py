@@ -77,7 +77,7 @@ def particle_rule(obs: dict) -> tuple[str, str]:
                 f"WARNING: END image shows {e} in the air - frozen particles likely. "
                 f"Use an END image without {e} in the air.")
     if s != "none":
-        return (f"The {NOUN[s]} stop early.", "")
+        return (f"The {NOUN[s]} thin out and the air turns clear.", "")   # positive wording (user 2026-11-11)
     return "", ""
 
 
