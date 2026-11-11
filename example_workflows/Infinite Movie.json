@@ -1,8 +1,8 @@
 {
   "id": "11de75b2-579e-4a82-9e7c-c98a0590e77e",
   "revision": 0,
-  "last_node_id": 98,
-  "last_link_id": 2163,
+  "last_node_id": 99,
+  "last_link_id": 2165,
   "nodes": [
     {
       "id": 1,
@@ -889,7 +889,7 @@
           "type": "SETTINGS",
           "slot_index": 0,
           "links": [
-            64
+            2164
           ]
         }
       ],
@@ -1384,7 +1384,7 @@
           "name": "settings",
           "shape": 7,
           "type": "SETTINGS",
-          "link": 64
+          "link": 2165
         },
         {
           "localized_name": "instruction",
@@ -2860,6 +2860,56 @@
         0,
         ""
       ]
+    },
+    {
+      "id": 99,
+      "type": "InfiniteMovieStoryMode",
+      "pos": [
+        1375,
+        232
+      ],
+      "size": [
+        420,
+        640
+      ],
+      "flags": {},
+      "order": 1,
+      "mode": 0,
+      "inputs": [
+        {
+          "localized_name": "settings",
+          "name": "settings",
+          "shape": 7,
+          "type": "SETTINGS",
+          "link": 2164
+        }
+      ],
+      "outputs": [
+        {
+          "localized_name": "settings",
+          "name": "settings",
+          "label": "settings ▶ chain",
+          "type": "SETTINGS",
+          "links": [
+            2165
+          ]
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "InfiniteMovieStoryMode"
+      },
+      "widgets_values": [
+        "",
+        "",
+        "",
+        "You plan a short film made of video shots. You get all key images in film order; shot k runs from image k to image k+1{loop}. Write a coherent story arc across all shots: a clear progression, variety, and a meaningful build-up, matching what the images show. Each shot field is ONE sentence saying what HAPPENS during that shot - the change from its start image to its end image - not what one image shows. Answer ONLY with this JSON:\n{schema}\nPositive words only, never mention images or frames.",
+        "You write the prompt for one short video shot: image 1 is its first frame, image 2 its last frame. Describe in present tense what visibly happens and changes from the first to the last frame - motion, light, weather, materials, atmosphere - so a video model can animate it smoothly. Exactly ONE sentence, max {words} words, that starts with the first frame and arrives at the last frame. Describe only what is there and what happens, in positive words (never 'no', 'not', 'none', 'without'). Never mention images, frames or the camera.",
+        "off",
+        0.7,
+        180,
+        "",
+        true
+      ]
     }
   ],
   "links": [
@@ -2894,14 +2944,6 @@
       6,
       2,
       "IMAGE"
-    ],
-    [
-      64,
-      9,
-      0,
-      69,
-      0,
-      "SETTINGS"
     ],
     [
       65,
@@ -3270,6 +3312,22 @@
       83,
       0,
       "STRING"
+    ],
+    [
+      2164,
+      9,
+      0,
+      99,
+      0,
+      "SETTINGS"
+    ],
+    [
+      2165,
+      99,
+      0,
+      69,
+      0,
+      "SETTINGS"
     ]
   ],
   "groups": [
