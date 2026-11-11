@@ -104,6 +104,9 @@ def settings_defaults() -> dict:
         "instruction": STORY_SYSTEM,
         "max_words": MAX_STORY_WORDS,
         "camera": "none",
+        # 2026-11-11: Infinite Movie · LLM (llm_nodes.py) – None = the Auto Prompts use prompt_model (local, in ComfyUI).
+        "llm": None,
+        "llm_instruction": "",
     }
 
 

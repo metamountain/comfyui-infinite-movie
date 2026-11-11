@@ -39,6 +39,8 @@ _SETTINGS_NODE_LIST = _import_node_list("settings_nodes", "SETTINGS_NODE_LIST")
 _CHUNK_UPSCALE_NODE_LIST = _import_node_list("chunk_upscale_nodes", "CHUNK_UPSCALE_NODE_LIST")
 # 2026-11-11: RelayVSR Upscale (divider: segments sized by ram_gb, long films no longer run out of RAM).
 _RELAYVSR_NODE_LIST = _import_node_list("relayvsr_nodes", "RELAYVSR_NODE_LIST")
+# 2026-11-11: Infinite Movie · LLM (Auto Prompts via an OpenAI-compatible vision server, story mode).
+_LLM_NODE_LIST = _import_node_list("llm_nodes", "LLM_NODE_LIST")
 _AUDIO_NODE_LIST = _import_node_list("audio_nodes", "AUDIO_NODE_LIST")
 # 2026-11-03: film display at the end of the chain (preview + "Saved" status).
 _FILM_NODE_LIST = _import_node_list("film_nodes", "FILM_NODE_LIST")
@@ -106,7 +108,7 @@ class InfiniteMovieExtension(ComfyExtension):
         # POST_NODE_LIST only contains the (new) upscale.
         return (NODE_LIST + _POST_NODE_LIST + _AUTOPROMPT_NODE_LIST +
                 _RETIME_NODE_LIST + _REVIEW_NODE_LIST + _ENGINE_NODE_LIST +
-                _SETTINGS_NODE_LIST + _CHUNK_UPSCALE_NODE_LIST + _RELAYVSR_NODE_LIST + _AUDIO_NODE_LIST + _FILM_NODE_LIST +
+                _SETTINGS_NODE_LIST + _CHUNK_UPSCALE_NODE_LIST + _RELAYVSR_NODE_LIST + _LLM_NODE_LIST + _AUDIO_NODE_LIST + _FILM_NODE_LIST +
                 _GIF_NODE_LIST + _LOOP_NODE_LIST)
 
 

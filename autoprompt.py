@@ -201,7 +201,7 @@ def _same_image(image_from, image_to) -> bool:
 
 def generate(image_from, image_to, model_name: str, keywords: str = "", camera: str = "none",
              instruction: str = STORY_SYSTEM,
-             max_words: int = MAX_STORY_WORDS, seed: int = 0, load=None, gen=None):
+             max_words: int = MAX_STORY_WORDS, seed: int = 0, load=None, gen=None, context: str = ""):
     """Describe -> transition -> fixed parts. Returns (prompt, description, warning).
     load/gen are swappable for tests (without GPU)."""
     load = load or _load_model
@@ -209,7 +209,7 @@ def generate(image_from, image_to, model_name: str, keywords: str = "", camera: 
     open_shot = image_to is None                  # 1 image without loop: open shot, no end image
     if open_shot:
         image_to = image_from                     # description: start = end (scene of the single image)
-    images = _pair(image_from, image_to) if gen is _gen else None
+    images = _pair(image_from, image_to) if (gen is _gen or getattr(gen, "needs_images", False)) else None
     hint = f"\nKeywords: {keywords.strip()}" if keywords and keywords.strip() else ""
     frames = "Image 1 is the first frame and image 2 the last frame of one video shot."
     story_frames, story_images = frames, images
@@ -231,7 +231,7 @@ def generate(image_from, image_to, model_name: str, keywords: str = "", camera: 
     try:
         obs = parse_obs(gen(clip, frames + "\nJSON:", images, DESCRIBE_SYSTEM, 450, 0.2, seed))
         system = (instruction or STORY_SYSTEM).replace("{words}", str(max_words))
-        story = gen(clip, story_frames + hint, story_images, system, 160, 0.7, seed)
+        story = gen(clip, story_frames + (context or "") + hint, story_images, system, 160, 0.7, seed)
     finally:
         del clip
         _unload_model()
@@ -278,7 +278,7 @@ class InfiniteMovieAutoPromptV2(io.ComfyNode):
                 SETTINGS.Output("settings", display_name="settings ▶ chain",
                                 tooltip="The incoming settings, passed on to the next node of the chain."),
             ],
-            hidden=[io.Hidden.unique_id],
+            hidden=[io.Hidden.unique_id, io.Hidden.prompt],
             is_output_node=True,
         )
 
@@ -295,19 +295,42 @@ class InfiniteMovieAutoPromptV2(io.ComfyNode):
             text = " ".join(prompt.split())
             return io.NodeOutput(text, out_settings, ui=ui.PreviewText(text))
         model_name = get_setting(settings, "prompt_model")
+        llm = get_setting(settings, "llm")   # 2026-11-11: Infinite Movie · LLM in the chain -> external server
+        use_llm = isinstance(llm, dict) and bool(str(llm.get("endpoint") or "").strip())
         # 72 (user 2026-11-03): only generate on Regenerate, never on Run (also not the upstream
         # Auto Prompts of the settings chain that run along with Regenerate).
-        if not str(regen or "").strip() or not model_name or model_name == "off":
+        if not str(regen or "").strip() or (not use_llm and (not model_name or model_name == "off")):
             return io.NodeOutput("", out_settings, ui=ui.PreviewText(""))
         if image_from is None:
             raise ValueError("Auto Prompt: connect image_from (and image_to, except for an open shot) "
                              "or write the prompt yourself.")
+        instruction = get_setting(settings, "instruction")
+        load = gen = None
+        context = ""
+        if use_llm:
+            from .llm_nodes import llm_gen, llm_label
+            model_name = llm_label(llm)
+            load, gen = (lambda _name: llm), llm_gen
+            instruction = str(get_setting(settings, "llm_instruction") or "").strip() or instruction
+            from .llm_nodes import film_images, red_thread, shot_context, shot_of, storyboard
+            instruction = red_thread(instruction, llm.get("story"))
+            if llm.get("story_mode"):
+                hid = getattr(cls, "hidden", None)
+                api_prompt, uid = getattr(hid, "prompt", None), getattr(hid, "unique_id", None)
+                director, k = shot_of(api_prompt, uid)
+                files, loop = film_images(api_prompt, director) if director else ([], True)
+                if k >= 0 and len(files) >= 2:
+                    context = shot_context(storyboard(llm, files, loop, llm.get("story")), k)
+                else:
+                    print("[InfiniteMovieAutoPrompt] story mode: film images not found (Load Image nodes at the "
+                          "Director) - writing this shot from its pair only.")
         # 73: descriptions is no longer output (generate still returns (text, desc, warning)).
         text, _desc, _warning = generate(
             image_from, image_to, model_name, keywords,
             camera=get_setting(settings, "camera"),
-            instruction=get_setting(settings, "instruction"),
-            max_words=int(get_setting(settings, "max_words")), seed=int(time.time()) % 2**31)
+            instruction=instruction,
+            max_words=int(get_setting(settings, "max_words")), seed=int(time.time()) % 2**31,
+            load=load, gen=gen, context=context)
         return io.NodeOutput(text, out_settings, ui=ui.PreviewText(text))
 
 

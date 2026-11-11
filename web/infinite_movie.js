@@ -905,7 +905,9 @@ function wireSettingsChain(director) {
   // Kette: Settings → AP0 → … → APn → Director → Assemble.
   // 66: Prompt Style (falls vorhanden) direkt hinter Settings
   const style = nodes.find((n) => n.comfyClass === "InfiniteMovieStyle" && (n.mode ?? 0) === 0);
-  const chainNodes = [snode, ...(style ? [style] : []), ...aps.map((a) => a.node), director];
+  // 2026-11-11: Story Mode (LLM) right behind Settings (before Prompt Style)
+  const story = nodes.find((n) => n.comfyClass === "InfiniteMovieStoryMode" && (n.mode ?? 0) === 0);
+  const chainNodes = [snode, ...(story ? [story] : []), ...(style ? [style] : []), ...aps.map((a) => a.node), director];
   const assemble = nodes.find((n) => n.comfyClass === "InfiniteMovieAssemble");
   if (assemble) chainNodes.push(assemble);
   for (let i = 0; i < chainNodes.length - 1; i++) {
@@ -3590,5 +3592,33 @@ app.registerExtension({
       node.setSize([node.size[0], Math.max(node.size[1], node.computeSize()[1])]);
       node.setDirtyCanvas?.(true, true);
     });
+  },
+});
+
+// 2026-11-11 (user: "make the prompt prompt editable, add a restore button"): Story Mode (LLM) – both instructions
+// are plain editable text widgets; the button puts the defaults from the node definition back.
+app.registerExtension({
+  name: "InfiniteMovie.StoryModeRestore",
+  beforeRegisterNodeDef(nodeType, nodeData) {
+    if (nodeData?.name !== "InfiniteMovieStoryMode") return;
+    const req = nodeData.input?.required || {};
+    const defaults = {};
+    for (const k of ["storyboard_instruction", "instruction"]) defaults[k] = req[k]?.[1]?.default ?? "";
+    const onCreated = nodeType.prototype.onNodeCreated;
+    nodeType.prototype.onNodeCreated = function (...a) {
+      const r = onCreated?.apply(this, a);
+      if (!this.widgets?.find((w) => w.name === "↺ Restore default prompts")) {
+        const b = this.addWidget("button", "↺ Restore default prompts", null, () => {
+          for (const [k, v] of Object.entries(defaults)) {
+            const w = this.widgets?.find((x) => x.name === k);
+            if (w) { w.value = v; w.callback?.(v); }
+          }
+          this.setDirtyCanvas?.(true, true);
+        });
+        b.serialize = false;
+        b.tooltip = "Puts the original storyboard and shot instructions back.";
+      }
+      return r;
+    };
   },
 });

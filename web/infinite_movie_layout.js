@@ -103,7 +103,7 @@ export function fcWorkflowLayout(director, second = false) {
   const groups = g._groups || [];
   const engines = groups.filter(isEngineGroup);
   // Core nodes NEVER belong to the engine, even if they currently sit over an engine group.
-  const CORE = new Set(["InfiniteMovieSettings", "InfiniteMovieStyle", "InfiniteMovieAutoPrompt", "InfiniteMovieRender",
+  const CORE = new Set(["InfiniteMovieSettings", "InfiniteMovieStoryMode", "InfiniteMovieStyle", "InfiniteMovieAutoPrompt", "InfiniteMovieRender",
     "InfiniteMovieChooser", "InfiniteMovieAssemble", "InfiniteMovieFilm"]);
   // Image sources (without core nodes like Assemble > last_frame - those stay in their group) plus their image chain
   const imgRows = linkedOrigins(g, director, "images.").filter((n) => !CORE.has(n.comfyClass))
@@ -135,7 +135,7 @@ export function fcWorkflowLayout(director, second = false) {
   const G = (re) => findGroup(groups.filter((x) => !isEngineGroup(x)), re);
   // ONE row, order = numbers 2…7
   const row = [
-    [G(/settings/i), byType("InfiniteMovieSettings")],
+    [G(/settings/i), [...byType("InfiniteMovieSettings"), ...byType("InfiniteMovieStoryMode")]],
     [G(/images/i), imgRows.flat()],
     [G(/prompt/i), [...byType("InfiniteMovieStyle"), ...prompts]],
     [G(/director/i), [director]],
