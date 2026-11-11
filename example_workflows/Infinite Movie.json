@@ -516,12 +516,12 @@
         "prompt_hint": null
       },
       "widgets_values": [
-        "Thick fog rolls in from the forest and drifts across the meadow, slowly veiling the trees and softening the rock-shaped house until the background fades to pale grey. The mist keeps drifting, nothing hangs still.",
+        "Thick fog rolls in from the forest and drifts across the meadow, slowly veiling the trees and softening the rock-shaped house until the background fades to pale grey. The mist keeps drifting, short sunstreak.",
         "",
         ""
       ],
       "widgets_values_named": {
-        "prompt": "Thick fog rolls in from the forest and drifts across the meadow, slowly veiling the trees and softening the rock-shaped house until the background fades to pale grey. The mist keeps drifting, nothing hangs still.",
+        "prompt": "Thick fog rolls in from the forest and drifts across the meadow, slowly veiling the trees and softening the rock-shaped house until the background fades to pale grey. The mist keeps drifting, short sunstreak.",
         "keywords": "",
         "regen": ""
       },
@@ -623,12 +623,12 @@
         "prompt_hint": null
       },
       "widgets_values": [
-        "The fog darkens as heavy storm clouds roll in and rain begins to pour, streaking down over the rock-shaped house and soaking the grass. The raindrops keep falling, none hang still.",
+        "The fog darkens as heavy storm clouds roll in and rain begins to pour, streaking down over the rock-shaped house and soaking the grass. The raindrops keep falling steadily.",
         "",
         ""
       ],
       "widgets_values_named": {
-        "prompt": "The fog darkens as heavy storm clouds roll in and rain begins to pour, streaking down over the rock-shaped house and soaking the grass. The raindrops keep falling, none hang still.",
+        "prompt": "The fog darkens as heavy storm clouds roll in and rain begins to pour, streaking down over the rock-shaped house and soaking the grass. The raindrops keep falling steadily.",
         "keywords": "",
         "regen": ""
       },
@@ -1053,12 +1053,12 @@
         "prompt_hint": null
       },
       "widgets_values": [
-        "The rain cools and turns to sleet, then to soft snowflakes that settle on the rock-shaped house and dust the grass white while pale mist rises from the forest. The snow keeps falling gently, none hang still.",
+        "The rain cools and turns to sleet, then to soft snowflakes that settle on the rock-shaped house and dust the grass white while pale mist rises from the forest. The snow keeps falling gently.",
         "",
         ""
       ],
       "widgets_values_named": {
-        "prompt": "The rain cools and turns to sleet, then to soft snowflakes that settle on the rock-shaped house and dust the grass white while pale mist rises from the forest. The snow keeps falling gently, none hang still.",
+        "prompt": "The rain cools and turns to sleet, then to soft snowflakes that settle on the rock-shaped house and dust the grass white while pale mist rises from the forest. The snow keeps falling gently.",
         "keywords": "",
         "regen": ""
       },

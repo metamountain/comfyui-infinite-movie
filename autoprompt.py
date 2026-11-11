@@ -45,7 +45,7 @@ STORY_SYSTEM = "One sentence, max {words} words: what happens from the first to 
 # user 2026-10-26: camera as a selection; "none" = no camera note in the prompt (2026-11-04 instead of "auto")
 CAMERA_OPTIONS = [
     "none",
-    "Static camera, nothing in the scene shifts.",
+    "Static camera, locked-off tripod shot.",   # user 2026-11-11: no negations
     "Static camera.",
     "Slow push in.",
     "Slow pull out.",
@@ -73,7 +73,7 @@ def particle_rule(obs: dict) -> tuple[str, str]:
     """(Sentence for the prompt, warning) from start/end.falling."""
     s, e = _falling(obs, "start"), _falling(obs, "end")
     if e != "none":
-        return (f"The {NOUN[e]} keep falling, none hang still.",
+        return (f"The {NOUN[e]} keep falling steadily.",   # user 2026-11-11: never negative phrasing in prompts
                 f"WARNING: END image shows {e} in the air - frozen particles likely. "
                 f"Use an END image without {e} in the air.")
     if s != "none":
