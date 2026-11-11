@@ -94,12 +94,13 @@ Infinite Movie · Engine Start (from Director)  →  your model chain  →  Infi
 | LTX 2.5 | `Infinite Movie - Engine LTX 2.5` | 24 | 8n+1 | yes |
 | Wan 2.2 | `Infinite Movie - Engine Wan 2.2` | 16 | 4n+1 | no |
 
-- **Switch engine:** open the engine workflow, copy its group (Ctrl+C), paste it into your workflow (Ctrl+V) and mute
-  the MiniMax group (select it, Ctrl+M). Only **one** engine group may be active; muted groups never run.
+- **Switch engine:** open the engine workflow (Templates in the left bar › *comfyui-infinite-movie*), click its group
+  title and copy it (Ctrl+C), paste it into your workflow (Ctrl+V), mute the MiniMax group (click its title, Ctrl+M) and
+  press **🔗 AUTO LAYOUT**. Only **one** engine group may be active; muted groups never run.
 - The *Director* finds the one active *Engine Result* by itself. With several active groups, connect the wanted
   *Engine Result* to the Director's `engine` input.
 - **Own engine:** build any loader/sampler chain between *Engine Start* and *Engine Result*. There are no hidden
-  presets – what you see is what renders.
+  presets – what you see is what renders. Set the model's `fps` and frame grid (`length_grid`, advanced) in *Engine Result*.
 - **MiniMax H3 group:** first/last-frame model + 8-step turbo LoRA, KSampler (8 steps, cfg 1, `res_multistep`, `simple`,
   negative = *ConditioningZeroOut*). Without the LoRA: bypass it and use 20–25 steps.
 - The H3 and LTX text encoders cannot write prompts; Settings › `prompt_model` hides them.
