@@ -1,8 +1,8 @@
 {
   "id": "11de75b2-579e-4a82-9e7c-c98a0590e77e",
   "revision": 0,
-  "last_node_id": 97,
-  "last_link_id": 2159,
+  "last_node_id": 98,
+  "last_link_id": 2163,
   "nodes": [
     {
       "id": 1,
@@ -765,8 +765,7 @@
           "slot_index": 0,
           "links": [
             2110,
-            2136,
-            2138
+            2162
           ]
         },
         {
@@ -1664,7 +1663,7 @@
           "name": "MODEL",
           "type": "MODEL",
           "links": [
-            2128
+            2160
           ]
         }
       ],
@@ -1684,7 +1683,7 @@
         ]
       },
       "widgets_values": [
-        "ltx-2.5-22b-distilled-transformer-comfy-int8-convrot.safetensors",
+        "relayvsr_x4_int8_convrot.safetensors",
         "default"
       ],
       "widgets_values_named": {
@@ -1692,7 +1691,8 @@
         "weight_dtype": "default"
       },
       "color": "#223",
-      "bgcolor": "#335"
+      "bgcolor": "#335",
+      "title": "RelayVSR x4"
     },
     {
       "id": 74,
@@ -1725,7 +1725,7 @@
           "name": "VAE",
           "type": "VAE",
           "links": [
-            2129
+            2161
           ]
         }
       ],
@@ -1745,1127 +1745,20 @@
         ]
       },
       "widgets_values": [
-        "ltx-2.5-video-vae-bf16.safetensors"
+        "relayvsr_flash_vae_x4_fp32.safetensors"
       ],
       "widgets_values_named": {
         "vae_name": "ltx-2.5-video-vae-bf16.safetensors"
       },
       "color": "#223",
-      "bgcolor": "#335"
-    },
-    {
-      "id": 75,
-      "type": "CLIPLoader",
-      "pos": [
-        5831,
-        242
-      ],
-      "size": [
-        270,
-        106
-      ],
-      "flags": {},
-      "order": 14,
-      "mode": 2,
-      "inputs": [
-        {
-          "localized_name": "clip_name",
-          "name": "clip_name",
-          "type": "COMBO",
-          "widget": {
-            "name": "clip_name"
-          },
-          "link": null
-        },
-        {
-          "localized_name": "type",
-          "name": "type",
-          "type": "COMBO",
-          "widget": {
-            "name": "type"
-          },
-          "link": null
-        },
-        {
-          "localized_name": "device",
-          "name": "device",
-          "shape": 7,
-          "type": "COMBO",
-          "widget": {
-            "name": "device"
-          },
-          "link": null
-        }
-      ],
-      "outputs": [
-        {
-          "localized_name": "CLIP",
-          "name": "CLIP",
-          "type": "CLIP",
-          "links": [
-            2122,
-            2123
-          ]
-        }
-      ],
-      "properties": {
-        "Node name for S&R": "CLIPLoader",
-        "ue_properties": {
-          "widget_ue_connectable": {},
-          "input_ue_unconnectable": {},
-          "version": "7.8"
-        },
-        "models": [
-          {
-            "name": "gemma4-12b-with-proj-ltx-2.5-comfy-int8-convrot.safetensors",
-            "url": "https://huggingface.co/Lightricks/LTX-2.5/resolve/main/text_encoders/gemma4-12b-with-proj-ltx-2.5-comfy-int8-convrot.safetensors",
-            "directory": "text_encoders"
-          }
-        ]
-      },
-      "widgets_values": [
-        "gemma4-12b-with-proj-ltx-2.5-comfy-int8-convrot.safetensors",
-        "ltxv",
-        "default"
-      ],
-      "widgets_values_named": {
-        "clip_name": "gemma4-12b-with-proj-ltx-2.5-comfy-int8-convrot.safetensors",
-        "type": "ltxv",
-        "device": "default"
-      },
-      "color": "#223",
-      "bgcolor": "#335"
-    },
-    {
-      "id": 76,
-      "type": "CLIPTextEncode",
-      "pos": [
-        6231,
-        142
-      ],
-      "size": [
-        400,
-        200
-      ],
-      "flags": {},
-      "order": 23,
-      "mode": 2,
-      "inputs": [
-        {
-          "localized_name": "clip",
-          "name": "clip",
-          "type": "CLIP",
-          "link": 2122
-        },
-        {
-          "localized_name": "text",
-          "name": "text",
-          "type": "STRING",
-          "widget": {
-            "name": "text"
-          },
-          "link": null
-        }
-      ],
-      "outputs": [
-        {
-          "localized_name": "CONDITIONING",
-          "name": "CONDITIONING",
-          "type": "CONDITIONING",
-          "links": [
-            2124
-          ]
-        }
-      ],
-      "title": "Look (no objects)",
-      "properties": {
-        "Node name for S&R": "CLIPTextEncode",
-        "ue_properties": {
-          "widget_ue_connectable": {},
-          "input_ue_unconnectable": {},
-          "version": "7.8"
-        }
-      },
-      "widgets_values": [
-        "photographic, 4k"
-      ],
-      "widgets_values_named": {
-        "text": "photographic, 4k"
-      },
-      "color": "#232",
-      "bgcolor": "#353"
-    },
-    {
-      "id": 77,
-      "type": "CLIPTextEncode",
-      "pos": [
-        6231,
-        392
-      ],
-      "size": [
-        400,
-        200
-      ],
-      "flags": {},
-      "order": 24,
-      "mode": 2,
-      "inputs": [
-        {
-          "localized_name": "clip",
-          "name": "clip",
-          "type": "CLIP",
-          "link": 2123
-        },
-        {
-          "localized_name": "text",
-          "name": "text",
-          "type": "STRING",
-          "widget": {
-            "name": "text"
-          },
-          "link": null
-        }
-      ],
-      "outputs": [
-        {
-          "localized_name": "CONDITIONING",
-          "name": "CONDITIONING",
-          "type": "CONDITIONING",
-          "links": [
-            2125
-          ]
-        }
-      ],
-      "title": "Negative (unused at cfg 1)",
-      "properties": {
-        "Node name for S&R": "CLIPTextEncode",
-        "ue_properties": {
-          "widget_ue_connectable": {},
-          "input_ue_unconnectable": {},
-          "version": "7.8"
-        }
-      },
-      "widgets_values": [
-        ""
-      ],
-      "widgets_values_named": {
-        "text": ""
-      },
-      "color": "#322",
-      "bgcolor": "#533"
-    },
-    {
-      "id": 78,
-      "type": "VHS_LoadVideoPath",
-      "pos": [
-        5831,
-        482
-      ],
-      "size": [
-        255.8291015625,
-        306
-      ],
-      "flags": {},
-      "order": 40,
-      "mode": 2,
-      "inputs": [
-        {
-          "localized_name": "meta_batch",
-          "name": "meta_batch",
-          "shape": 7,
-          "type": "VHS_BatchManager",
-          "link": null
-        },
-        {
-          "localized_name": "vae",
-          "name": "vae",
-          "shape": 7,
-          "type": "VAE",
-          "link": null
-        },
-        {
-          "localized_name": "video",
-          "name": "video",
-          "type": "STRING",
-          "widget": {
-            "name": "video"
-          },
-          "link": 2136
-        },
-        {
-          "localized_name": "force_rate",
-          "name": "force_rate",
-          "type": "FLOAT",
-          "widget": {
-            "name": "force_rate"
-          },
-          "link": null
-        },
-        {
-          "localized_name": "custom_width",
-          "name": "custom_width",
-          "type": "INT",
-          "widget": {
-            "name": "custom_width"
-          },
-          "link": null
-        },
-        {
-          "localized_name": "custom_height",
-          "name": "custom_height",
-          "type": "INT",
-          "widget": {
-            "name": "custom_height"
-          },
-          "link": null
-        },
-        {
-          "localized_name": "frame_load_cap",
-          "name": "frame_load_cap",
-          "type": "INT",
-          "widget": {
-            "name": "frame_load_cap"
-          },
-          "link": null
-        },
-        {
-          "localized_name": "skip_first_frames",
-          "name": "skip_first_frames",
-          "type": "INT",
-          "widget": {
-            "name": "skip_first_frames"
-          },
-          "link": null
-        },
-        {
-          "localized_name": "select_every_nth",
-          "name": "select_every_nth",
-          "type": "INT",
-          "widget": {
-            "name": "select_every_nth"
-          },
-          "link": null
-        },
-        {
-          "localized_name": "format",
-          "name": "format",
-          "shape": 7,
-          "type": "COMBO",
-          "widget": {
-            "name": "format"
-          },
-          "link": null
-        }
-      ],
-      "outputs": [
-        {
-          "localized_name": "IMAGE",
-          "name": "IMAGE",
-          "type": "IMAGE",
-          "links": [
-            2132
-          ]
-        },
-        {
-          "localized_name": "frame_count",
-          "name": "frame_count",
-          "type": "INT",
-          "links": []
-        },
-        {
-          "localized_name": "audio",
-          "name": "audio",
-          "type": "AUDIO",
-          "links": [
-            2134
-          ]
-        },
-        {
-          "localized_name": "video_info",
-          "name": "video_info",
-          "type": "VHS_VIDEOINFO",
-          "links": [
-            2126
-          ]
-        },
-        {
-          "localized_name": "video_path",
-          "name": "video_path",
-          "type": "STRING",
-          "links": null
-        }
-      ],
-      "properties": {
-        "Node name for S&R": "VHS_LoadVideoPath",
-        "ue_properties": {
-          "widget_ue_connectable": {
-            "video": true,
-            "force_rate": true,
-            "custom_width": true,
-            "custom_height": true,
-            "frame_load_cap": true,
-            "skip_first_frames": true,
-            "select_every_nth": true,
-            "format": true
-          },
-          "version": "7.8",
-          "input_ue_unconnectable": {}
-        }
-      },
-      "widgets_values": {
-        "video": "",
-        "force_rate": 0,
-        "custom_width": 0,
-        "custom_height": 0,
-        "frame_load_cap": 0,
-        "skip_first_frames": 0,
-        "select_every_nth": 1,
-        "format": "AnimateDiff",
-        "videopreview": {
-          "hidden": false,
-          "paused": false,
-          "params": {}
-        }
-      },
-      "widgets_values_named": {
-        "video": "",
-        "force_rate": 0,
-        "custom_width": 0,
-        "custom_height": 0,
-        "frame_load_cap": 0,
-        "skip_first_frames": 0,
-        "select_every_nth": 1,
-        "format": "AnimateDiff",
-        "videopreview": {
-          "hidden": false,
-          "paused": false,
-          "params": {}
-        }
-      }
-    },
-    {
-      "id": 79,
-      "type": "VHS_VideoInfoLoaded",
-      "pos": [
-        6231,
-        642
-      ],
-      "size": [
-        250.4150390625,
-        106
-      ],
-      "flags": {},
-      "order": 42,
-      "mode": 2,
-      "inputs": [
-        {
-          "localized_name": "video_info",
-          "name": "video_info",
-          "type": "VHS_VIDEOINFO",
-          "link": 2126
-        }
-      ],
-      "outputs": [
-        {
-          "localized_name": "fps🟦",
-          "name": "fps🟦",
-          "type": "FLOAT",
-          "links": [
-            2127,
-            2135
-          ]
-        },
-        {
-          "localized_name": "frame_count🟦",
-          "name": "frame_count🟦",
-          "type": "INT",
-          "links": []
-        },
-        {
-          "localized_name": "duration🟦",
-          "name": "duration🟦",
-          "type": "FLOAT",
-          "links": []
-        },
-        {
-          "localized_name": "width🟦",
-          "name": "width🟦",
-          "type": "INT",
-          "links": []
-        },
-        {
-          "localized_name": "height🟦",
-          "name": "height🟦",
-          "type": "INT",
-          "links": []
-        }
-      ],
-      "properties": {
-        "Node name for S&R": "VHS_VideoInfoLoaded",
-        "ue_properties": {
-          "widget_ue_connectable": {},
-          "input_ue_unconnectable": {},
-          "version": "7.8"
-        }
-      },
-      "widgets_values": {}
-    },
-    {
-      "id": 80,
-      "type": "LTXVConditioning",
-      "pos": [
-        6631,
-        222
-      ],
-      "size": [
-        270,
-        78
-      ],
-      "flags": {},
-      "order": 43,
-      "mode": 2,
-      "inputs": [
-        {
-          "localized_name": "positive",
-          "name": "positive",
-          "type": "CONDITIONING",
-          "link": 2124
-        },
-        {
-          "localized_name": "negative",
-          "name": "negative",
-          "type": "CONDITIONING",
-          "link": 2125
-        },
-        {
-          "localized_name": "frame_rate",
-          "name": "frame_rate",
-          "type": "FLOAT",
-          "widget": {
-            "name": "frame_rate"
-          },
-          "link": 2127
-        }
-      ],
-      "outputs": [
-        {
-          "localized_name": "positive",
-          "name": "positive",
-          "type": "CONDITIONING",
-          "links": [
-            2130
-          ]
-        },
-        {
-          "localized_name": "negative",
-          "name": "negative",
-          "type": "CONDITIONING",
-          "links": [
-            2131
-          ]
-        }
-      ],
-      "properties": {
-        "Node name for S&R": "LTXVConditioning",
-        "ue_properties": {
-          "widget_ue_connectable": {},
-          "input_ue_unconnectable": {},
-          "version": "7.8"
-        }
-      },
-      "widgets_values": [
-        25
-      ],
-      "widgets_values_named": {
-        "frame_rate": 25
-      }
-    },
-    {
-      "id": 81,
-      "type": "UpscaleCropUniversal",
-      "pos": [
-        6631,
-        482
-      ],
-      "size": [
-        270,
-        312
-      ],
-      "flags": {},
-      "order": 41,
-      "mode": 2,
-      "inputs": [
-        {
-          "localized_name": "image",
-          "name": "image",
-          "shape": 7,
-          "type": "IMAGE",
-          "link": 2132
-        },
-        {
-          "localized_name": "samples",
-          "name": "samples",
-          "shape": 7,
-          "type": "LATENT",
-          "link": null
-        },
-        {
-          "localized_name": "target_mode",
-          "name": "target_mode",
-          "type": "COMBO",
-          "widget": {
-            "name": "target_mode"
-          },
-          "link": null
-        },
-        {
-          "localized_name": "method",
-          "name": "method",
-          "type": "COMBO",
-          "widget": {
-            "name": "method"
-          },
-          "link": null
-        },
-        {
-          "localized_name": "multiple_of",
-          "name": "multiple_of",
-          "type": "INT",
-          "widget": {
-            "name": "multiple_of"
-          },
-          "link": null
-        },
-        {
-          "localized_name": "upscale_model",
-          "name": "upscale_model",
-          "shape": 7,
-          "type": "COMBO",
-          "widget": {
-            "name": "upscale_model"
-          },
-          "link": null
-        },
-        {
-          "localized_name": "scale_percent",
-          "name": "scale_percent",
-          "shape": 7,
-          "type": "FLOAT",
-          "widget": {
-            "name": "scale_percent"
-          },
-          "link": null
-        },
-        {
-          "localized_name": "scale_factor",
-          "name": "scale_factor",
-          "shape": 7,
-          "type": "FLOAT",
-          "widget": {
-            "name": "scale_factor"
-          },
-          "link": null
-        },
-        {
-          "localized_name": "shortest_side",
-          "name": "shortest_side",
-          "shape": 7,
-          "type": "INT",
-          "widget": {
-            "name": "shortest_side"
-          },
-          "link": null
-        },
-        {
-          "localized_name": "longest_side",
-          "name": "longest_side",
-          "shape": 7,
-          "type": "INT",
-          "widget": {
-            "name": "longest_side"
-          },
-          "link": null
-        },
-        {
-          "localized_name": "megapixels",
-          "name": "megapixels",
-          "shape": 7,
-          "type": "FLOAT",
-          "widget": {
-            "name": "megapixels"
-          },
-          "link": null
-        },
-        {
-          "localized_name": "target_width",
-          "name": "target_width",
-          "shape": 7,
-          "type": "INT",
-          "widget": {
-            "name": "target_width"
-          },
-          "link": null
-        },
-        {
-          "localized_name": "target_height",
-          "name": "target_height",
-          "shape": 7,
-          "type": "INT",
-          "widget": {
-            "name": "target_height"
-          },
-          "link": null
-        },
-        {
-          "localized_name": "crop",
-          "name": "crop",
-          "shape": 7,
-          "type": "BOOLEAN",
-          "widget": {
-            "name": "crop"
-          },
-          "link": null
-        },
-        {
-          "localized_name": "crop_ratio",
-          "name": "crop_ratio",
-          "shape": 7,
-          "type": "COMBO",
-          "widget": {
-            "name": "crop_ratio"
-          },
-          "link": null
-        },
-        {
-          "localized_name": "crop_orientation",
-          "name": "crop_orientation",
-          "shape": 7,
-          "type": "COMBO",
-          "widget": {
-            "name": "crop_orientation"
-          },
-          "link": null
-        },
-        {
-          "localized_name": "crop_position",
-          "name": "crop_position",
-          "shape": 7,
-          "type": "COMBO",
-          "widget": {
-            "name": "crop_position"
-          },
-          "link": null
-        },
-        {
-          "localized_name": "crop_offset_x",
-          "name": "crop_offset_x",
-          "shape": 7,
-          "type": "INT",
-          "widget": {
-            "name": "crop_offset_x"
-          },
-          "link": null
-        },
-        {
-          "localized_name": "crop_offset_y",
-          "name": "crop_offset_y",
-          "shape": 7,
-          "type": "INT",
-          "widget": {
-            "name": "crop_offset_y"
-          },
-          "link": null
-        },
-        {
-          "localized_name": "crop_seed",
-          "name": "crop_seed",
-          "shape": 7,
-          "type": "INT",
-          "widget": {
-            "name": "crop_seed"
-          },
-          "link": null
-        }
-      ],
-      "outputs": [
-        {
-          "localized_name": "image",
-          "name": "image",
-          "type": "IMAGE",
-          "links": [
-            2133
-          ]
-        },
-        {
-          "localized_name": "latent",
-          "name": "latent",
-          "type": "LATENT",
-          "links": []
-        },
-        {
-          "localized_name": "width",
-          "name": "width",
-          "type": "INT",
-          "links": []
-        },
-        {
-          "localized_name": "height",
-          "name": "height",
-          "type": "INT",
-          "links": []
-        },
-        {
-          "localized_name": "info",
-          "name": "info",
-          "type": "STRING",
-          "links": []
-        }
-      ],
-      "title": "Base upscale (video model)",
-      "properties": {
-        "Node name for S&R": "UpscaleCropUniversal",
-        "ue_properties": {
-          "widget_ue_connectable": {},
-          "input_ue_unconnectable": {},
-          "version": "7.8"
-        },
-        "models": [
-          {
-            "name": "2xLiveActionV1_SPAN_490000.pth",
-            "url": "https://raw.githubusercontent.com/jcj83429/upscaling/f73a3a02874360ec6ced18f8bdd8e43b5d7bba57/2xLiveActionV1_SPAN/2xLiveActionV1_SPAN_490000.pth",
-            "directory": "upscale_models"
-          }
-        ]
-      },
-      "widgets_values": [
-        "scale_factor",
-        "model",
-        64,
-        "2xLiveActionV1_SPAN_490000.pth",
-        200,
-        1.3334,
-        1536,
-        2048,
-        2,
-        1920,
-        1080,
-        false,
-        "4:5",
-        "auto",
-        "center",
-        0,
-        0,
-        0,
-        "randomize",
-        ""
-      ],
-      "widgets_values_named": {
-        "target_mode": "scale_factor",
-        "method": "model",
-        "multiple_of": 64,
-        "upscale_model": "2xLiveActionV1_SPAN_490000.pth",
-        "scale_percent": 200,
-        "scale_factor": 1.3334,
-        "shortest_side": 1536,
-        "longest_side": 2048,
-        "megapixels": 2,
-        "target_width": 1920,
-        "target_height": 1080,
-        "crop": false,
-        "crop_ratio": "4:5",
-        "crop_orientation": "auto",
-        "crop_position": "center",
-        "crop_offset_x": 0,
-        "crop_offset_y": 0,
-        "crop_seed": 0,
-        "control_after_generate": "randomize",
-        "ucu_preview": ""
-      }
-    },
-    {
-      "id": 82,
-      "type": "InfiniteMovieLTXRefine",
-      "pos": [
-        7081,
-        -78
-      ],
-      "size": [
-        300.962890625,
-        610
-      ],
-      "flags": {},
-      "order": 44,
-      "mode": 2,
-      "inputs": [
-        {
-          "localized_name": "model",
-          "name": "model",
-          "type": "MODEL",
-          "link": 2128
-        },
-        {
-          "localized_name": "vae",
-          "name": "vae",
-          "type": "VAE",
-          "link": 2129
-        },
-        {
-          "localized_name": "positive",
-          "name": "positive",
-          "type": "CONDITIONING",
-          "link": 2130
-        },
-        {
-          "localized_name": "negative",
-          "name": "negative",
-          "type": "CONDITIONING",
-          "link": 2131
-        },
-        {
-          "localized_name": "images",
-          "name": "images",
-          "shape": 7,
-          "type": "IMAGE",
-          "link": 2133
-        },
-        {
-          "localized_name": "audio",
-          "name": "audio",
-          "shape": 7,
-          "type": "AUDIO",
-          "link": 2134
-        },
-        {
-          "localized_name": "mode",
-          "name": "mode",
-          "type": "COMBO",
-          "widget": {
-            "name": "mode"
-          },
-          "link": null
-        },
-        {
-          "localized_name": "latent_downscale_factor",
-          "name": "latent_downscale_factor",
-          "type": "FLOAT",
-          "widget": {
-            "name": "latent_downscale_factor"
-          },
-          "link": null
-        },
-        {
-          "localized_name": "target_mode",
-          "name": "target_mode",
-          "type": "COMBO",
-          "widget": {
-            "name": "target_mode"
-          },
-          "link": null
-        },
-        {
-          "localized_name": "multiple_of",
-          "name": "multiple_of",
-          "type": "INT",
-          "widget": {
-            "name": "multiple_of"
-          },
-          "link": null
-        },
-        {
-          "localized_name": "scale_factor",
-          "name": "scale_factor",
-          "type": "FLOAT",
-          "widget": {
-            "name": "scale_factor"
-          },
-          "link": null
-        },
-        {
-          "localized_name": "scale_percent",
-          "name": "scale_percent",
-          "type": "FLOAT",
-          "widget": {
-            "name": "scale_percent"
-          },
-          "link": null
-        },
-        {
-          "localized_name": "shortest_side",
-          "name": "shortest_side",
-          "type": "INT",
-          "widget": {
-            "name": "shortest_side"
-          },
-          "link": null
-        },
-        {
-          "localized_name": "longest_side",
-          "name": "longest_side",
-          "type": "INT",
-          "widget": {
-            "name": "longest_side"
-          },
-          "link": null
-        },
-        {
-          "localized_name": "megapixels",
-          "name": "megapixels",
-          "type": "FLOAT",
-          "widget": {
-            "name": "megapixels"
-          },
-          "link": null
-        },
-        {
-          "localized_name": "chunk_frames",
-          "name": "chunk_frames",
-          "type": "INT",
-          "widget": {
-            "name": "chunk_frames"
-          },
-          "link": null
-        },
-        {
-          "localized_name": "overlap",
-          "name": "overlap",
-          "type": "INT",
-          "widget": {
-            "name": "overlap"
-          },
-          "link": null
-        },
-        {
-          "localized_name": "sigmas",
-          "name": "sigmas",
-          "type": "STRING",
-          "widget": {
-            "name": "sigmas"
-          },
-          "link": null
-        },
-        {
-          "localized_name": "seed",
-          "name": "seed",
-          "type": "INT",
-          "widget": {
-            "name": "seed"
-          },
-          "link": null
-        },
-        {
-          "localized_name": "loop",
-          "name": "loop",
-          "type": "BOOLEAN",
-          "widget": {
-            "name": "loop"
-          },
-          "link": null
-        },
-        {
-          "localized_name": "crf",
-          "name": "crf",
-          "type": "INT",
-          "widget": {
-            "name": "crf"
-          },
-          "link": null
-        },
-        {
-          "localized_name": "filename_prefix",
-          "name": "filename_prefix",
-          "type": "STRING",
-          "widget": {
-            "name": "filename_prefix"
-          },
-          "link": null
-        },
-        {
-          "localized_name": "fps",
-          "name": "fps",
-          "shape": 7,
-          "type": "FLOAT",
-          "widget": {
-            "name": "fps"
-          },
-          "link": 2135
-        },
-        {
-          "localized_name": "video_path",
-          "name": "video_path",
-          "shape": 7,
-          "type": "STRING",
-          "widget": {
-            "name": "video_path"
-          },
-          "link": 2138
-        }
-      ],
-      "outputs": [
-        {
-          "localized_name": "video_path",
-          "name": "video_path",
-          "type": "STRING",
-          "links": [
-            2137
-          ]
-        }
-      ],
-      "properties": {
-        "Node name for S&R": "InfiniteMovieLTXRefine",
-        "ue_properties": {
-          "widget_ue_connectable": {},
-          "input_ue_unconnectable": {},
-          "version": "7.8"
-        }
-      },
-      "widgets_values": [
-        "refine 1:1",
-        1,
-        "scale_factor",
-        64,
-        1,
-        100,
-        1024,
-        1280,
-        1.3,
-        49,
-        17,
-        "0.421875, 0.0",
-        43,
-        "fixed",
-        true,
-        16,
-        "infinite_movie/upscale",
-        0,
-        ""
-      ],
-      "widgets_values_named": {
-        "mode": "refine 1:1",
-        "latent_downscale_factor": 1,
-        "target_mode": "scale_factor",
-        "multiple_of": 64,
-        "scale_factor": 1,
-        "scale_percent": 100,
-        "shortest_side": 1024,
-        "longest_side": 1280,
-        "megapixels": 1.3,
-        "chunk_frames": 49,
-        "overlap": 17,
-        "sigmas": "0.421875, 0.0",
-        "seed": 43,
-        "control_after_generate": "fixed",
-        "loop": true,
-        "crf": 16,
-        "filename_prefix": "infinite_movie/upscale",
-        "fps": 0,
-        "video_path": ""
-      }
+      "bgcolor": "#335",
+      "title": "RelayVSR Flash decoder x4"
     },
     {
       "id": 83,
       "type": "InfiniteMovieFilm",
       "pos": [
-        7421.962890625,
+        6521,
         -78
       ],
       "size": [
@@ -2881,7 +1774,7 @@
           "name": "video_path",
           "shape": 7,
           "type": "STRING",
-          "link": 2137
+          "link": 2163
         }
       ],
       "outputs": [],
@@ -2905,7 +1798,7 @@
       "id": 84,
       "type": "MarkdownNote",
       "pos": [
-        6606.4814453125,
+        5831,
         -418
       ],
       "size": [
@@ -2926,7 +1819,7 @@
         }
       },
       "widgets_values": [
-        "## 8 · Upscale (optional)\n- Off by default. **Select the group, Ctrl+M** turns it on.\n- Then **ASSEMBLE** also renders an upscaled film: model upscale (Upscale Crop Universal) + **LTX Refine** 1:1 (prompt `photographic, 4k`), with the film's sound.\n- The second **Film** node shows the upscaled version."
+        "## 8 · Upscale (optional)\n- Off by default. **Select the group, Ctrl+M** turns it on.\n- Then **ASSEMBLE** also renders an upscaled film with **RelayVSR x4**, scaled down to 1920 (calm and sharp), with the film's sound.\n- **ram_gb** is the divider: the film is upscaled in segments that fit this much RAM – any length works. Lower it if RAM runs out.\n- x2 is faster (relayvsr_x2_… + flash_vae_x2). Alternative: LTX Refine in `example_workflows/Upscaler/`.\n- The second **Film** node shows the upscaled version."
       ],
       "widgets_values_named": {
         "text": "## 8 · Upscale (optional)\n- Off by default. **Select the group, Ctrl+M** turns it on.\n- Then **ASSEMBLE** also renders an upscaled film: model upscale (Upscale Crop Universal) + **LTX Refine** 1:1 (prompt `photographic, 4k`), with the film's sound.\n- The second **Film** node shows the upscaled version."
@@ -3878,6 +2771,95 @@
         "scheduler": "simple",
         "denoise": 1
       }
+    },
+    {
+      "id": 98,
+      "type": "InfiniteMovieRelayVSRUpscale",
+      "pos": [
+        6151,
+        -78
+      ],
+      "size": [
+        340,
+        420
+      ],
+      "flags": {},
+      "order": 40,
+      "mode": 2,
+      "inputs": [
+        {
+          "localized_name": "model",
+          "name": "model",
+          "type": "MODEL",
+          "link": 2160
+        },
+        {
+          "localized_name": "vae",
+          "name": "vae",
+          "type": "VAE",
+          "link": 2161
+        },
+        {
+          "localized_name": "images",
+          "name": "images",
+          "shape": 7,
+          "type": "IMAGE",
+          "link": null
+        },
+        {
+          "localized_name": "audio",
+          "name": "audio",
+          "shape": 7,
+          "type": "AUDIO",
+          "link": null
+        },
+        {
+          "localized_name": "fps",
+          "name": "fps",
+          "shape": 7,
+          "type": "FLOAT",
+          "widget": {
+            "name": "fps"
+          },
+          "link": null
+        },
+        {
+          "localized_name": "video_path",
+          "name": "video_path",
+          "shape": 7,
+          "type": "STRING",
+          "widget": {
+            "name": "video_path"
+          },
+          "link": 2162
+        }
+      ],
+      "outputs": [
+        {
+          "localized_name": "video_path",
+          "name": "video_path",
+          "type": "STRING",
+          "links": [
+            2163
+          ]
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "InfiniteMovieRelayVSRUpscale"
+      },
+      "widgets_values": [
+        16,
+        1920,
+        1,
+        true,
+        8,
+        0,
+        "fixed",
+        16,
+        "infinite_movie/upscale",
+        0,
+        ""
+      ]
     }
   ],
   "links": [
@@ -4000,142 +2982,6 @@
       71,
       0,
       "SETTINGS"
-    ],
-    [
-      2122,
-      75,
-      0,
-      76,
-      0,
-      "CLIP"
-    ],
-    [
-      2123,
-      75,
-      0,
-      77,
-      0,
-      "CLIP"
-    ],
-    [
-      2124,
-      76,
-      0,
-      80,
-      0,
-      "CONDITIONING"
-    ],
-    [
-      2125,
-      77,
-      0,
-      80,
-      1,
-      "CONDITIONING"
-    ],
-    [
-      2126,
-      78,
-      3,
-      79,
-      0,
-      "VHS_VIDEOINFO"
-    ],
-    [
-      2127,
-      79,
-      0,
-      80,
-      2,
-      "FLOAT"
-    ],
-    [
-      2128,
-      73,
-      0,
-      82,
-      0,
-      "MODEL"
-    ],
-    [
-      2129,
-      74,
-      0,
-      82,
-      1,
-      "VAE"
-    ],
-    [
-      2130,
-      80,
-      0,
-      82,
-      2,
-      "CONDITIONING"
-    ],
-    [
-      2131,
-      80,
-      1,
-      82,
-      3,
-      "CONDITIONING"
-    ],
-    [
-      2132,
-      78,
-      0,
-      81,
-      0,
-      "IMAGE"
-    ],
-    [
-      2133,
-      81,
-      0,
-      82,
-      4,
-      "IMAGE"
-    ],
-    [
-      2134,
-      78,
-      2,
-      82,
-      5,
-      "AUDIO"
-    ],
-    [
-      2135,
-      79,
-      0,
-      82,
-      22,
-      "FLOAT"
-    ],
-    [
-      2136,
-      8,
-      0,
-      78,
-      2,
-      "STRING"
-    ],
-    [
-      2137,
-      82,
-      0,
-      83,
-      0,
-      "STRING"
-    ],
-    [
-      2138,
-      8,
-      0,
-      82,
-      23,
-      "STRING"
     ],
     [
       2139,
@@ -4392,6 +3238,38 @@
       8,
       1,
       "SETTINGS"
+    ],
+    [
+      2160,
+      73,
+      0,
+      98,
+      0,
+      "MODEL"
+    ],
+    [
+      2161,
+      74,
+      0,
+      98,
+      1,
+      "VAE"
+    ],
+    [
+      2162,
+      8,
+      0,
+      98,
+      5,
+      "STRING"
+    ],
+    [
+      2163,
+      98,
+      0,
+      83,
+      0,
+      "STRING"
     ]
   ],
   "groups": [
@@ -4497,7 +3375,7 @@
       "bounding": [
         5811,
         -512,
-        2030.962890625,
+        1130,
         2158
       ],
       "color": "#8a3a5a",

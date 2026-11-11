@@ -136,6 +136,22 @@
       "size": 8947821,
       "engine": "Upscale",
       "gated": false
+    },
+    {
+      "name": "relayvsr_x4_int8_convrot.safetensors",
+      "url": "https://huggingface.co/Comfy-Org/RelayVSR/resolve/main/diffusion_models/relayvsr_x4_int8_convrot.safetensors",
+      "directory": "diffusion_models",
+      "size": 5164179952,
+      "engine": "Upscale",
+      "gated": false
+    },
+    {
+      "name": "relayvsr_flash_vae_x4_fp32.safetensors",
+      "url": "https://huggingface.co/Comfy-Org/RelayVSR/resolve/main/vae/relayvsr_flash_vae_x4_fp32.safetensors",
+      "directory": "vae",
+      "size": 127759784,
+      "engine": "Upscale",
+      "gated": false
     }
   ]
 }

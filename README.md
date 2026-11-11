@@ -156,7 +156,7 @@ Group **8 · Upscale** (muted, Ctrl+M turns it on) in the main workflow upscales
 Assemble › video_path  →  Infinite Movie · RelayVSR Upscale (x4 → 1920, ram_gb 16)  →  Film
 ```
 
-LTX Refine is no longer in the main workflow; it lives in its own workflow `Upscaler/Infinite Movie - LTX Upscale`
+LTX Refine is no longer in the main workflow; it is the alternative in its own workflow `Upscaler/Infinite Movie - LTX Upscale` (template folder `example_workflows/Upscaler/`)
 for any film:
 
 ```
@@ -168,6 +168,9 @@ VHS Load Video  →  Upscale Crop Universal (×1.3334, multiple of 64)  →  Inf
   16 GB = 46 frames per segment), upscales each one, scales it down to `longest_side` (default 1920; x4 → 1920 is the
   calmest and sharpest result) and writes it straight to the file – any film length, loops seamless, sound kept,
   saves `<name>_upscale.mp4`. Lower `ram_gb` if RAM runs out.
+  Models from [Comfy-Org/RelayVSR](https://huggingface.co/Comfy-Org/RelayVSR) (no login): `relayvsr_x4_int8_convrot.safetensors`
+  (5.2 GB) → `models/diffusion_models/`, `relayvsr_flash_vae_x4_fp32.safetensors` (128 MB) → `models/vae/`.
+  Measured: 26 s film (624 frames, 768×960) in 3.7 min, 11.5 GB RAM peak (LTX Refine: ~10× slower).
 - LTX Refine: prompt `photographic, 4k`, negative empty, sigmas `0.421875, 0.0` (higher = softer, more flicker).
 - LTX Refine base upscale model: [2x-LiveActionV1-SPAN](https://openmodeldb.info/models/2x-LiveActionV1-SPAN) by jcj83429
   (CC-BY-NC-SA-4.0) – [download](https://raw.githubusercontent.com/jcj83429/upscaling/f73a3a02874360ec6ced18f8bdd8e43b5d7bba57/2xLiveActionV1_SPAN/2xLiveActionV1_SPAN_490000.pth)
