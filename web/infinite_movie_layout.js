@@ -194,6 +194,11 @@ export function fcWorkflowLayout(director, second = false) {
   }
 
   // 2…7 ONE row, same height, help centered on top each. Images: one row per image (chain side by side).
+  // 2026-11-11 (user: "help notes on top all the same height, same margin"): one height for all help notes of the
+  // row (2…8) = the tallest; width = group width minus PAD on both sides (set after the widths are known).
+  const rowHelps = [...rowHelp, upHelp].filter(Boolean);
+  const HH = rowHelps.length ? Math.max(...rowHelps.map((h) => h.size[1])) : 0;
+  for (const h of rowHelps) h.size = [h.size[0], HH];
   const rowW = (r) => r.reduce((s, n) => s + n.size[0], 0) + PAD * (r.length - 1);
   const rowH = (r) => T + Math.max(...r.map((n) => n.size[1]));
   const sizes = row.map(([, ns, side], k) => {
@@ -203,6 +208,7 @@ export function fcWorkflowLayout(director, second = false) {
     const h = HEAD + helpH(help) + imgRows.reduce((s, r) => s + rowH(r), 0) + NGAP * (imgRows.length - 1) + PAD;
     return [w, h];
   });
+  row.forEach((_, k) => { const h = rowHelp[k]; if (h) h.size = [sizes[k][0] - 2 * PAD, HH]; });
   let x = X0;
   row.forEach(([grp, ns, side], k) => {
     if (!ns.length && !grp) return;
@@ -252,7 +258,8 @@ export function fcWorkflowLayout(director, second = false) {
     const ms = upBlock.length ? upBlock : upMembers;
     const minX = Math.min(...ms.map((n) => n.pos[0])), minY = Math.min(...ms.map((n) => n.pos[1] - T));
     const maxY = Math.max(...ms.map((n) => n.pos[1] + n.size[1]));
-    const w = Math.max(MINW, inner78 + 2 * PAD, (upHelp ? upHelp.size[0] : 0) + 2 * PAD);
+    const w = Math.max(MINW, inner78 + 2 * PAD);
+    if (upHelp) upHelp.size = [w - 2 * PAD, HH];
     if (upHelp) upHelp.pos = [x + (w - upHelp.size[0]) / 2, Y + HEAD + T];
     const dx = x + PAD - minX, dy = Y + HEAD + helpH(upHelp) - minY;
     for (const n of ms) n.pos = [n.pos[0] + dx, n.pos[1] + dy];
