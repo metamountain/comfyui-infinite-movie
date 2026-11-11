@@ -808,11 +808,47 @@ function addLayoutButton(node) {
     else layoutPrompts(node);
     node.setDirtyCanvas?.(true, true);
   });
-  w.serialize = false;
-  w.tooltip = "Check & arrange: prompt count, wiring, positions. Connects shots→Assemble and Settings.";
-  w.color = "#2a6";
-  w.font_size = 18;
-  w.computeSize = () => [node.size[0], 48];
+  // 2026-11-11 (user: "auto layout button really big? 3 rows? it is important"): the core button widget draws with
+  // a fixed row height, so it is swapped for a custom widget: three rows high, green, bold. Same name + callback
+  // (other code calls widgets.find(name).callback()).
+  const cb = w.callback;
+  node.widgets.splice(node.widgets.indexOf(w), 1);
+  const H = 3 * (globalThis.LiteGraph?.NODE_WIDGET_HEIGHT || 20) + 10;
+  node.addCustomWidget({
+    name: "🔗 AUTO LAYOUT",
+    type: "im_bigbutton",
+    value: null,
+    serialize: false,
+    callback: cb,
+    tooltip: "Check & arrange: prompt count, wiring, positions. Connects shots→Assemble and Settings.",
+    computeSize: (width) => [width, H],
+    draw(ctx, n, width, y) {
+      const m = 15, h = H - 8, x = m, bw = width - 2 * m, yy = y + 4;
+      ctx.save();
+      ctx.fillStyle = this._down ? "#1d7a48" : "#2a6";
+      ctx.strokeStyle = "#7fd8a6";
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      if (ctx.roundRect) ctx.roundRect(x, yy, bw, h, 8); else ctx.rect(x, yy, bw, h);
+      ctx.fill();
+      ctx.stroke();
+      ctx.fillStyle = "#fff";
+      ctx.font = "bold 22px sans-serif";
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.fillText("🔗 AUTO LAYOUT", x + bw / 2, yy + h / 2);
+      ctx.restore();
+    },
+    mouse(e, pos, n) {
+      const t = e.type;
+      if (t === "pointerdown" || t === "mousedown") { this._down = true; n.setDirtyCanvas(true, false); return true; }
+      if (t === "pointerup" || t === "mouseup") {
+        if (this._down) { this._down = false; this.callback?.(); n.setDirtyCanvas(true, true); }
+        return true;
+      }
+      return false;
+    },
+  });
 }
 
 // New image on InfiniteMovieRender -> automatically create a film Auto Prompt (user 2026-10-26, task 23 package A).
@@ -2098,12 +2134,12 @@ app.registerExtension({
     setTimeout(() => imvFixWidth(node), 0);
     const onCfg = node.onConfigure;
     node.onConfigure = function (...a) { const r = onCfg?.apply(this, a); setTimeout(() => imvFixWidth(this), 0); return r; };
-    const drawFg = node.onDrawForeground;
-    node.onDrawForeground = function (ctx) {
-      const r = drawFg?.apply(this, arguments);
-      const p = this._fcProg;
-      if (!p?.t0 || this.flags?.collapsed) return r;
-      const { segs, frames, el, frac, eta } = renderEstimate(this);
+    // 2026-11-11 (user: "timeline behind the image"): the timeline is its own widget instead of an overlay at the
+    // bottom edge – the image preview ComfyUI adds while rendering comes after all widgets and used to cover it.
+    const progLines = (n) => {
+      const p = n._fcProg;
+      if (!p?.t0) return null;
+      const { segs, frames, el, frac, eta } = renderEstimate(n);
       const lines = p.phase === "done"
         ? [`done: ${segs} × ${frames} frames in ${fmtTime(el)}`]
         : p.seg < 0
@@ -2111,24 +2147,38 @@ app.registerExtension({
              + (p.plan?.seg_seconds > 0 ? ` · ~${fmtTime(p.plan.seg_seconds * segs)} for ${segs} shots` : "")]
           : [`segment ${p.seg + 1}/${segs} · ${frames} frames · step ${p.step}/${p.steps || "?"}`,
              `${fmtTime(el)} elapsed · ~${fmtTime(eta)} left`];
-      const x = 8, w = this.size[0] - 16, h = 14 + lines.length * 16;
-      const y = this.size[1] - h - 6;
-      ctx.save();
-      ctx.fillStyle = "rgba(0,0,0,0.55)";
-      ctx.fillRect(x - 2, y - 2, w + 4, h + 4);
-      // 2026-11-05 (user): progress bar at the very bottom, text above it
-      const by = y + h - 8;
-      ctx.fillStyle = "#333";
-      ctx.fillRect(x, by, w, 8);
-      ctx.fillStyle = p.phase === "done" ? "#66bb6a" : "#4fc3f7";
-      ctx.fillRect(x, by, w * frac, 8);
-      ctx.fillStyle = "#ddd";
-      ctx.font = "12px sans-serif";
-      lines.forEach((t, i) => ctx.fillText(t, x, y + 12 + i * 16));
-      ctx.restore();
-      if (p.phase !== "done") this.setDirtyCanvas(true, false); // Uhr laufen lassen
-      return r;
+      return { p, lines, frac };
     };
+    node.addCustomWidget({
+      name: "im_timeline",
+      type: "im_timeline",
+      value: "",
+      serialize: false,
+      computeSize(width) {
+        const d = progLines(node);
+        return d ? [width, 14 + d.lines.length * 16 + 10] : [0, -4];
+      },
+      draw(ctx, n, width, y) {
+        const d = progLines(n);
+        if (!d) return;
+        const { p, lines, frac } = d;
+        const x = 8, w = width - 16, h = 14 + lines.length * 16;
+        ctx.save();
+        ctx.fillStyle = "rgba(0,0,0,0.55)";
+        ctx.fillRect(x - 2, y + 2, w + 4, h + 4);
+        // 2026-11-05 (user): progress bar at the very bottom, text above it
+        const by = y + 4 + h - 8;
+        ctx.fillStyle = "#333";
+        ctx.fillRect(x, by, w, 8);
+        ctx.fillStyle = p.phase === "done" ? "#66bb6a" : "#4fc3f7";
+        ctx.fillRect(x, by, w * frac, 8);
+        ctx.fillStyle = "#ddd";
+        ctx.font = "12px sans-serif";
+        lines.forEach((t, i) => ctx.fillText(t, x, y + 16 + i * 16));
+        ctx.restore();
+        if (p.phase !== "done") n.setDirtyCanvas(true, false); // keep the clock running
+      },
+    });
   },
 });
 
