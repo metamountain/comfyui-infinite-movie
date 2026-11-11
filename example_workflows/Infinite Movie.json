@@ -1257,7 +1257,7 @@
         }
       },
       "widgets_values": [
-        "## 5 · Director\nTurns images + prompts into shots.\n- `images`: number of images (adds or mutes Load Image + Auto Prompt, then lays out).\n- `seconds` per shot, `loop` (last image back to the first), `variants` (2 = render A and B, pick in Choose), `seed`.\n- **🔗 AUTO LAYOUT**: tidies all groups.\n- Output `shots ▶ Assemble` → Choose."
+        "## 5 · Director\nTurns images + prompts into shots.\n- `images`: number of images (adds or removes Load Image + Auto Prompt, then lays out; removed ones come back when raised).\n- **Image list** (top = first): drag an image up or down – it gets a blue frame, a blue line between the images shows where it lands. ✕ removes it. Transitions with a new image pair get an empty prompt → 🔄 regenerate.\n- `seconds` per shot, `loop` (last image back to the first), `variants` (2 = render A and B, pick in Choose), `seed`.\n- **🔗 AUTO LAYOUT**: tidies all groups.\n- Output `shots ▶ Assemble` → Choose."
       ],
       "widgets_values_named": {
         "text": "## 5 · Director\nTurns images + prompts into shots.\n- `images`: number of images (adds or mutes Load Image + Auto Prompt, then lays out).\n- `seconds` per shot, `loop` (last image back to the first), `variants` (2 = render A and B, pick in Choose), `seed`.\n- **🔗 AUTO LAYOUT**: tidies all groups.\n- Output `shots ▶ Assemble` → Choose."

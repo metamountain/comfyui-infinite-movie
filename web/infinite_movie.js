@@ -864,6 +864,7 @@ function fcDeleteImage(chain, k) {
 }
 
 const IM_ROW = 64;
+const IM_FLASH = 1200;   // ms, landing glow after a drag
 function addImageLayers(node) {
   if (node.widgets?.find((w) => w.name === "im_layers")) return;
   const M = 15, DEL = 28;
@@ -874,7 +875,7 @@ function addImageLayers(node) {
     value: null,
     serialize: false,
     options: { serialize: false },
-    tooltip: "Image order of the film, top = first. Drag a row up or down to move the image; ✕ removes it " +
+    tooltip: "Image order of the film, top = first. Drag an image up or down – the blue line shows where it lands; ✕ removes it " +
       "(raising the images counter brings it back). Transitions that change get an empty prompt – regenerate them.",
     computeSize: (width) => [width, Math.max(1, fcChainImages(node).length) * IM_ROW + 8],
     draw(ctx, n, width, y) {
@@ -883,18 +884,30 @@ function addImageLayers(node) {
       const imgs = fcChainImages(n);
       const rows = imgs.map((x, i) => [x, i]);
       const d = this._drag;
-      if (d && d.to !== d.from) { const [r] = rows.splice(d.from, 1); rows.splice(d.to, 0, r); }
       ctx.save();
       rows.forEach(([img, orig], k) => {
         const root = fcImgRoot(g, img);
         const x = M, bw = width - 2 * M, ry = y + 4 + k * IM_ROW, rh = IM_ROW - 6, cy = ry + rh / 2;
         const dragged = d && orig === d.from;
-        ctx.fillStyle = dragged ? "#2f4f6f" : "#262626";
-        ctx.strokeStyle = dragged ? "#6af" : "#444";
-        ctx.lineWidth = dragged ? 2 : 1;
+        const fl = this._flash && this._flash.id === root.id ? 1 - (performance.now() - this._flash.t0) / IM_FLASH : 0;
+        // user: "the frame being moved blue, the target a blue line"
+        ctx.fillStyle = dragged ? "#1f3550" : "#262626";
+        ctx.strokeStyle = dragged ? "#4af" : "#444";
+        ctx.lineWidth = dragged ? 3 : 1;
         ctx.beginPath();
         if (ctx.roundRect) ctx.roundRect(x, ry, bw, rh, 6); else ctx.rect(x, ry, bw, rh);
         ctx.fill(); ctx.stroke();
+        if (fl > 0) {
+          ctx.save();
+          ctx.globalAlpha = fl;
+          ctx.shadowColor = "#4af"; ctx.shadowBlur = 16;
+          ctx.strokeStyle = "#4af"; ctx.lineWidth = 3;
+          ctx.fillStyle = "rgba(68,170,255,0.25)";
+          ctx.beginPath();
+          if (ctx.roundRect) ctx.roundRect(x, ry, bw, rh, 6); else ctx.rect(x, ry, bw, rh);
+          ctx.fill(); ctx.stroke();
+          ctx.restore();
+        }
         ctx.textBaseline = "middle";
         ctx.textAlign = "center";
         ctx.fillStyle = "#bbb"; ctx.font = "bold 13px sans-serif";
@@ -921,6 +934,12 @@ function addImageLayers(node) {
         ctx.fillStyle = this._del === orig ? "#f66" : "#a77"; ctx.font = "15px sans-serif";
         ctx.fillText("✕", x + bw - DEL / 2, cy);
       });
+      if (d && d.gap != null) {
+        const ly = y + 4 + d.gap * IM_ROW - 3, x0 = M - 4, x1 = width - M + 4;
+        ctx.strokeStyle = "#4af"; ctx.fillStyle = "#4af"; ctx.lineWidth = 4;
+        ctx.beginPath(); ctx.moveTo(x0, ly); ctx.lineTo(x1, ly); ctx.stroke();
+        for (const x of [x0, x1]) { ctx.beginPath(); ctx.arc(x, ly, 5, 0, 2 * Math.PI); ctx.fill(); }
+      }
       ctx.restore();
     },
     mouse(e, pos, n) {
@@ -930,20 +949,37 @@ function addImageLayers(node) {
       if (t === "pointerdown" || t === "mousedown") {
         if (k < 0 || k >= N) return false;
         if (pos[0] > (this._w || n.size[0]) - M - DEL - 4) this._del = k;
-        else this._drag = { from: k, to: k };
+        else this._drag = { from: k, gap: null };
         n.setDirtyCanvas(true, false);
         return true;
       }
       if (t === "pointermove" || t === "mousemove") {
         if (!this._drag) return false;
-        this._drag.to = Math.max(0, Math.min(N - 1, k));
+        // drop gap 0..N (line between rows); the own place (above/below itself) = no move
+        const gap = Math.max(0, Math.min(N, Math.round((pos[1] - this._y - 4) / IM_ROW)));
+        this._drag.gap = gap === this._drag.from || gap === this._drag.from + 1 ? null : gap;
         n.setDirtyCanvas(true, false);
         return true;
       }
       if (t === "pointerup" || t === "mouseup") {
         const d = this._drag, del = this._del;
         this._drag = null; this._del = null;
-        if (d && d.to !== d.from) setTimeout(() => fcReorderImages(n, d.from, d.to), 0);
+        if (d && d.gap != null) {
+          const to = d.gap > d.from ? d.gap - 1 : d.gap;
+          const moved = fcChainImages(n)[d.from];
+          const id = moved && fcImgRoot(n.graph, moved).id;
+          setTimeout(() => {
+            fcReorderImages(n, d.from, to);
+            // landing confirmation (user): the moved image glows blue at its new place and fades out
+            this._flash = { id, t0: performance.now() };
+            const tick = () => {
+              n.setDirtyCanvas(true, false);
+              if (this._flash && performance.now() - this._flash.t0 < IM_FLASH) requestAnimationFrame(tick);
+              else { this._flash = null; n.setDirtyCanvas(true, false); }
+            };
+            requestAnimationFrame(tick);
+          }, 0);
+        }
         if (del != null && del === k) setTimeout(() => fcDeleteImage(n, del), 0);
         n.setDirtyCanvas(true, true);
         return true;
