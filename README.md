@@ -156,7 +156,7 @@ half-finished film.
 The small `prompt_model` writes each shot from its two images only. For a film that tells one story, use a bigger
 vision LLM through **Story Mode (LLM)**:
 
-1. Add **Infinite Movie · Story Mode (LLM)** (it sits under Settings in the example workflow – un-bypass it there).
+1. Add **Infinite Movie · Story Mode (LLM)** (it sits under Settings in the example workflow and comes **off** – purple = bypassed: click it and press **Ctrl+B** to switch it on).
 2. Plug its output `LLM` into Settings › `LLM`.
 3. Pick a `provider`: it fills `endpoint`, `model` and `api_key_env`. Change them freely afterwards.
 4. Write your red thread into `story` (optional), then **🔄 Regenerate prompt** on the Auto Prompts. The plan
