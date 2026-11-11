@@ -1,4 +1,6 @@
-# Infinite Movie (ComfyUI)
+
+# Infinite Movie (ComfyUI)  - tested on 24GB Vram + 64 GB Ram .... if you have less you have to configure "engine" 
+
 
 <p align="center"><img src="assets/a4_nosun.gif" width="320" alt="Four seasons in one film: summer, autumn, winter, spring"></p>
 
