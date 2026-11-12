@@ -1,9 +1,9 @@
 // Infinite Movie · Movie to GIF – live preview + save / save as… in the node (2026-11-08, 2026-11-12).
 // Every widget change (debounced) posts the values to /infinite_movie/gif_preview; the server renders a small,
 // short version into the temp folder – nothing is saved. save / save as… render the full version with the same
-// values (/infinite_movie/gif_save), like Preview Image MM: save = next free name next to the source film (the
-// tooltip shows the exact path); save as… = the OS save dialog in that folder with that name filled in; from another
-// computer the browser's own save dialog, without one a name prompt (saved next to the source).
+// values (/infinite_movie/gif_save), like Preview Image MM: save = output_folder / filename (default GIF/GIF#,
+// # = next free number; the tooltip shows the exact path); save as… = the OS save dialog in that folder with that
+// name filled in; from another computer the browser's own save dialog, without one a name prompt (output_folder).
 // images from a VHS Load Video: the preview reads the loader's file with its frame settings (same frames as a Run);
 // images from any other node: preview after one Run (token = node id).
 import { app } from "../../scripts/app.js";
@@ -12,8 +12,8 @@ import { api } from "../../scripts/api.js";
 const GIF_CLASS = "InfiniteMovieGif";
 const PREVIEW_H = 280;
 const INFO_H = 40;
-const PARAMS = ["format", "long_side", "crop", "every_nth", "start", "end", "speed", "direction", "colors", "dither",
-  "palette", "quality", "repeat", "source_fps"];
+const PARAMS = ["format", "long_side", "crop", "every_nth", "start", "end", "direction", "colors", "dither",
+  "palette", "quality", "repeat", "source_fps", "output_folder", "filename"];
 const GIF_ONLY = ["colors", "dither", "palette"];
 const WEBP_ONLY = ["quality"];
 const LOADER_KEYS = ["force_rate", "skip_first_frames", "select_every_nth", "frame_load_cap"];
@@ -63,7 +63,7 @@ async function refreshTarget(node, body) {
   const j = body ? await post("/infinite_movie/gif_target", body) : null;
   node._gif_target = j?.ok ? j.target : "";
   if (node._gif_save) node._gif_save.tooltip = node._gif_target ||
-    "next free name next to the source film (uploads and images: output/infinite_movie/gif)";
+    "output_folder / filename (default output/GIF/GIF#.gif)";
 }
 
 function schedule(node, delay = 500) {
@@ -192,12 +192,12 @@ async function saveAs(node) {
     }
     return;
   }
-  // no file dialog (plain http on a LAN address): ask for a name, saved next to the source
+  // no file dialog (plain http on a LAN address): ask for a name, saved in output_folder
   const stem = suggested.replace(/\.[^.]+$/, "");
   let name = "";
   const prompt = app.extensionManager?.dialog?.prompt;
-  if (typeof prompt === "function") name = await prompt({ title: "Save as (next to the source)", message: "File name", defaultValue: stem });
-  else name = window.prompt("Save as (next to the source):", stem);
+  if (typeof prompt === "function") name = await prompt({ title: "Save as (in output_folder)", message: "File name", defaultValue: stem });
+  else name = window.prompt("Save as (in output_folder):", stem);
   if (name != null && String(name).trim() !== "") await save(node, String(name).trim());
 }
 

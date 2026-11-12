@@ -62,12 +62,11 @@ def gif_params(**kw) -> dict:
         "format": fmt,
         "long_side": int(f("long_side", 480, 0, 4096)),
         "crop": kw.get("crop") if kw.get("crop") in CROPS else "none",
-        "nth": int(f("every_nth", 2, 1, 60)),
+        "nth": int(f("every_nth", 1, 1, 30)),
         "src_fps": f("src_fps", 0.0, 0, 240),    # rate of the frames going in (probe / loader); 0 = unknown
         "max_fps": f("max_fps", 0.0, 0, 240),    # extra cap (live preview)
         "start": f("start", 0.0, 0, 36000),
         "end": f("end", 0.0, 0, 36000),
-        "speed": f("speed", 1.0, 0.1, 8.0),
         "direction": kw.get("direction") if kw.get("direction") in DIRECTIONS else "forward",
         "colors": int(f("colors", 256, 2, 256)),
         "dither": kw.get("dither") if kw.get("dither") in DITHERS else DITHERS[0],
@@ -109,8 +108,9 @@ def _ext(p: dict) -> str:
 
 
 def out_fps(p: dict) -> float:
-    """Frame rate of the result: source rate × speed / every_nth (0 = source rate unknown)."""
-    return p["src_fps"] * p["speed"] / p["nth"] if p["src_fps"] else 0.0
+    """Playback rate of the result = always the film's own rate (0 = unknown). every_nth only drops frames,
+    so the GIF plays every_nth times faster and is every_nth times shorter."""
+    return p["src_fps"]
 
 
 def fps_cap(p: dict) -> float:
@@ -120,8 +120,8 @@ def fps_cap(p: dict) -> float:
 
 
 def video_filter(p: dict, max_seconds: float = 0.0) -> str:
-    """Filter chain for one video stream: [loader frames + trim], every n-th frame, speed, fps cap,
-    centre crop, scale, direction. Ends with label [v]."""
+    """Filter chain for one video stream: [loader frames + trim], every n-th frame played at the film's own
+    rate, fps cap, centre crop, scale, direction. Ends with label [v]."""
     parts = []
     if p.get("pre"):
         # loader mode: start/end apply to the delivered frames, not to the file (no -ss/-t)
@@ -133,12 +133,10 @@ def video_filter(p: dict, max_seconds: float = 0.0) -> str:
             parts.append("trim=" + ":".join(([f"start={p['start']:g}"] if p["start"] > 0 else []) +
                                             ([f"end={end:g}"] if end else [])) + ",setpts=PTS-STARTPTS")
     if p["nth"] > 1:
-        # keep every n-th frame; timestamps stay -> each frame shows n times as long, same tempo
-        parts.append(f"select='not(mod(n\\,{p['nth']}))'")
-    if abs(p["speed"] - 1.0) > 1e-6:
-        parts.append(f"setpts=PTS/{p['speed']:g}")
+        # keep every n-th frame and play them at the film's own rate -> n times faster, n times shorter
+        parts.append(f"select='not(mod(n\\,{p['nth']}))',setpts=PTS/{p['nth']}")
     cap, rate = fps_cap(p), out_fps(p)
-    if cap and (not rate or rate > cap + 0.01):
+    if cap and rate > cap + 0.01:   # only when known and too high – fps= on a slower stream duplicates frames
         parts.append(f"fps={cap:g}")
     ratio = CROPS.get(p["crop"])
     if ratio:
@@ -167,7 +165,7 @@ def ffmpeg_args(ff: str, src: str, out: str, p: dict, max_seconds: float = 0.0) 
         if max_seconds > 0:
             dur = min(dur, max_seconds) if dur > 0 else max_seconds
         if dur > 0:
-            args += ["-t", f"{dur:g}"]   # -t before -i = duration in the source film (before speed)
+            args += ["-t", f"{dur:g}"]   # -t before -i = duration in the source film
     args += ["-i", src]
     chain = video_filter(p, max_seconds)
     if _ext(p) == ".gif":
@@ -280,23 +278,24 @@ def describe(info: dict, note: str = "") -> str:
     return f"{info['w']}×{info['h']} · {info['frames']} frames · {info['dur']:.1f} s · {human(info['bytes'])}{note}"
 
 
-def save_target(src: str, ext: str, default_dir: str | None = None, copies_in=None, make: bool = True) -> str:
-    """Where save puts the GIF (like Preview Image MM): next to the source film, never overwriting
-    (_2, _3 …). Sources inside ComfyUI input / temp are only copies (uploads, frames of the images
-    input, video copies) -> default_dir = <output>/infinite_movie/gif."""
-    if copies_in is None or default_dir is None:
+def save_target(folder: str, filename: str, ext: str, out_dir: str | None = None, make: bool = True) -> str:
+    """Where save writes: folder (relative = inside the ComfyUI output folder, default GIF) / filename
+    (default GIF#, # = next free number: GIF1, GIF2 …; without # an existing file gets _2, _3 …)."""
+    if out_dir is None:
         import folder_paths
-        if copies_in is None:
-            copies_in = [folder_paths.get_input_directory(), folder_paths.get_temp_directory()]
-        if default_dir is None:
-            default_dir = os.path.join(folder_paths.get_output_directory(), "infinite_movie", "gif")
-    stem = os.path.splitext(os.path.basename(src))[0] or "movie"
-    copy = any(_inside(src, d) for d in copies_in)
-    if copy and (stem.startswith("images_") or stem.startswith("video_")):   # temp copy (name = hash)
-        stem = "movie"
-    folder = default_dir if copy else os.path.dirname(os.path.abspath(src))
+        out_dir = folder_paths.get_output_directory()
+    folder = (folder or "").strip().strip('"') or "GIF"
+    if not os.path.isabs(folder):
+        folder = os.path.join(out_dir, folder)
+    stem = "".join("_" if c in '<>:"/\\|?*' else c for c in os.path.splitext((filename or "").strip())[0])
+    stem = stem.strip(" .") or "GIF#"
     if make:
         os.makedirs(folder, exist_ok=True)
+    if "#" in stem:
+        n = 1
+        while os.path.exists(os.path.join(folder, stem.replace("#", str(n)) + ext)):
+            n += 1
+        return os.path.join(folder, stem.replace("#", str(n)) + ext)
     out, n = os.path.join(folder, stem + ext), 2
     while os.path.exists(out):
         out, n = os.path.join(folder, f"{stem}_{n}{ext}"), n + 1
@@ -400,17 +399,17 @@ class InfiniteMovieGif(io.ComfyNode):
             search_aliases=["gif", "webp", "animated", "movie to gif", "video to gif", "infinite movie"],
             category="Infinite Movie",
             description="Turns a film into an animated GIF or WebP. The preview in the node updates live while you "
-                        "change size, crop, frame rate, trim, speed, direction or colours (nothing is saved); the "
-                        "estimated file size shows below it. save writes the full version next to the source film, "
-                        "save as… chooses folder and name. Run renders the full version; with auto_save it saves too.",
+                        "change size, crop, every_nth, trim, direction or colours (nothing is saved); the line "
+                        "below shows the result (length, speed, estimated size). save writes the full version to "
+                        "output_folder / filename, save as… chooses folder and name. Run renders the full version; "
+                        "with auto_save every Run saves (batches).",
             is_output_node=True,
             inputs=[
                 io.Video.Input("video", optional=True,
-                               tooltip="Video (priority 1), e.g. Load Video. Saved next to its file when it has one."),
+                               tooltip="Video (priority 1), e.g. Load Video."),
                 io.Image.Input("images", optional=True, tooltip="Frame batch (priority 2), e.g. VHS Load Video."),
                 io.String.Input("video_path", default="", optional=True,
-                                tooltip="Path of a film (priority 3), e.g. Assemble → video_path. "
-                                        "The GIF is saved next to it."),
+                                tooltip="Path of a film (priority 3), e.g. Assemble → video_path."),
                 io.Combo.Input("file", options=_input_videos(), upload=io.UploadType.video, optional=True,
                                tooltip="Film from ComfyUI/input (priority 4, used when nothing else is set)."),
                 io.Combo.Input("format", optional=True, options=FORMATS, default=FORMATS[0],
@@ -419,19 +418,25 @@ class InfiniteMovieGif(io.ComfyNode):
                              tooltip="Longest side in pixels (0 = original). GIF size grows with the square of it."),
                 io.Combo.Input("crop", optional=True, options=list(CROPS), default="none",
                                tooltip="Centre crop to a ratio before scaling (1:1 avatar, 4:5 Instagram, 9:16 story)."),
-                io.Int.Input("every_nth", optional=True, default=2, min=1, max=60,
-                             tooltip="Keep every n-th frame: 1 = all, 2 = every 2nd, 3 = every 3rd, 10 = every 10th. "
-                                     "The tempo stays the same – fewer frames just make it choppier and the file "
-                                     f"smaller (2 ≈ half). A GIF plays at most {GIF_MAX_FPS} frames per second."),
+                io.Int.Input("every_nth", optional=True, default=1, min=1, max=30, step=1,
+                             display_mode=io.NumberDisplay.slider,
+                             tooltip="Compression by frames: only every n-th frame goes in (1 = all, 2 = every 2nd, "
+                                     "10 = every 10th). The GIF always plays at the film's own frame rate, so it gets "
+                                     "n times shorter and faster (time-lapse) and about n times smaller. "
+                                     f"GIF plays at most {GIF_MAX_FPS} fps."),
+                io.String.Input("output_folder", optional=True, default="GIF",
+                                tooltip="Folder for save and auto_save. Relative = inside the ComfyUI output folder; "
+                                        "a full path works too."),
+                io.String.Input("filename", optional=True, default="GIF#",
+                                tooltip="File name without extension. # = next free number (GIF1, GIF2 …). "
+                                        "Never overwrites."),
                 io.Boolean.Input("auto_save", optional=True, default=False,
                                  tooltip="Off: Run only renders and shows the full version – save it with the save "
-                                         "button. On: every Run saves next to the source film."),
+                                         "button. On: every Run saves (for batches)."),
                 io.Float.Input("start", advanced=True, optional=True, default=0.0, min=0.0, max=36000.0, step=0.1,
                                tooltip="Start in seconds."),
                 io.Float.Input("end", advanced=True, optional=True, default=0.0, min=0.0, max=36000.0, step=0.1,
                                tooltip="End in seconds (0 = to the end)."),
-                io.Float.Input("speed", advanced=True, optional=True, default=1.0, min=0.1, max=8.0, step=0.05,
-                               tooltip="Playback speed (2 = twice as fast, 0.5 = slow motion)."),
                 io.Combo.Input("direction", advanced=True, optional=True, options=DIRECTIONS, default="forward",
                                tooltip="boomerang = forward then backward (seamless loop from any clip)."),
                 io.Int.Input("colors", advanced=True, optional=True, default=256, min=2, max=256,
@@ -462,8 +467,8 @@ class InfiniteMovieGif(io.ComfyNode):
         return f"{p}:{os.path.getmtime(p) if p and os.path.isfile(p) else ''}"
 
     @classmethod
-    def execute(cls, format=FORMATS[0], long_side=480, crop="none", every_nth=2, auto_save=False, start=0.0,
-                end=0.0, speed=1.0, direction="forward", colors=256, dither=DITHERS[0], palette=PALETTES[0],
+    def execute(cls, format=FORMATS[0], long_side=480, crop="none", every_nth=1, output_folder="GIF",
+                filename="GIF#", auto_save=False, start=0.0, end=0.0, direction="forward", colors=256, dither=DITHERS[0], palette=PALETTES[0],
                 quality=80, repeat=0, max_mb=0.0, video=None, images=None, video_path="", file="(none)",
                 source_fps=0.0) -> io.NodeOutput:
         hidden = getattr(cls, "hidden", None)
@@ -475,14 +480,14 @@ class InfiniteMovieGif(io.ComfyNode):
         if uid:
             _LAST_SOURCE[uid] = os.path.abspath(src)
         p = gif_params(format=format, long_side=long_side, crop=crop, every_nth=every_nth, start=start, end=end,
-                       speed=speed, direction=direction, colors=colors, dither=dither, palette=palette,
+                       direction=direction, colors=colors, dither=dither, palette=palette,
                        quality=quality, repeat=repeat, src_fps=_probe(_ffmpeg(), src)["fps"])
         full = os.path.join(_tmp_dir(), f"run_{uid or 'x'}{_ext(p)}")
         info, note = render_fit(src, full, p, max_mb)
         text = describe(info, note)
         saved = ""
         if auto_save:
-            saved = save_target(src, _ext(p))
+            saved = save_target(output_folder, filename, _ext(p))
             shutil.copy2(full, saved)
         print(f"[InfiniteMovieGif] {saved or full}: {text}")
         ui = {"infinite_movie_gif": [{**view_ref(full), "text": text, "saved": saved, "token": uid}]}
@@ -551,24 +556,26 @@ def gif_preview(body: dict) -> dict:
     dur_src = srcinfo.get("dur") or 0.0
     end = min(full["end"], dur_src) if (full["end"] and dur_src) else (full["end"] or dur_src)
     span = max(end - full["start"], 0.0)
+    nth, boom = full["nth"], 2 if full["direction"] == "boomerang" else 1
     if p.get("pre"):   # loader frames: the preview shows all of them when it is shorter than the 8 s window
-        covered = info["dur"] * full["speed"] / (2 if full["direction"] == "boomerang" else 1)
+        covered = info["dur"] * nth / boom
         if covered < PREVIEW_MAX_S - 0.3:
             span = covered
-    if info.get("w") and info.get("h") and srcinfo.get("w") and span:
+    rate = out_fps(full)
+    f_full = min(rate or 24.0, fps_cap(full) or 999)
+    dur_full = span / nth * boom
+    if info.get("w") and info.get("h") and srcinfo.get("w") and span and info.get("frames"):
+        # size ≈ preview bytes per frame × area ratio × frames of the full version
         L = full["long_side"] or max(srcinfo["w"], srcinfo["h"])
         scale = L / max(info["w"], info["h"])
-        f_full = min(out_fps(full) or 24.0, fps_cap(full) or 999)
-        f_prev = min(out_fps(p) or 24.0, PREVIEW_FPS)
-        dur_full = span / full["speed"] * (2 if full["direction"] == "boomerang" else 1)
-        dur_prev = info["dur"] or min(PREVIEW_MAX_S, dur_full) or 1
-        est = int(info["bytes"] * scale * scale * (f_full / f_prev) * max(dur_full / dur_prev, 1.0))
+        est = int(info["bytes"] / info["frames"] * scale * scale * dur_full * f_full)
     rel = os.path.relpath(out, folder_paths.get_temp_directory())
     sub, name = os.path.split(rel)
+    result = (f"{span:.1f} s → {dur_full:.1f} s" if span else "") + \
+        (f" · {nth}× faster" if nth > 1 else "") + \
+        (f" · plays {f_full:g} fps" if rate else "") + (f" · ≈ {human(est)}" if est else "")
     return {"ok": True, "filename": name, "subfolder": sub, "type": "temp",
-            "message": (f"preview {info['w']}×{info['h']} · {info['dur']:.1f} s" +
-                        (f" (first {PREVIEW_MAX_S:g} s)" if span > PREVIEW_MAX_S else "") +
-                        (f" · full ≈ {human(est)}" if est else ""))}
+            "message": result.strip(" ·") + (f" · preview: first {PREVIEW_MAX_S:g} s" if span > PREVIEW_MAX_S else "")}
 
 
 def gif_target(body: dict) -> str:
@@ -576,14 +583,16 @@ def gif_target(body: dict) -> str:
     src = preview_source(body)
     if not src:
         return ""
-    return save_target(src, _ext(gif_params(format=(body.get("params") or {}).get("format"))), make=False)
+    prm = body.get("params") or {}
+    return save_target(prm.get("output_folder", "GIF"), prm.get("filename", "GIF#"),
+                       _ext(gif_params(format=prm.get("format"))), make=False)
 
 
 def gif_save(body: dict, local: bool) -> dict:
     """Render the full version with the request's values and save it (like Preview Image MM):
-    save_as = full path from the save dialog (only from this computer) or a name next to the source;
-    empty = next free name next to the source; temp_only = only render (browser save picker on another
-    computer writes it)."""
+    save_as = full path from the save dialog (only from this computer) or a plain name inside output_folder;
+    empty = output_folder / filename; temp_only = only render (browser save picker on another computer
+    writes it)."""
     import folder_paths
     src = preview_source(body)
     if not src:
@@ -604,13 +613,8 @@ def gif_save(body: dict, local: bool) -> dict:
             return {"ok": False, "message": "From another computer you can only save inside the output folder."}
         target = os.path.splitext(os.path.abspath(name))[0] + ext   # the dialog asked before overwriting
     else:
-        target = save_target(src, ext)
-        if name:   # a plain name: next to the source, never overwriting
-            stem = "".join("_" if c in '<>:"/\\|?*' else c for c in os.path.splitext(name)[0]).strip(" .") or "movie"
-            folder, n = os.path.dirname(target), 2
-            target = os.path.join(folder, stem + ext)
-            while os.path.exists(target):
-                target, n = os.path.join(folder, f"{stem}_{n}{ext}"), n + 1
+        prm = body.get("params") or {}
+        target = save_target(prm.get("output_folder", "GIF"), name or prm.get("filename", "GIF#"), ext)
     os.makedirs(os.path.dirname(target), exist_ok=True)
     full = os.path.join(_tmp_dir(), f"save_{hashlib.sha1(target.encode()).hexdigest()[:12]}{ext}")
     info, note = render_fit(src, full, p, max_mb)

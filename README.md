@@ -144,7 +144,7 @@ stays silent then. Prompts can describe sound, e.g. `sound: howling wind`.
 | **Assemble** | Joins the shots into the film. `even_motion` re-picks frames so each carries about the same change. `interpolate` RIFE x2 (fewer repeated frames). Runs only on **ASSEMBLE**. The film mp4 contains the prompt and the workflow. Viewer (3×3 Load-Image tiles, all tabs the same size): **Graph**, **Timeline**, **Heatmap**, **Frames** (slider, ▶, onion skin), **Particles** (motion trails), **Sheet** (3×3 … 8×8, click = open frame). Outputs `video_path`, `last_frame`, `first_frame`. |
 | **Film** | Plays the finished film, shows where it was saved, **📂 Open folder**, remembers the last three films. |
 | **Last Frame** | Last frame of a film – e.g. the start image of the next part. Reads frame by frame. |
-| **Movie to GIF** | Film → GIF or WebP with live preview and size estimate (crop, fps, trim, speed, boomerang, palette, `max_mb`). Inputs `video / images / video_path / file` (in that priority), `every_nth` keeps every n-th frame; the GIF is saved next to the source. |
+| **Movie to GIF** | Film → GIF or WebP with a live preview (nothing saved) and a result line: length, speed, size estimate. Inputs `video / images / video_path / file` (in that priority). `every_nth` (slider) compresses by frames – it always plays at the film's frame rate, so every 4th frame = 4× shorter time-lapse. Crop, trim, boomerang, colours, `max_mb`. **save** writes `output/GIF/GIF#.gif` (`#` = next number), **save as…** opens the system dialog; `auto_save` saves every Run (batches). |
 | **H3 Loop / H3 Loop Decode** | Seamless loops in one MiniMax H3 pass (end wrapped around to the start while sampling). |
 | **LTX Refine / RelayVSR Upscale** | See [Upscale](#upscale). |
 
