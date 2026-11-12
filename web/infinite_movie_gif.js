@@ -44,14 +44,16 @@ function showImage(node, r) {
   node._gif_img.style.display = "block";
 }
 
-// Grey out widgets that do not apply: GIF-only / WebP-only, source_fps without a connected images input.
+// Grey out widgets that do not apply: GIF-only / WebP-only, source_fps without a connected images input
+// (video takes priority over images: its rate comes from the file, not from the widget).
 function updateHints(node) {
   const webp = String(wval(node, "format") || "").startsWith("WebP");
   const imgs = linked(node, "images");
+  const vid = linked(node, "video");
   for (const w of node.widgets || []) {
     if (GIF_ONLY.includes(w.name)) w.disabled = webp;
     if (WEBP_ONLY.includes(w.name)) w.disabled = !webp;
-    if (w.name === "source_fps") w.disabled = !imgs;
+    if (w.name === "source_fps") w.disabled = !(imgs && !vid);
   }
   node.setDirtyCanvas?.(true, true);
 }
@@ -72,7 +74,7 @@ function schedule(node, delay = 500) {
 // Connected source node with a file widget -> its file directly, without a Run. VHS Load Video also hands on its
 // frame settings, so the preview shows the same frames a Run gets.
 function upstreamSource(node) {
-  for (const name of ["images", "video_path"]) {
+  for (const name of ["video", "images", "video_path"]) {
     const inp = node.inputs?.find((i) => i.name === name && i.link != null);
     if (!inp) continue;
     const link = node.graph?.links?.[inp.link] ?? node.graph?.links?.get?.(inp.link);
@@ -94,7 +96,7 @@ function upstreamSource(node) {
 
 // Request body for preview and save: values + source. { body } or { message } when there is no source yet.
 function requestBody(node) {
-  const viaInput = linked(node, "images") || linked(node, "video_path");
+  const viaInput = linked(node, "images") || linked(node, "video_path") || linked(node, "video");
   const body = { params: {}, max_mb: wval(node, "max_mb") || 0 };
   for (const k of PARAMS) body.params[k] = wval(node, k);
   const up = viaInput ? upstreamSource(node) : null;
@@ -107,7 +109,7 @@ function requestBody(node) {
   body.video_path = wval(node, "video_path") || "";
   body.file = wval(node, "file") || "";
   if (!body.video_path.trim() && (!body.file || body.file === "(none)"))
-    return { message: "Choose a file, enter a video_path or connect images." };
+    return { message: "Choose a file, enter a video_path or connect video or images." };
   return { body };
 }
 

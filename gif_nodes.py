@@ -1,6 +1,6 @@
 """Infinite Movie · Movie to GIF – film -> animated GIF / WebP with a live preview in the node.
 
-Inputs universal (AGENTS „Nodes universal“): images (IMAGE) > video_path (STRING) > file
+Inputs universal (AGENTS „Nodes universal“): video (VIDEO) > images (IMAGE) > video_path (STRING) > file
 (selection + upload from ComfyUI/input). Everything runs through ffmpeg (no full IMAGE batch in RAM).
 End node (2026-11-12): no outputs, no settings socket. Where the GIF goes follows the source like
 Preview Image MM: next to the source film; uploads (ComfyUI/input) and frames of the images input
@@ -283,7 +283,7 @@ def describe(info: dict, note: str = "") -> str:
 def save_target(src: str, ext: str, default_dir: str | None = None, copies_in=None, make: bool = True) -> str:
     """Where save puts the GIF (like Preview Image MM): next to the source film, never overwriting
     (_2, _3 …). Sources inside ComfyUI input / temp are only copies (uploads, frames of the images
-    input) -> default_dir = <output>/infinite_movie/gif."""
+    input, video copies) -> default_dir = <output>/infinite_movie/gif."""
     if copies_in is None or default_dir is None:
         import folder_paths
         if copies_in is None:
@@ -292,7 +292,7 @@ def save_target(src: str, ext: str, default_dir: str | None = None, copies_in=No
             default_dir = os.path.join(folder_paths.get_output_directory(), "infinite_movie", "gif")
     stem = os.path.splitext(os.path.basename(src))[0] or "movie"
     copy = any(_inside(src, d) for d in copies_in)
-    if copy and stem.startswith("images_"):     # temp file of the images input (name = hash)
+    if copy and (stem.startswith("images_") or stem.startswith("video_")):   # temp copy (name = hash)
         stem = "movie"
     folder = default_dir if copy else os.path.dirname(os.path.abspath(src))
     if make:
@@ -342,8 +342,15 @@ def prune_previews(folder: str, keep: int = PREVIEW_KEEP) -> int:
 # Source resolution
 # ---------------------------------------------------------------------------
 
-def _resolve_source(images, video_path: str, file: str, images_fps: float) -> str:
+def _resolve_source(video, images, video_path: str, file: str, images_fps: float) -> str:
     import folder_paths
+    if video is not None:
+        s = video.get_stream_source()   # path when the video comes from a file, BytesIO otherwise
+        if isinstance(s, str) and os.path.isfile(s):
+            return s
+        path = os.path.join(_tmp_dir(), f"video_{id(video) ^ int(time.time() * 1e6):x}.mp4")
+        video.save_to(path)
+        return path
     if images is not None:
         from .chunk_upscale_nodes import _images_to_file
         return _images_to_file(images, None, images_fps or 24.0, _tmp_dir())
@@ -398,12 +405,14 @@ class InfiniteMovieGif(io.ComfyNode):
                         "save as… chooses folder and name. Run renders the full version; with auto_save it saves too.",
             is_output_node=True,
             inputs=[
-                io.Image.Input("images", optional=True, tooltip="Frame batch (priority 1), e.g. VHS Load Video."),
+                io.Video.Input("video", optional=True,
+                               tooltip="Video (priority 1), e.g. Load Video. Saved next to its file when it has one."),
+                io.Image.Input("images", optional=True, tooltip="Frame batch (priority 2), e.g. VHS Load Video."),
                 io.String.Input("video_path", default="", optional=True,
-                                tooltip="Path of a film (priority 2), e.g. Assemble → video_path. "
+                                tooltip="Path of a film (priority 3), e.g. Assemble → video_path. "
                                         "The GIF is saved next to it."),
                 io.Combo.Input("file", options=_input_videos(), upload=io.UploadType.video, optional=True,
-                               tooltip="Film from ComfyUI/input (priority 3, used when nothing else is set)."),
+                               tooltip="Film from ComfyUI/input (priority 4, used when nothing else is set)."),
                 io.Combo.Input("format", optional=True, options=FORMATS, default=FORMATS[0],
                                tooltip="GIF plays everywhere; animated WebP is usually 3-5× smaller with more colours."),
                 io.Int.Input("long_side", optional=True, default=480, min=0, max=4096, step=16,
@@ -455,14 +464,14 @@ class InfiniteMovieGif(io.ComfyNode):
     @classmethod
     def execute(cls, format=FORMATS[0], long_side=480, crop="none", every_nth=2, auto_save=False, start=0.0,
                 end=0.0, speed=1.0, direction="forward", colors=256, dither=DITHERS[0], palette=PALETTES[0],
-                quality=80, repeat=0, max_mb=0.0, images=None, video_path="", file="(none)",
+                quality=80, repeat=0, max_mb=0.0, video=None, images=None, video_path="", file="(none)",
                 source_fps=0.0) -> io.NodeOutput:
         hidden = getattr(cls, "hidden", None)
         uid = str(hidden.unique_id) if hidden and hidden.unique_id is not None else ""
         rate = source_fps
         if images is not None and not rate:
             rate = loader_fps(getattr(hidden, "prompt", None), uid) or 24.0
-        src = _resolve_source(images, video_path, file, rate)
+        src = _resolve_source(video, images, video_path, file, rate)
         if uid:
             _LAST_SOURCE[uid] = os.path.abspath(src)
         p = gif_params(format=format, long_side=long_side, crop=crop, every_nth=every_nth, start=start, end=end,
