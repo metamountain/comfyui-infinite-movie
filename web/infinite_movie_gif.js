@@ -1,24 +1,30 @@
-// Infinite Movie · Movie to GIF – live preview in the node (2026-11-08).
+// Infinite Movie · Movie to GIF – live preview + save / save as… in the node (2026-11-08, 2026-11-12).
 // Every widget change (debounced) posts the values to /infinite_movie/gif_preview; the server renders a small,
-// short version into the temp folder. Connected video/images inputs can only be previewed after one Run
-// (the server then knows the source the node used: token = node id).
+// short version into the temp folder – nothing is saved. save / save as… render the full version with the same
+// values (/infinite_movie/gif_save), like Preview Image MM: save = next free name next to the source film (the
+// tooltip shows the exact path); save as… = the OS save dialog in that folder with that name filled in; from another
+// computer the browser's own save dialog, without one a name prompt (saved next to the source).
+// images from a VHS Load Video: the preview reads the loader's file with its frame settings (same frames as a Run);
+// images from any other node: preview after one Run (token = node id).
 import { app } from "../../scripts/app.js";
 import { api } from "../../scripts/api.js";
 
 const GIF_CLASS = "InfiniteMovieGif";
 const PREVIEW_H = 280;
 const INFO_H = 40;
-const PARAMS = ["format", "long_side", "crop", "fps", "start", "end", "speed", "direction", "colors", "dither",
-  "palette", "quality", "repeat"];
+const PARAMS = ["format", "long_side", "crop", "every_nth", "start", "end", "speed", "direction", "colors", "dither",
+  "palette", "quality", "repeat", "source_fps"];
 const GIF_ONLY = ["colors", "dither", "palette"];
 const WEBP_ONLY = ["quality"];
+const LOADER_KEYS = ["force_rate", "skip_first_frames", "select_every_nth", "frame_load_cap"];
 
-function wval(node, name) {
-  return node.widgets?.find((w) => w.name === name)?.value;
-}
+const wval = (node, name) => node.widgets?.find((w) => w.name === name)?.value;
+const linked = (node, name) => node.inputs?.some((i) => i.name === name && i.link != null);
 
-function linked(node, name) {
-  return node.inputs?.some((i) => i.name === name && i.link != null);
+function toast(severity, summary, detail) {
+  const t = app.extensionManager?.toast;
+  if (t?.add) t.add({ severity, summary, detail, life: severity === "error" ? 6000 : 3000 });
+  else console[severity === "error" ? "error" : "log"](`[Movie to GIF] ${summary}: ${detail}`);
 }
 
 function viewUrl(r) {
@@ -34,22 +40,28 @@ function setInfo(node, text, isError = false) {
 }
 
 function showImage(node, r) {
-  const url = viewUrl(r);
-  node._gif_img.src = url;
+  node._gif_img.src = viewUrl(r);
   node._gif_img.style.display = "block";
-  node._gif_dl.href = url;
-  node._gif_dl.download = r.filename;
-  node._gif_dl.style.display = "inline-block";
 }
 
-// Grey out GIF-only / WebP-only widgets so it is clear which ones apply to the chosen format.
-function updateFormatHints(node) {
+// Grey out widgets that do not apply: GIF-only / WebP-only, source_fps without a connected images input.
+function updateHints(node) {
   const webp = String(wval(node, "format") || "").startsWith("WebP");
+  const imgs = linked(node, "images");
   for (const w of node.widgets || []) {
     if (GIF_ONLY.includes(w.name)) w.disabled = webp;
     if (WEBP_ONLY.includes(w.name)) w.disabled = !webp;
+    if (w.name === "source_fps") w.disabled = !imgs;
   }
   node.setDirtyCanvas?.(true, true);
+}
+
+// Tooltip of save = the exact file the next save writes (like Preview Image MM).
+async function refreshTarget(node, body) {
+  const j = body ? await post("/infinite_movie/gif_target", body) : null;
+  node._gif_target = j?.ok ? j.target : "";
+  if (node._gif_save) node._gif_save.tooltip = node._gif_target ||
+    "next free name next to the source film (uploads and images: output/infinite_movie/gif)";
 }
 
 function schedule(node, delay = 500) {
@@ -57,10 +69,10 @@ function schedule(node, delay = 500) {
   node._gif_timer = setTimeout(() => refreshPreview(node), delay);
 }
 
-// Connected loader node (e.g. VHS Load Video: widget "video" = file in ComfyUI/input; Load Video (Path):
-// "video"/"video_path" = path) -> use its file directly in the live preview, without a Run.
+// Connected source node with a file widget -> its file directly, without a Run. VHS Load Video also hands on its
+// frame settings, so the preview shows the same frames a Run gets.
 function upstreamSource(node) {
-  for (const name of ["video", "video_path", "images"]) {
+  for (const name of ["images", "video_path"]) {
     const inp = node.inputs?.find((i) => i.name === name && i.link != null);
     if (!inp) continue;
     const link = node.graph?.links?.[inp.link] ?? node.graph?.links?.get?.(inp.link);
@@ -69,45 +81,122 @@ function upstreamSource(node) {
     const w = src.widgets?.find((x) => ["video", "video_path", "file", "path"].includes(x.name));
     const v = String(w?.value ?? "").trim();
     if (!v || v === "(none)") return null;
-    return /[\\/]/.test(v) || /^[a-zA-Z]:/.test(v) ? { video_path: v } : { file: v };
+    const out = /[\\/]/.test(v) || /^[a-zA-Z]:/.test(v) ? { video_path: v } : { file: v };
+    if (name === "images") {
+      if (!String(src.type || "").startsWith("VHS_LoadVideo")) return null;   // generator: frames exist only in a Run
+      out.loader = {};
+      for (const k of LOADER_KEYS) out.loader[k] = src.widgets?.find((x) => x.name === k)?.value ?? 0;
+    }
+    return out;
   }
   return null;
 }
 
-async function refreshPreview(node) {
-  updateFormatHints(node);
-  const viaInput = linked(node, "video") || linked(node, "images") || linked(node, "video_path");
-  const body = { params: {} };
+// Request body for preview and save: values + source. { body } or { message } when there is no source yet.
+function requestBody(node) {
+  const viaInput = linked(node, "images") || linked(node, "video_path");
+  const body = { params: {}, max_mb: wval(node, "max_mb") || 0 };
   for (const k of PARAMS) body.params[k] = wval(node, k);
   const up = viaInput ? upstreamSource(node) : null;
-  if (up) {
-    Object.assign(body, up);
-  } else if (viaInput) {
-    if (!node._gif_token) {
-      setInfo(node, "Connected input: press Run once – after that the preview follows every change.");
-      return;
-    }
+  if (up) return { body: Object.assign(body, up) };
+  if (viaInput) {
+    if (!node._gif_token) return { message: "Connected input: press Run once – after that the preview follows every change." };
     body.token = node._gif_token;
-  } else {
-    body.video_path = wval(node, "video_path") || "";
-    body.file = wval(node, "file") || "";
-    if (!body.video_path.trim() && (!body.file || body.file === "(none)")) {
-      setInfo(node, "Choose a file, enter a video_path or connect video / images.");
-      return;
-    }
+    return { body };
   }
+  body.video_path = wval(node, "video_path") || "";
+  body.file = wval(node, "file") || "";
+  if (!body.video_path.trim() && (!body.file || body.file === "(none)"))
+    return { message: "Choose a file, enter a video_path or connect images." };
+  return { body };
+}
+
+async function post(path, body) {
+  try {
+    const r = await api.fetchApi(path, { method: "POST", body: JSON.stringify(body) });
+    return r.ok ? await r.json() : { ok: false, message: `HTTP ${r.status}` };
+  } catch (e) {
+    return { ok: false, message: String(e?.message || e) };
+  }
+}
+
+async function refreshPreview(node) {
+  updateHints(node);
+  const { body, message } = requestBody(node);
+  refreshTarget(node, body);
+  if (!body) { setInfo(node, message); return; }
   const req = (node._gif_req = (node._gif_req || 0) + 1);
   setInfo(node, "Rendering preview …");
-  try {
-    const r = await api.fetchApi("/infinite_movie/gif_preview", { method: "POST", body: JSON.stringify(body) });
-    const res = r.ok ? await r.json() : { ok: false, message: `preview failed (HTTP ${r.status})` };
-    if (req !== node._gif_req) return;   // a newer request is already running
-    if (!res.ok) { setInfo(node, res.message || "preview failed", true); return; }
-    showImage(node, res);
-    setInfo(node, `Live: ${res.message}`);
-  } catch (e) {
-    if (req === node._gif_req) setInfo(node, `preview failed: ${e?.message || e}`, true);
+  const res = await post("/infinite_movie/gif_preview", body);
+  if (req !== node._gif_req) return;   // a newer request is already running
+  if (!res.ok) { setInfo(node, res.message || "preview failed", true); return; }
+  showImage(node, res);
+  setInfo(node, `Live (not saved): ${res.message}`);
+}
+
+async function save(node, saveAs = "", tempOnly = false) {
+  const { body, message } = requestBody(node);
+  if (!body) { toast("error", "Save", message); return null; }
+  body.save_as = saveAs;
+  body.temp_only = tempOnly;
+  node._gif_req = (node._gif_req || 0) + 1;   // a running preview must not overwrite the status
+  setInfo(node, "Rendering full version …");
+  const j = await post("/infinite_movie/gif_save", body);
+  if (!j.ok) { setInfo(node, j.message || "save failed", true); toast("error", "Save failed", j.message || ""); return null; }
+  showImage(node, j);
+  if (tempOnly) return j;
+  setInfo(node, `Saved: ${j.text}`);
+  toast("success", "Saved", j.path);
+  refreshTarget(node, body);   // the next free name is taken now
+  return j;
+}
+
+const PICK_TYPES = [
+  { description: "GIF", accept: { "image/gif": [".gif"] } },
+  { description: "WebP", accept: { "image/webp": [".webp"] } },
+];
+
+async function saveAs(node) {
+  const { body, message } = requestBody(node);
+  if (!body) { toast("error", "Save as", message); return; }
+  const suggested = String(node._gif_target || "").replace(/\\/g, "/").split("/").pop() || "movie.gif";
+  // the normal OS "save as" dialog (browser on the ComfyUI computer), starts in the folder save would use
+  const d = await post("/infinite_movie/gif_dialog", body);
+  if (d.ok) {
+    if (d.path) await save(node, d.path);
+    return;
   }
+  if (d.local !== false) { toast("error", "Save as", d.message || "failed"); return; }
+  // browser on another computer: the browser's own save dialog
+  if (typeof window.showSaveFilePicker === "function") {
+    let handle;
+    try {
+      handle = await window.showSaveFilePicker({ id: "infinite-movie-gif", suggestedName: suggested, types: PICK_TYPES });
+    } catch (e) {
+      if (e?.name !== "AbortError") toast("error", "Save as", String(e));
+      return;
+    }
+    const j = await save(node, "", true);
+    if (!j) return;
+    try {
+      const blob = await (await fetch(viewUrl(j))).blob();
+      const wr = await handle.createWritable();
+      await wr.write(blob);
+      await wr.close();
+      setInfo(node, `Saved: ${j.text}`);
+      toast("success", "Saved", handle.name);
+    } catch (e) {
+      toast("error", "Save failed", String(e));
+    }
+    return;
+  }
+  // no file dialog (plain http on a LAN address): ask for a name, saved next to the source
+  const stem = suggested.replace(/\.[^.]+$/, "");
+  let name = "";
+  const prompt = app.extensionManager?.dialog?.prompt;
+  if (typeof prompt === "function") name = await prompt({ title: "Save as (next to the source)", message: "File name", defaultValue: stem });
+  else name = window.prompt("Save as (next to the source):", stem);
+  if (name != null && String(name).trim() !== "") await save(node, String(name).trim());
 }
 
 function buildWidget(node) {
@@ -116,23 +205,24 @@ function buildWidget(node) {
   const img = document.createElement("img");
   img.style.cssText = `width:100%;height:${PREVIEW_H}px;object-fit:contain;background:#111;border-radius:3px;display:none;`;
   img.alt = "GIF preview";
-  const row = document.createElement("div");
-  row.style.cssText = `min-height:${INFO_H}px;display:flex;align-items:center;gap:6px;`;
   const info = document.createElement("div");
-  info.style.cssText = "flex:1;font:12px sans-serif;color:#bbb;word-break:break-word;";
-  const dl = document.createElement("a");
-  dl.textContent = "⬇ Download";
-  dl.title = "Download the image shown above";
-  dl.style.cssText = "display:none;padding:3px 10px;font:bold 12px sans-serif;border-radius:4px;border:1px solid #555;" +
-    "background:#333;color:#fff;text-decoration:none;white-space:nowrap;";
-  row.appendChild(info); row.appendChild(dl);
-  el.appendChild(img); el.appendChild(row);
-  node._gif_img = img; node._gif_info = info; node._gif_dl = dl;
+  info.style.cssText = `min-height:${INFO_H}px;font:12px sans-serif;color:#bbb;word-break:break-word;`;
+  el.appendChild(img); el.appendChild(info);
+  node._gif_img = img; node._gif_info = info;
   node.addDOMWidget("gif_preview", "div", el, {
     serialize: false,
     getMinHeight: () => PREVIEW_H + INFO_H + 8,
     getMaxHeight: () => PREVIEW_H + INFO_H + 8,
   });
+  const mk = (label, cb, tip) => {
+    const b = node.addWidget("button", label, null, cb);
+    b.serialize = false;
+    b.options = { ...(b.options || {}), serialize: false };
+    b.tooltip = tip;
+    return b;
+  };
+  node._gif_save = mk("save", () => save(node), "");
+  mk("save as…", () => saveAs(node), "choose folder and name (system save dialog, starts where save would write)");
 }
 
 app.registerExtension({
@@ -149,23 +239,8 @@ app.registerExtension({
         const cb = w.callback;
         w.callback = (...a) => { const x = cb?.apply(w, a); schedule(this); return x; };
       }
-      // 💾 Save as… (folder browser from infinite_movie.js, like Settings > output_folder)
-      const of = this.widgets?.find((w) => w.name === "output_folder");
-      if (of && !this.widgets.some((w) => w.name === "💾 Save as…")) {
-        const btn = this.addWidget("button", "💾 Save as…", null, async () => {
-          if (!window.fcPickFolder) return;
-          const path = await window.fcPickFolder(String(of.value ?? ""));
-          if (path) { of.value = path; of.callback?.(of.value); this.setDirtyCanvas(true, true); }
-        });
-        btn.serialize = false;
-        btn.tooltip = "Choose where the GIF is saved (folder browser on the ComfyUI computer). Empty output_folder = ComfyUI output folder.";
-        // Insert the button directly below output_folder
-        const i = this.widgets.indexOf(of);
-        this.widgets.splice(this.widgets.indexOf(btn), 1);
-        this.widgets.splice(i + 1, 0, btn);
-      }
       schedule(this, 800);   // after loading (widget values are set)
-      // File changed in the connected loader node -> new preview (its widgets do not know about us)
+      // File or frame settings changed in the connected loader node -> new preview (its widgets do not know us)
       this._gif_up = "";
       this._gif_poll = setInterval(() => {
         if (!this.graph) { clearInterval(this._gif_poll); return; }
@@ -190,7 +265,7 @@ app.registerExtension({
       if (res) {
         if (res.token) this._gif_token = res.token;
         showImage(this, res);
-        setInfo(this, `Saved: ${res.text}`);
+        setInfo(this, res.saved ? `Saved: ${res.text} – ${res.saved}` : `Run (not saved – use save): ${res.text}`);
       }
       return r;
     };
