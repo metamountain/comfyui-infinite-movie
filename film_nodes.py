@@ -132,7 +132,41 @@ def _images_to_mp4(images, audio, fps: float) -> str:
 
 # "Open folder" (user 2026-11-03): Explorer with the film highlighted. ComfyUI listens on the LAN (--listen) -
 # therefore ONLY paths this node itself reported (_SHOWN), existing files, without a shell.
+# 2026-11-13: _SHOWN is kept in user/infinite_movie_shown.json (last 500), otherwise 📂 failed after a ComfyUI restart
+# for the film the preview still shows (node.properties.im_recent survives the restart, the memory did not).
 _SHOWN: set[str] = set()
+_SHOWN_ORDER: list[str] = []
+_SHOWN_MAX = 500
+
+
+def _shown_file() -> str:
+    import folder_paths
+    return os.path.join(folder_paths.get_user_directory(), "infinite_movie_shown.json")
+
+
+def _shown_load() -> None:
+    try:
+        with open(_shown_file(), encoding="utf-8") as f:
+            items = [str(x).lower() for x in json.load(f)][-_SHOWN_MAX:]
+    except Exception:  # noqa: BLE001 - no file yet / unreadable -> start empty
+        return
+    _SHOWN_ORDER[:] = items
+    _SHOWN.update(items)
+
+
+def _shown_add(path: str) -> None:
+    key = os.path.abspath(path).lower()
+    if key in _SHOWN:
+        return
+    _SHOWN.add(key)
+    _SHOWN_ORDER.append(key)
+    while len(_SHOWN_ORDER) > _SHOWN_MAX:
+        _SHOWN.discard(_SHOWN_ORDER.pop(0))
+    try:
+        with open(_shown_file(), "w", encoding="utf-8") as f:
+            json.dump(_SHOWN_ORDER, f)
+    except Exception as e:  # noqa: BLE001 - the button then only works until the next restart
+        print(f"[InfiniteMovieFilm] could not save {_shown_file()}: {e}")
 
 
 def _register_open_route():
@@ -156,6 +190,10 @@ def _register_open_route():
 
 
 _register_open_route()
+try:
+    _shown_load()
+except Exception:  # noqa: BLE001 - without ComfyUI (unit tests) no user directory
+    pass
 
 
 class InfiniteMovieFilm(io.ComfyNode):
@@ -199,7 +237,7 @@ class InfiniteMovieFilm(io.ComfyNode):
                 path = ""   # nothing connected -> no error, status line only
         info = film_info(path)
         if info.get("exists"):
-            _SHOWN.add(os.path.abspath(path).lower())
+            _shown_add(path)
         print(f"[InfiniteMovieFilm] {info['status']}")
         from comfy_api.latest import InputImpl
         return io.NodeOutput(InputImpl.VideoFromFile(path) if info.get("exists") else None,

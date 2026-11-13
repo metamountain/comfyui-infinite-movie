@@ -60,7 +60,8 @@ export function fcFilmRender(node) {
       if (!p) return;
       try {
         const r = await api.fetchApi("/infinite_movie/open_folder", { method: "POST", body: JSON.stringify({ path: p }) });
-        if (!r.ok) fcReviewToast("Open folder failed (run the workflow first)");
+        if (r.status === 403) fcReviewToast("Open folder: the server does not know this film (file moved or deleted?) - run the node again");
+        else if (!r.ok) fcReviewToast("Open folder failed");
       } catch (e) { fcReviewToast("Open folder failed"); }
     });
     const status = document.createElement("div");
