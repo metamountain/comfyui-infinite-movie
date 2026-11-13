@@ -28,14 +28,6 @@ export function fcChooseQuality(v, e) {
   return q;
 }
 export const FC_CHOOSE_STATUS_H = 26, FC_CHOOSE_BIG_H = 44;
-// 115: big preview field (video with sound) at the bottom of the chooser.
-// 116c2 (user: „möglichst groß, eher square“): no fixed height – the play field is SQUARE:
-// height = inner width of the Cut DOM area (node width minus the 20 px DOM margin), min 256.
-// Recomputed in fcChooseLayout on every size change; video keeps object-fit:contain.
-export function fcChoosePlayH(node) {
-  const w = node?.size?.[0] ?? 0;
-  return Math.max(256, w - FC_CHOOSE_PAD);
-}
 export const FC_CHOOSE_SEAM_H = 84;   // 2026-11-08: seam row (last image of this shot | first image of the next)
 
 // 2026-11-08 (user: couple chooser + Assemble): show the shot in the Assemble viewer (click on the shot header
@@ -153,17 +145,11 @@ export function fcChooseLayout(node, entries) {
   const seamH = entries.some((e) => !e.placeholder && e.seam_next) ? FC_CHOOSE_SEAM_H + FC_CHOOSE_GAP : 0;
   const colH = FC_CHOOSE_HEAD_H + v * (tileH + FC_CHOOSE_GAP + FC_CHOOSE_STAT_H) + seamH + (entries[0]?.placeholder ? 0 : FC_CHOOSE_BTNROW_H + FC_CHOOSE_GAP);
   const sheet = fcChooseSheetSize(entries);
-  // 116c2: square play field (fcChoosePlayH) + the imv viewer below it (same constant as in
-  // imvEnsure: IMV_H + 96 + 20) – the node height must cover both, otherwise they overlap.
-  const playH = fcChoosePlayH(node);
+  // The imv viewer below (same constant as in imvEnsure: IMV_H + 96 + 20) – the node height must cover it.
+  // 2026-11-13: no play field in Cut any more – shots and the film play in the Film node below Cut.
   const domH = (entries.length ? colH : 0) + FC_CHOOSE_GAP + FC_CHOOSE_STATUS_H + FC_CHOOSE_GAP + FC_CHOOSE_BIG_H + 8
-    + (sheet ? FC_CHOOSE_GAP + sheet[1] : 0) + FC_CHOOSE_GAP + 20 + playH + IMV_H + 96 + 20;  // 20 = play title row
-  // 116c2: apply the square height to the video/hint divs on every layout change.
-  if (node._fc_play) {
-    node._fc_play.video.style.height = playH + "px";
-    node._fc_play.hint.style.height = playH + "px";
-  }
-  return { colW, tileH, domH, sheet, playH };
+    + (sheet ? FC_CHOOSE_GAP + sheet[1] : 0) + FC_CHOOSE_GAP + IMV_H + 96 + 20;
+  return { colW, tileH, domH, sheet };
 }
 // 2026-11-08 (user: „dont like 3x3 in same window … put them to bottom“, then „2x 3x3 at the bottom side by side, i.e.
 // under each image“): at the bottom of the chooser a row of 3×3 sheets, per shot exactly under its column (same width).
@@ -366,15 +352,19 @@ export function fcChoosePick(node, i, letter) {
   fcChooseRender(node);
 }
 
-// 115: play one shot's full video (with sound) in the big preview field at the bottom of the chooser.
+// 115 / 2026-11-13 (user: "the play field comes out of Cut; the player below with a switch single shot or whole
+// film"): ▶ play shows the shot in the Film node(s) fed by this Cut (switched to Shot).
 export function fcChoosePlay(node, number, letter, ref) {
-  const p = node._fc_play;
-  if (!p || !ref) return;
-  p.video.src = fcChooseStableUrl(ref);
-  p.video.style.display = "block";
-  p.hint.style.display = "none";
-  p.title.textContent = `Shot ${number}${letter ? " · " + letter : ""}`;
-  p.video.muted = false;
-  p.video.play().catch(() => {});
+  if (!ref) return;
+  const g = node.graph || app.graph;
+  const linkOf = (id) => g?.links?.[id] ?? g?.links?.get?.(id);
+  const films = [];
+  for (const o of node.outputs || []) for (const lid of o.links || []) {
+    const t = g?.getNodeById(linkOf(lid)?.target_id);
+    if (t?.comfyClass === "InfiniteMovieFilm") films.push(t);
+  }
+  if (!films.length) { fcReviewToast("Connect Cut's video_path to a Film node to play shots there.", "#d93025"); return; }
+  const title = `Shot ${number}${letter ? " · " + letter : ""}`;
+  for (const f of films) window.fcFilmShowShot?.(f, { url: fcChooseStableUrl(ref), title });
 }
 

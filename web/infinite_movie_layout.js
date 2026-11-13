@@ -137,6 +137,22 @@ export function fcWorkflowLayout(director, second = false) {
   const prompts = linkedOrigins(g, director, "shot_prompts.");
   for (const p of byType("InfiniteMovieAutoPrompt")) if (!prompts.includes(p)) prompts.push(p);
   const G = (re) => findGroup(groups.filter((x) => !isEngineGroup(x)), re);
+  // 2026-11-13 (user: "the finished film below in our Film node, the same in 6 7 8", "6 7 8 all players square, 6 7 8
+  // the same width"): Cut / Even Motion / Upscale on top, a Film node with a SQUARE player at the bottom of each group;
+  // groups 6, 7, 8 share one inner width (the widest of Cut, Even Motion, the Upscale block).
+  const isFilm = (n) => n.comfyClass === "InfiniteMovieFilm";
+  const upBlock = upMembers.filter((n) => !isFilm(n)), upFilms = upMembers.filter(isFilm);
+  const linkAt = (id) => g.links?.[id] ?? g.links?.get?.(id);
+  const filmSrc = (f) => { const i = (f.inputs || []).find((x) => x.link != null); const l = i && linkAt(i.link); return l ? g.getNodeById(l.origin_id) : null; };
+  const allFilms = byType("InfiniteMovieFilm");
+  const cutFilms = allFilms.filter((f) => filmSrc(f)?.comfyClass === "InfiniteMovieChooser");
+  const asmFilms = allFilms.filter((f) => !cutFilms.includes(f));
+  const asm = byType("InfiniteMovieAssemble"), cut = byType("InfiniteMovieChooser");
+  const blockW = upBlock.length ? Math.max(...upBlock.map((n) => n.pos[0] + n.size[0])) - Math.min(...upBlock.map((n) => n.pos[0])) : 0;
+  const inner678 = Math.max(MINW - 2 * PAD, ...cut.map((n) => n.size[0]), blockW);
+  for (const a of asm) a.size = [inner678, a.computeSize()[1]];
+  // square player: width first, then the height follows from the Film node's getMinHeight (side = width - 20)
+  for (const f of [...cutFilms, ...asmFilms, ...upFilms]) { f.size = [inner678, f.size[1]]; f.size = [inner678, f.computeSize()[1]]; }
   // ONE row, order = numbers 2…7
   // 2026-11-11: help note "Story Mode …" sits right under the Story Mode node (not with the README)
   const storyHelp = byType("InfiniteMovieStoryMode").length ? allNotes.filter((n) => /story mode/i.test(n.title || "")) : [];
@@ -145,29 +161,9 @@ export function fcWorkflowLayout(director, second = false) {
     [G(/images/i), imgRows.flat()],
     [G(/prompt/i), [...byType("InfiniteMovieStyle"), ...prompts]],
     [G(/director/i), [director]],
-    [G(/cut|choose/i), byType("InfiniteMovieChooser")],
-    [G(/even motion|assemble/i), [...byType("InfiniteMovieAssemble"), ...byType("InfiniteMovieFilm")], false],
+    [G(/cut|choose/i), [...cut, ...cutFilms], false],
+    [G(/even motion|assemble/i), [...asm, ...asmFilms], false],
   ];
-  // 2026-11-11 (user: "7-8 same width, preview below, square"): Assemble / Upscale on top, the Film player below
-  // with a square video (fits portrait and landscape), groups 7 and 8 equally wide.
-  const FILM_SIDE = 20, FILM_EXTRA = 152;   // measured: Film node 400×622 -> video 380×470
-  const isFilm = (n) => n.comfyClass === "InfiniteMovieFilm";
-  const upBlock = upMembers.filter((n) => !isFilm(n)), upFilms = upMembers.filter(isFilm);
-  const asmFilms = byType("InfiniteMovieFilm"), asm = byType("InfiniteMovieAssemble");
-  const blockW = upBlock.length ? Math.max(...upBlock.map((n) => n.pos[0] + n.size[0])) - Math.min(...upBlock.map((n) => n.pos[0])) : 0;
-  const inner78 = Math.max(MINW - 2 * PAD, ...asm.map((n) => n.size[0]), blockW);
-  for (const f of [...asmFilms, ...upFilms]) f.size = [inner78, inner78 - FILM_SIDE + FILM_EXTRA];
-  // 2026-11-13 (user: "Assemble height = Choose height, old (before the play field)"): Assemble as tall as Choose
-  // without its big play field (20 title + 512 video + 4 gap); the analysis graph image fills the extra height.
-  const ch = byType("InfiniteMovieChooser")[0];
-  if (ch) {
-    // Cut without its big (square, 116c2) play field and its analysis viewer – both measured, not fixed numbers
-    const domH = (el) => (el && el.offsetHeight ? el.offsetHeight + 4 : 0);
-    const chooseH = ch.size[1] - domH(ch._fc_play?.box) - (ch._imv ? 480 + 96 + 20 + 4 : 0);
-    for (const a of asm) a.size = [a.size[0], Math.max(a.computeSize()[1], chooseH)];
-  }
-  // 2026-11-13 (user: "Assemble as wide as the group"): same width as the Film player below it
-  for (const a of asm) a.size = [inner78, a.size[1]];
   const used = new Set([...engineHelp, upHelp, gifHelp, ...storyHelp].filter(Boolean));
   const rowHelp = row.map(([grp]) => {
     const h = grp && allNotes.find((n) => isHelp(n) && !used.has(n) && helpFits(n, grp));
@@ -274,17 +270,23 @@ export function fcWorkflowLayout(director, second = false) {
     const blockH = Math.max(...ms.map((n) => n.pos[1] + n.size[1])) - Math.min(...ms.map((n) => n.pos[1] - T));
     upNeed = HEAD + helpH(upHelp) + blockH + (upBlock.length ? upFilms.reduce((s, f) => s + NGAP + T + f.size[1], 0) : 0) + PAD;
   }
-  const H = Math.max(...sizes.map((s) => s[1]), bottom - Y + PAD, upNeed);
+  // 9 GIF: width = 6/7/8 (square preview), its full height counts for the row height too
+  let gifNeed = 0;
+  if (gifGrp && gifNodes.length) {
+    for (const n of gifNodes) { n.size = [inner678, n.size[1]]; n.size = [inner678, n.computeSize()[1]]; }
+    gifNeed = HEAD + helpH(gifHelp) + gifNodes.reduce((s, n) => s + T + n.size[1] + NGAP, 0) + PAD;
+  }
+  const H = Math.max(...sizes.map((s) => s[1]), bottom - Y + PAD, upNeed, gifNeed);
   row.forEach(([grp, ns], k) => { if (grp && (ns.length || grp)) grp.size = [sizes[k][0], H]; });
-  // Film player(s) of 7 sit at the bottom edge of the group (user: "films at the bottom")
-  { let b = Y + H - PAD; for (const f of [...asmFilms].reverse()) { f.pos = [f.pos[0], b - f.size[1]]; b -= T + f.size[1] + NGAP; } }
+  // Film player(s) of 6 and 7 sit at the bottom edge of their group (user: "films at the bottom")
+  for (const fs of [cutFilms, asmFilms]) { let b = Y + H - PAD; for (const f of [...fs].reverse()) { f.pos = [f.pos[0], b - f.size[1]]; b -= T + f.size[1] + NGAP; } }
   // 8 Upscale right of 7, content as a block, help centered on top, same height as the row
   if (upGrp && upMembers.length) {
     // block = loaders + upscaler as they are arranged; the Film player(s) below it (same width as group 7)
     const ms = upBlock.length ? upBlock : upMembers;
     const minX = Math.min(...ms.map((n) => n.pos[0])), minY = Math.min(...ms.map((n) => n.pos[1] - T));
     const maxY = Math.max(...ms.map((n) => n.pos[1] + n.size[1]));
-    const w = Math.max(MINW, inner78 + 2 * PAD);
+    const w = Math.max(MINW, inner678 + 2 * PAD);
     if (upHelp) upHelp.size = [w - 2 * PAD, HH];
     if (upHelp) upHelp.pos = [x + (w - upHelp.size[0]) / 2, Y + HEAD + T];
     const dx = x + PAD - minX, dy = Y + HEAD + helpH(upHelp) - minY;
@@ -298,11 +300,17 @@ export function fcWorkflowLayout(director, second = false) {
   // 9 Movie to GIF right of 8 (or of 7 without Upscale): help on top, GIF node(s) one under another, row height
   if (gifGrp && gifNodes.length) {
     const gx = upGrp && upMembers.length ? upGrp.pos[0] + upGrp.size[0] + GAP : x;
-    const w = Math.max(MINW, ...gifNodes.map((n) => n.size[0] + 2 * PAD));
-    for (const n of gifNodes) n.size = [w - 2 * PAD, n.size[1]];
+    // user 2026-11-13: "4 equal squares, 3x video, 1x image preview" -> same width as 6/7/8, the GIF node (square
+    // preview at its bottom) sits at the bottom edge of the group, level with the Film players
+    const w = Math.max(MINW, inner678 + 2 * PAD);
     if (gifHelp) { gifHelp.size = [w - 2 * PAD, HH]; gifHelp.pos = [gx + PAD, Y + HEAD + T]; }
+    // user 2026-11-13 ("make the gif node big"): settings start under the help, the (last) GIF node is stretched to the
+    // bottom edge - its preview sits at the bottom of the node, level with the Film players
     let gy = Y + HEAD + helpH(gifHelp) + T;
-    for (const n of gifNodes) { n.pos = [gx + (w - n.size[0]) / 2, gy]; gy += n.size[1] + NGAP + T; }
+    gifNodes.forEach((n, k) => {
+      if (k === gifNodes.length - 1) n.size = [inner678, Math.max(n.size[1], Y + H - PAD - gy)];
+      n.pos = [gx + PAD, gy]; gy += n.size[1] + NGAP + T;
+    });
     gifGrp.pos = [gx, Y];
     gifGrp.size = [w, H];
   }

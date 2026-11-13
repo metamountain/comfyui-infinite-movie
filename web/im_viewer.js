@@ -21,7 +21,6 @@ const IMV_TABS = ["Graph", "Timeline", "Heatmap", "Frames", "Particles", "Sheet"
 // timeline: null, no graph). Start tab = first entry. Code assuming Graph/Timeline never
 // runs in Cut because those tabs do not exist there.
 function imvTabs(node) {
-  if (node?.comfyClass === "InfiniteMovieAssemble") return ["Graph", "Timeline"];
   if (node?.comfyClass === "InfiniteMovieChooser") return ["Heatmap", "Frames", "Particles", "Sheet"];
   return IMV_TABS;
 }
@@ -392,13 +391,6 @@ export function imvDraw(node) {
   node.setDirtyCanvas(true, true);
 }
 
-function setGraph(node, im) {
-  const st = imvEnsure(node);
-  const img = new Image();
-  img.onload = () => { st.graph = img; imvDraw(node); };
-  img.src = viewUrl(im);
-  if (im.timeline && im.viz_subfolder) st.liveTimeline = { subfolder: im.viz_subfolder, filename: im.timeline };
-}
 
 app.registerExtension({
   name: "InfiniteMovie.NormalizeTimeLiveGraph",
@@ -409,6 +401,13 @@ app.registerExtension({
       // 116c2: Cut (Chooser) also delivers im_viz (review_nodes.py:771) -> same viewer treatment,
       // but without setGraph/normalize_graph (no graph output there).
       if (node?.comfyClass !== "InfiniteMovieAssemble" && node?.comfyClass !== "InfiniteMovieChooser") return;
+      // 2026-11-13 (user: "remove preview from assemble"): Even Motion has no viewer any more – the film is shown by
+      // the Film node below it; only the film-done notice stays.
+      if (node.comfyClass === "InfiniteMovieAssemble") {
+        const fi0 = d.output?.film_info?.[0];
+        if (fi0) { node._fc_film_done = fi0; imFilmDoneNotice(node, fi0); }
+        return;
+      }
       const viz = d.output?.im_viz?.[0];
       if (viz) {
         node.properties = node.properties || {};
@@ -428,39 +427,9 @@ app.registerExtension({
       // ui["film_info"] from Cut (review_nodes.py) and Even Motion (retime_nodes.py).
       const fi = d.output?.film_info?.[0];
       if (fi && !fe) { node._fc_film_done = fi; imFilmDoneNotice(node, fi); }
-      const im = d.output?.images?.[0];
-      if (node.comfyClass === "InfiniteMovieAssemble" && im) setGraph(node, im);
-      else imvDraw(node);
-      if (node.comfyClass === "InfiniteMovieChooser") fcChooseStatus(node);
+      imvDraw(node);
+      fcChooseStatus(node);
     });
-  },
-  nodeCreated(node) {
-    if (node.comfyClass !== "InfiniteMovieAssemble") return;
-    imvEnsure(node);
-    setTimeout(() => imvDraw(node), 300);
-    const onResize = node.onResize;
-    node.onResize = function (...args) {
-      const r = onResize?.apply(this, args);
-      clearTimeout(this._imvRz);
-      this._imvRz = setTimeout(() => imvDraw(this), 120);
-      return r;
-    };
-    const redraw = async () => {
-      try {
-        const r = await fetch("/infinite_movie/normalize_graph", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ node_id: String(node.id) }),  // 110: strength/keep are fixed in Python
-        });
-        const j = await r.json();
-        if (!r.ok) return; // no run yet: nothing to draw
-        setGraph(node, j);
-      } catch (e) {
-        console.warn("[InfiniteMovie] normalize graph:", e);
-      }
-    };
-    // after loading the workflow: fetch the graph of the last run (if the server still knows it)
-    setTimeout(redraw, 1500);
   },
 });
 

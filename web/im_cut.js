@@ -1,7 +1,7 @@
 import { app } from "../../scripts/app.js";
 import { FC_REVIEW_LINE_COLORS, IMG, fcQueueFixedSeeds, fcReviewToast, fcShotSecondsOf } from "./im_common.js";
 import { fcChooseDirectorOf, fcChooseEditPrompt, fcChooseEditSeconds, fcRerenderMarked } from "./im_cut_edit.js";
-import { FC_CHOOSE_BIG_H, FC_CHOOSE_BTNROW_H, FC_CHOOSE_GAP, FC_CHOOSE_HEAD_H, FC_CHOOSE_SEAM_H, FC_CHOOSE_STATUS_H, FC_CHOOSE_STAT_H, fcAsmFocus, fcChooseApplyActive, fcChooseEff, fcChooseEffective, fcChooseEntries, fcChooseFocus, fcChooseGetChoices, fcChooseLayout, fcChoosePick, fcChoosePlay, fcChoosePlayH, fcChooseQuality, fcChooseSig, fcChooseStableUrl, fcChooseStatus, fcChooseUpdateSheet, fcChooseWidth, fcRun } from "./im_cut_state.js";
+import { FC_CHOOSE_BIG_H, FC_CHOOSE_BTNROW_H, FC_CHOOSE_GAP, FC_CHOOSE_HEAD_H, FC_CHOOSE_SEAM_H, FC_CHOOSE_STATUS_H, FC_CHOOSE_STAT_H, fcAsmFocus, fcChooseApplyActive, fcChooseEff, fcChooseEffective, fcChooseEntries, fcChooseFocus, fcChooseGetChoices, fcChooseLayout, fcChoosePick, fcChoosePlay, fcChooseQuality, fcChooseSig, fcChooseStableUrl, fcChooseStatus, fcChooseUpdateSheet, fcChooseWidth, fcRun } from "./im_cut_state.js";
 import { fcDownstreamOutputs } from "./im_film.js";
 import { imToggleWidget } from "./im_settings.js";
 import { imvDraw } from "./im_viewer.js";
@@ -169,7 +169,7 @@ export function fcChooseRender(node) {
           pb.textContent = "▶ play";
           pb.style.cssText = "flex:0 0 auto;padding:0 8px;height:20px;line-height:20px;font:bold 12px sans-serif;" +
             "color:#fff;background:#1f6feb;border-radius:3px;cursor:pointer;";
-          pb.title = "Play this video with sound in the big preview below";
+          pb.title = "Play this shot with sound in the Film player below Cut (switches it to Shot)";
           pb.addEventListener("click", (ev) => {
             ev.stopPropagation();
             fcChoosePlay(node, e.number, e.has_variants ? k.toUpperCase() : "", v.video);
@@ -309,52 +309,12 @@ export function fcChooseRender(node) {
     fcChooseUpdateSheet(node);
   }
 
-  // 115: big preview field at the very bottom. Built ONCE (node._fc_play) and re-appended here –
-  // el.innerHTML="" above dropped it; re-adding the SAME element in the same synchronous pass
-  // keeps a running video playing.
-  if (!node._fc_play) {
-    const box = document.createElement("div");
-    box.style.cssText = "width:100%;display:flex;flex-direction:column;gap:0;";
-    const trow = document.createElement("div");
-    trow.style.cssText = "height:20px;display:flex;align-items:center;gap:6px;";
-    const title = document.createElement("span");
-    title.style.cssText = "flex:1;min-width:0;font:bold 13px sans-serif;color:#ccc;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;";
-    // 116b4: "▶ film" – the built film (with sound) in the preview field; shown once the film ref is known.
-    const fbtn = document.createElement("div");
-    fbtn.textContent = "▶ film";
-    fbtn.style.cssText = "flex:0 0 auto;padding:0 8px;height:20px;line-height:20px;font:bold 12px sans-serif;" +
-      "color:#fff;background:#1f6feb;border-radius:3px;cursor:pointer;display:none;";
-    fbtn.title = "Play the built film with sound in the big preview below";
-    fbtn.addEventListener("click", () => {
-      fcChoosePlay(node, "", "", node._fc_film_ref);
-      node._fc_play.title.textContent = "Film";
-    });
-    trow.appendChild(title); trow.appendChild(fbtn);
-    const video = document.createElement("video");
-    video.controls = true; video.loop = true; video.playsInline = true;
-    video.style.cssText = `width:100%;height:${fcChoosePlayH(node)}px;object-fit:contain;background:#000;display:none;`;
-    const hint = document.createElement("div");
-    hint.style.cssText = `height:${fcChoosePlayH(node)}px;display:flex;align-items:center;justify-content:center;` +
-      "background:#000;color:#888;font:14px sans-serif;";
-    hint.textContent = "▶ play under a shot shows it here – big, with sound";
-    box.appendChild(trow); box.appendChild(video); box.appendChild(hint);
-    node._fc_play = { box, trow, title, video, hint, fbtn };
-  }
-  el.appendChild(node._fc_play.box);
 
   fcChooseStatus(node);
   fcChooseApplyActive(node);
   // Width = all shots (fixed image size), height = content.
   const want = [fcChooseWidth(entries.length), node.computeSize()[1]];
   if (Math.abs(node.size[0] - want[0]) > 1 || Math.abs(node.size[1] - want[1]) > 1) node.setSize(want);
-  // 116c2: the square play-field height depends on the node width – on the first render
-  // fcChooseLayout ran before _fc_play existed, and a width change here changes the height;
-  // re-apply it to the video/hint divs.
-  if (node._fc_play) {
-    const ph = fcChoosePlayH(node) + "px";
-    node._fc_play.video.style.height = ph;
-    node._fc_play.hint.style.height = ph;
-  }
   node.setDirtyCanvas(true, true);
 }
 
@@ -376,11 +336,7 @@ app.registerExtension({
       this._fc_choose_entries = (message && message.infinite_movie_choose) || [];
       this._fc_choose_active = -1;
       this._fc_redo_pending = null;   // new variants are there
-      // 116b4: Cut wrote the film -> remember the ref, show "▶ film" in the preview title row.
-      if (message?.film?.[0]) {
-        this._fc_film_ref = message.film[0];
-        if (this._fc_play) this._fc_play.fbtn.style.display = "";
-      }
+      if (message?.film?.[0]) this._fc_film_ref = message.film[0];
       // Live run: film not built yet (set by Film/Assemble first). Restored on page load
       // (no run active): the film already exists -> not green „FILM“ again.
       this._fc_choose_ran = fcRun.running ? null : fcChooseEffective(this).join(",");

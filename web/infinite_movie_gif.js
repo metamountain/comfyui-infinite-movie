@@ -10,7 +10,9 @@ import { app } from "../../scripts/app.js";
 import { api } from "../../scripts/api.js";
 
 const GIF_CLASS = "InfiniteMovieGif";
-const PREVIEW_H = 280;
+// 2026-11-13 (user: "4 equal squares, 3x video, 1x image preview"): square preview, side = node width - 20
+// (same as the Film node, im_film.js fcFilmSide), at the bottom of the node.
+const gifSide = (node) => Math.max(360, (node.size?.[0] || 380) - 20);
 const INFO_H = 40;
 const PARAMS = ["format", "long_side", "crop", "speed", "fps", "start", "end", "direction", "colors", "dither",
   "palette", "quality", "source_fps", "output_folder", "filename"];
@@ -203,19 +205,14 @@ async function saveAs(node) {
 
 function buildWidget(node) {
   const el = document.createElement("div");
-  el.style.cssText = "width:100%;display:flex;flex-direction:column;gap:4px;";
+  el.style.cssText = "width:100%;height:100%;display:flex;flex-direction:column;justify-content:flex-end;gap:4px;";  // stretched node: preview stays at the bottom
   const img = document.createElement("img");
-  img.style.cssText = `width:100%;height:${PREVIEW_H}px;object-fit:contain;background:#111;border-radius:3px;display:none;`;
+  img.style.cssText = "width:100%;aspect-ratio:1/1;flex:none;object-fit:contain;background:#111;border-radius:3px;display:block;";
   img.alt = "GIF preview";
   const info = document.createElement("div");
   info.style.cssText = `min-height:${INFO_H}px;font:12px sans-serif;color:#bbb;word-break:break-word;`;
   el.appendChild(img); el.appendChild(info);
   node._gif_img = img; node._gif_info = info;
-  node.addDOMWidget("gif_preview", "div", el, {
-    serialize: false,
-    getMinHeight: () => PREVIEW_H + INFO_H + 8,
-    getMaxHeight: () => PREVIEW_H + INFO_H + 8,
-  });
   const mk = (label, cb, tip) => {
     const b = node.addWidget("button", label, null, cb);
     b.serialize = false;
@@ -225,6 +222,11 @@ function buildWidget(node) {
   };
   node._gif_save = mk("save", () => save(node), "");
   mk("save as…", () => saveAs(node), "choose folder and name (system save dialog, starts where save would write)");
+  // preview last = at the bottom of the node (like the Film player)
+  node.addDOMWidget("gif_preview", "div", el, {
+    serialize: false,
+    getMinHeight: () => gifSide(node) + INFO_H + 8,   // no max: a taller node (layout) gives the extra space here
+  });
 }
 
 app.registerExtension({
