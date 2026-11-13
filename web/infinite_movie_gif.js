@@ -13,7 +13,7 @@ const GIF_CLASS = "InfiniteMovieGif";
 // 2026-11-13 (user: "4 equal squares, 3x video, 1x image preview"): square preview, side = node width - 20
 // (same as the Film node, im_film.js fcFilmSide), at the bottom of the node.
 const gifSide = (node) => Math.max(360, (node.size?.[0] || 380) - 20);
-const INFO_H = 40;
+const INFO_H = 103;   // = what the Film node has below its player (status + open + recent), so all 4 squares end level
 const PARAMS = ["format", "long_side", "crop", "speed", "fps", "start", "end", "direction", "colors", "dither",
   "palette", "quality", "source_fps", "output_folder", "filename"];
 const GIF_ONLY = ["colors", "dither", "palette"];

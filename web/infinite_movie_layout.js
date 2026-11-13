@@ -130,7 +130,7 @@ export function fcWorkflowLayout(director, second = false) {
   // 9 Movie to GIF (optional, 2026-11-13): right of Upscale, help on top, the GIF node(s) below.
   const gifGrp = groups.find((x) => !isEngineGroup(x) && /gif/i.test(x.title || ""));
   const gifHelp = gifGrp ? allNotes.find((n) => isHelp(n) && helpFits(n, gifGrp)) || null : null;
-  const gifNodes = (g._nodes || []).filter((n) => n.comfyClass === "InfiniteMovieGif" && !inEngine(n) && !upSet.has(n));
+  const gifNodes = (g._nodes || []).filter((n) => (n.comfyClass || n.type) === "InfiniteMovieGif" && !inEngine(n) && !upSet.has(n));
   const nodes = (g._nodes || []).filter((n) => !inEngine(n) && !upSet.has(n));
   const byType = (t) => nodes.filter((n) => n.comfyClass === t || n.type === t);
 
@@ -140,12 +140,14 @@ export function fcWorkflowLayout(director, second = false) {
   // 2026-11-13 (user: "the finished film below in our Film node, the same in 6 7 8", "6 7 8 all players square, 6 7 8
   // the same width"): Cut / Even Motion / Upscale on top, a Film node with a SQUARE player at the bottom of each group;
   // groups 6, 7, 8 share one inner width (the widest of Cut, Even Motion, the Upscale block).
-  const isFilm = (n) => n.comfyClass === "InfiniteMovieFilm";
+  // comfyClass || type: nodes created at runtime (LiteGraph.createNode) can lack comfyClass
+  const cls = (n) => n?.comfyClass || n?.type;
+  const isFilm = (n) => cls(n) === "InfiniteMovieFilm";
   const upBlock = upMembers.filter((n) => !isFilm(n)), upFilms = upMembers.filter(isFilm);
   const linkAt = (id) => g.links?.[id] ?? g.links?.get?.(id);
   const filmSrc = (f) => { const i = (f.inputs || []).find((x) => x.link != null); const l = i && linkAt(i.link); return l ? g.getNodeById(l.origin_id) : null; };
   const allFilms = byType("InfiniteMovieFilm");
-  const cutFilms = allFilms.filter((f) => filmSrc(f)?.comfyClass === "InfiniteMovieChooser");
+  const cutFilms = allFilms.filter((f) => cls(filmSrc(f)) === "InfiniteMovieChooser");
   const asmFilms = allFilms.filter((f) => !cutFilms.includes(f));
   const asm = byType("InfiniteMovieAssemble"), cut = byType("InfiniteMovieChooser");
   const blockW = upBlock.length ? Math.max(...upBlock.map((n) => n.pos[0] + n.size[0])) - Math.min(...upBlock.map((n) => n.pos[0])) : 0;
