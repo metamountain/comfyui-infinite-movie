@@ -42,11 +42,7 @@ const BOX_WIDGETS = ["target_width", "target_height"];
 // multiple_of used to be a combo of fixed strings; a workflow saved then
 // restores "8" or "off" into what is now a number field, so it is repaired
 // alongside the optional widgets even though it is a required one.
-// multiple_of used to be a combo of fixed strings; a workflow saved back then
-// restores "8" or "off" into what is now a number field, so it is repaired
-// alongside the optional widgets even though it is a required one.
 const OPTIONAL_DEFAULTS = {
-    multiple_of: 8,
     multiple_of: 8,
     scale_percent: 200.0,
     scale_factor: 2.0,
