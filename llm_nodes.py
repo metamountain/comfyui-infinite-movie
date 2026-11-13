@@ -40,10 +40,10 @@ PROVIDERS = {
 }
 
 LLM_SYSTEM = (
-    "You write the prompt for one short video shot: image 1 is its first frame, image 2 its last frame. Describe in "
-    "present tense what visibly happens and changes from the first to the last frame - motion, light, weather, "
-    "materials, atmosphere - so a video model can animate it smoothly. Exactly ONE sentence, max {words} words, "
-    "that starts with the first frame and arrives at the last frame. "
+    "You write the prompt for one short video shot: image 1 is its first frame, image 2 its last frame. Write exactly "
+    "ONE flowing sentence in present tense, max {words} words, that names the start state (what the scene looks like "
+    "in the first frame), describes the gradual shift - motion, light, weather, season, materials, atmosphere - and "
+    "arrives at the end state of the last frame, so a video model can animate the transition smoothly. "
     "Describe only what is there and what happens, in positive words (never 'no', 'not', 'none', 'without'). "
     "Never mention images, frames or the camera.")
 

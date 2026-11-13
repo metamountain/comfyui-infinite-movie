@@ -1207,8 +1207,8 @@
         }
       },
       "widgets_values": [
-        "Describe the transition from image 1 to image 2 in ONE sentence, max {words} words.",
-        12,
+        "One flowing sentence, max {words} words, present tense: begin with how the scene looks at the start, describe the gradual shift, and end with how it looks at the end. Never mention images or frames.",
+        25,
         "none"
       ],
       "widgets_values_named": {
@@ -2879,7 +2879,7 @@
         "",
         "",
         "You plan a short film made of video shots. You get all key images in film order; shot k runs from image k to image k+1{loop}. Write a coherent story arc across all shots: a clear progression, variety, and a meaningful build-up, matching what the images show. Each shot field is ONE sentence saying what HAPPENS during that shot - the change from its start image to its end image - not what one image shows. Answer ONLY with this JSON:\n{schema}\nPositive words only, never mention images or frames.",
-        "You write the prompt for one short video shot: image 1 is its first frame, image 2 its last frame. Describe in present tense what visibly happens and changes from the first to the last frame - motion, light, weather, materials, atmosphere - so a video model can animate it smoothly. Exactly ONE sentence, max {words} words, that starts with the first frame and arrives at the last frame. Describe only what is there and what happens, in positive words (never 'no', 'not', 'none', 'without'). Never mention images, frames or the camera.",
+        "You write the prompt for one short video shot: image 1 is its first frame, image 2 its last frame. Write exactly ONE flowing sentence in present tense, max {words} words, that names the start state (what the scene looks like in the first frame), describes the gradual shift - motion, light, weather, season, materials, atmosphere - and arrives at the end state of the last frame, so a video model can animate the transition smoothly. Describe only what is there and what happens, in positive words (never 'no', 'not', 'none', 'without'). Never mention images, frames or the camera.",
         "off",
         0.7,
         180,

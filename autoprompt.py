@@ -39,8 +39,11 @@ DESCRIBE_SYSTEM = (
     "Short precise phrases, English."
 )
 
-# user 2026-11-03: "short wins" - {words} = max_words; camera comes from the dropdown and is appended by compose()
-STORY_SYSTEM = "One sentence, max {words} words: what happens from the first to the last frame. Never mention images or frames."
+# {words} = max_words; camera comes from the dropdown and is appended by compose().
+# user 2026-11-13: "prompt should have both images included, transition is important - it needs the shift between
+# the two states" -> start state, gradual shift, end state in one flowing sentence (was: only "what happens").
+STORY_SYSTEM = ("One flowing sentence, max {words} words, present tense: begin with how the scene looks at the start, "
+                "describe the gradual shift, and end with how it looks at the end. Never mention images or frames.")
 
 # user 2026-10-26: camera as a selection; "none" = no camera note in the prompt (2026-11-04 instead of "auto")
 CAMERA_OPTIONS = [
@@ -59,7 +62,7 @@ CAMERA_OPTIONS = [
     "Aerial drone shot, slowly rising.",
     "Dynamic camera following the action.",
 ]
-MAX_STORY_WORDS = 12  # user 2026-11-04: 12 words, one sentence
+MAX_STORY_WORDS = 25  # one sentence; 12 (2026-11-04) had no room for start state + shift + end state (2026-11-13)
 NOUN = {"snow": "snowflakes", "rain": "raindrops", "leaves": "leaves", "petals": "petals",
         "sparks": "sparks", "dust": "dust", "confetti": "confetti"}
 
@@ -91,6 +94,17 @@ def trim_words(text: str, limit: int = MAX_STORY_WORDS) -> str:
         out.append(x)
         n += w
     return " ".join(out)
+
+
+def states_hint(obs: dict) -> str:
+    """Start and end state from the describe step as plain text for the story step (user 2026-11-13: the prompt
+    must carry both images and the shift between them). Empty if the description has nothing usable."""
+    def state(key):
+        d = obs.get(key) or {}
+        return "; ".join(str(d.get(k) or "").strip() for k in ("subject", "setting", "action", "light")
+                         if str(d.get(k) or "").strip())
+    s, e = state("start"), state("end")
+    return f"\nStart state: {s}\nEnd state: {e}" if s and e else ""
 
 
 def _sentence(text: str) -> str:
@@ -231,7 +245,10 @@ def generate(image_from, image_to, model_name: str, keywords: str = "", camera: 
     try:
         obs = parse_obs(gen(clip, frames + "\nJSON:", images, DESCRIBE_SYSTEM, 450, 0.2, seed))
         system = (instruction or STORY_SYSTEM).replace("{words}", str(max_words))
-        story = gen(clip, story_frames + (context or "") + hint, story_images, system, 160, 0.7, seed)
+        # A -> B transition: hand both described states to the story step (not for open shots / single-image loops,
+        # where start = end by construction).
+        states = "" if story_frames is not frames else states_hint(obs)
+        story = gen(clip, story_frames + states + (context or "") + hint, story_images, system, 200, 0.7, seed)
     finally:
         del clip
         _unload_model()
