@@ -13,7 +13,7 @@ const GIF_CLASS = "InfiniteMovieGif";
 const PREVIEW_H = 280;
 const INFO_H = 40;
 const PARAMS = ["format", "long_side", "crop", "every_nth", "start", "end", "direction", "colors", "dither",
-  "palette", "quality", "repeat", "source_fps", "output_folder", "filename"];
+  "palette", "quality", "source_fps", "output_folder", "filename"];
 const GIF_ONLY = ["colors", "dither", "palette"];
 const WEBP_ONLY = ["quality"];
 const LOADER_KEYS = ["force_rate", "skip_first_frames", "select_every_nth", "frame_load_cap"];

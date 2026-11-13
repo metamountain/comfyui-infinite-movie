@@ -418,19 +418,13 @@ class InfiniteMovieGif(io.ComfyNode):
                              tooltip="Longest side in pixels (0 = original). GIF size grows with the square of it."),
                 io.Combo.Input("crop", optional=True, options=list(CROPS), default="none",
                                tooltip="Centre crop to a ratio before scaling (1:1 avatar, 4:5 Instagram, 9:16 story)."),
-                io.Int.Input("every_nth", optional=True, default=1, min=1, max=30, step=1,
-                             display_mode=io.NumberDisplay.slider,
-                             tooltip="Compression by frames: only every n-th frame goes in (1 = all, 2 = every 2nd, "
-                                     "10 = every 10th). The GIF always plays at the film's own frame rate, so it gets "
-                                     "n times shorter and faster (time-lapse) and about n times smaller. "
-                                     f"GIF plays at most {GIF_MAX_FPS} fps."),
                 io.String.Input("output_folder", optional=True, default="GIF",
                                 tooltip="Folder for save and auto_save. Relative = inside the ComfyUI output folder; "
                                         "a full path works too."),
                 io.String.Input("filename", optional=True, default="GIF#",
                                 tooltip="File name without extension. # = next free number (GIF1, GIF2 …). "
                                         "Never overwrites."),
-                io.Boolean.Input("auto_save", optional=True, default=False,
+                io.Boolean.Input("auto_save", display_name="auto_save (batch)", optional=True, default=False,
                                  tooltip="Off: Run only renders and shows the full version – save it with the save "
                                          "button. On: every Run saves (for batches)."),
                 io.Float.Input("start", advanced=True, optional=True, default=0.0, min=0.0, max=36000.0, step=0.1,
@@ -447,15 +441,19 @@ class InfiniteMovieGif(io.ComfyNode):
                                tooltip="GIF only: one palette for the whole film or a new one per frame."),
                 io.Int.Input("quality", advanced=True, optional=True, default=80, min=1, max=100,
                              tooltip="WebP only: quality (higher = larger file)."),
-                io.Int.Input("repeat", advanced=True, optional=True, default=0, min=0, max=1000,
-                             tooltip="How often it plays: 0 = forever, 1 = once, n = n times."),
                 io.Float.Input("max_mb", advanced=True, optional=True, default=0.0, min=0.0, max=100.0, step=0.5,
                                tooltip="Size limit in MB (0 = off). Above it the GIF is made smaller step by step "
                                        "(long side × 0.85) until it fits – e.g. 8 for Discord, 15 for GitHub."),
-                io.Float.Input("source_fps", default=0.0, min=0.0, max=120.0, optional=True, advanced=True,
+                io.Float.Input("source_fps", default=0.0, min=0.0, max=120.0, optional=True,
                                tooltip="Only for the images input: at what rate were these frames made? "
                                        "0 = auto (read from a connected VHS Load Video, else 24). "
                                        "A wrong value makes the GIF play too fast or too slow."),
+                io.Int.Input("every_nth", optional=True, default=1, min=1, max=30, step=1,
+                             display_mode=io.NumberDisplay.slider,
+                             tooltip="Compression by frames: only every n-th frame goes in (1 = all, 2 = every 2nd, "
+                                     "10 = every 10th). The GIF always plays at the film's own frame rate, so it gets "
+                                     "n times shorter and faster (time-lapse) and about n times smaller. "
+                                     f"GIF plays at most {GIF_MAX_FPS} fps."),
             ],
             outputs=[],
             hidden=[io.Hidden.unique_id, io.Hidden.prompt],
@@ -469,7 +467,7 @@ class InfiniteMovieGif(io.ComfyNode):
     @classmethod
     def execute(cls, format=FORMATS[0], long_side=480, crop="none", every_nth=1, output_folder="GIF",
                 filename="GIF#", auto_save=False, start=0.0, end=0.0, direction="forward", colors=256, dither=DITHERS[0], palette=PALETTES[0],
-                quality=80, repeat=0, max_mb=0.0, video=None, images=None, video_path="", file="(none)",
+                quality=80, max_mb=0.0, video=None, images=None, video_path="", file="(none)",
                 source_fps=0.0) -> io.NodeOutput:
         hidden = getattr(cls, "hidden", None)
         uid = str(hidden.unique_id) if hidden and hidden.unique_id is not None else ""
@@ -481,7 +479,7 @@ class InfiniteMovieGif(io.ComfyNode):
             _LAST_SOURCE[uid] = os.path.abspath(src)
         p = gif_params(format=format, long_side=long_side, crop=crop, every_nth=every_nth, start=start, end=end,
                        direction=direction, colors=colors, dither=dither, palette=palette,
-                       quality=quality, repeat=repeat, src_fps=_probe(_ffmpeg(), src)["fps"])
+                       quality=quality, src_fps=_probe(_ffmpeg(), src)["fps"])
         full = os.path.join(_tmp_dir(), f"run_{uid or 'x'}{_ext(p)}")
         info, note = render_fit(src, full, p, max_mb)
         text = describe(info, note)
