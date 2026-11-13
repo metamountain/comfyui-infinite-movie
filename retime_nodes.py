@@ -208,8 +208,8 @@ def _picks_for(curves: list, fps: float, strength: float, rendered_seconds, keep
 
 # 110 (2026-11-10): strength/keep removed as widgets (user: "alles weg, was nicht 100 % nötig ist");
 # fixed values below, behaviour unchanged (the widget defaults were 0.8 / 1.0).
-ASSEMBLE_STRENGTH = 0.8   # 1 = fully even change per frame, 0 = unchanged timing; 0.8 keeps a short rest on the key images (only with even_motion)
-ASSEMBLE_KEEP = 1.0       # share of each shot's rendered length that stays in the film; 1 = the whole shot (only with even_motion)
+ASSEMBLE_STRENGTH = 0.8   # 1 = fully even change per frame, 0 = unchanged timing; 0.8 keeps a short rest on the key images (116b3: always on)
+ASSEMBLE_KEEP = 1.0       # share of each shot's rendered length that stays in the film; 1 = the whole shot (116b3: always on)
 
 # 2026-11-13: interpolate auto + stretch (old values RIFE x2/x4/off stay valid for saved workflows)
 INTERPOLATE = ["auto", "RIFE x2", "RIFE x4", "off"]
@@ -234,16 +234,7 @@ class InfiniteMovieAssemble(io.ComfyNode):
             search_aliases=["infinite movie", "infinite_movie", "film", "movie", "video", "retime", "even motion", "ease", "smooth",
                             "normalize", "speed", "assemble"],
             category="Infinite Movie/3 Even Motion",
-            description="Joins the shots into one film and, with even_motion, evens out their motion: first-last-frame "
-                        "shots stand nearly still near the key images and change mostly in the middle, so the output "
-                        "frames are re-picked to carry about the same change each. Each shot keeps its rendered length "
-                        "(Director › seconds / per-shot ⏱); with interpolate RIFE there are more frames to pick from "
-                        "and fewer duplicates. time_extend makes the film longer and slower (same fps) from the RIFE "
-                        "in-between frames. Draws an analysis graph below the widgets (grey = as rendered, "
-                        "coloured = evened out).\n"
-                        "time_extend: longer film, slower motion, same fps. 1 = as rendered, 2 = twice as long, up to 4. "
-                        "Uses the RIFE in-between frames (interpolate auto picks x4); the film is silent then. Above "
-                        "about 2.5 fast motion can smear.",
+            description="Special node behind Cut for smooth camera moves (architecture, fly-throughs): re-picks the frames of every shot so each carries about the same change, and with time_extend makes the film longer and slower at the same fps from RIFE in-between frames. Writes <name>_even.mp4 (silent). Cut already makes the normal film with sound.",
             is_output_node=True,
             inputs=[
                 # Auftrag 32: sync (SYNC) as the FIRST input (highest priority).
@@ -262,15 +253,14 @@ class InfiniteMovieAssemble(io.ComfyNode):
                 io.String.Input("video_path", advanced=True, default="", optional=True, tooltip="file path"),
                 # 110 (2026-11-10): strength removed as a widget -> ASSEMBLE_STRENGTH (0.8)
                 io.Combo.Input("interpolate", advanced=True, options=INTERPOLATE, default="auto", optional=True,
-                               tooltip="In-between frames (RIFE) to pick from, for even_motion and time_extend. 'auto' = "
+                               tooltip="In-between frames (RIFE) to pick from, for the even-motion picking and time_extend. 'auto' = "
                                        "RIFE x2, with time_extend above 1 RIFE x4 (at least twice the frames needed). "
                                        "'off' = original frames only (fastest, no GPU; time_extend then repeats frames)."),
                 # 57d: free_vram/free_ram now in the Settings node
                 # (settings input at the end of the schema).
                 # 110 (2026-11-10): keep removed as a widget -> ASSEMBLE_KEEP (1.0 = the whole shot)
-                io.Boolean.Input("even_motion", default=True,
-                                 tooltip="true = even out the motion of each shot (frames re-picked so each carries about the same "
-                                         "change), then join; false = join the shots unchanged (preserves the engine's sound)."),
+                # 116b3: even_motion removed as a widget - this node ALWAYS evens out the motion
+                # (it is the "even" film behind Cut; Cut writes the normal film with sound).
                 io.Boolean.Input("loop", default=True,
                                  tooltip="true = also drop the last frame of the last segment (seamless loop); "
                                          "false = keep it (the film ends on the last image)."),
@@ -294,7 +284,7 @@ class InfiniteMovieAssemble(io.ComfyNode):
                 # graph + report remain as a ui= display (preview.as_dict()).
                 io.String.Output("video_path",
                                  tooltip="Path to the final assembled film (film_path, VHS-compatible). Same as the "
-                                         "film written to <save_folder>/<save_name>.mp4."),
+                                         "film written to <save_folder>/<save_name>_even.mp4 (116b3)."),
                 # 2026-11-08 (user: "last frame … to get longer videos, restart or loop")
                 io.Image.Output("last_frame",
                                 tooltip="The last frame of the finished film as IMAGE – connect it to the Director's "
@@ -312,12 +302,13 @@ class InfiniteMovieAssemble(io.ComfyNode):
     def execute(cls, sync=None, file="",
                 video_path="",
                 interpolate="auto",
-                even_motion=True, loop=True, time_extend=1.0,
+                loop=True, time_extend=1.0,
                 settings=None) -> io.NodeOutput:
         stretch = min(max(float(time_extend or 1.0), 1.0), 4.0)
-        # retime = re-pick frames: for even_motion and/or stretch (without even_motion: plain time = slow motion)
-        retime = bool(even_motion) or stretch > 1.001
-        strength = ASSEMBLE_STRENGTH if even_motion else 0.0
+        # 116b3: even motion is ALWAYS on (widget removed) - this node writes the
+        # evened-out film <name>_even.mp4; Cut writes the normal film with sound.
+        retime = True
+        strength = ASSEMBLE_STRENGTH
         passes = rife_passes(interpolate, stretch, retime)
         interpolate = ("off", "RIFE x2", "RIFE x4")[passes]   # resolved, for graph/cache
         # 57d: free_vram/free_ram
@@ -441,19 +432,14 @@ class InfiniteMovieAssemble(io.ComfyNode):
         # images_out (RAM-hungry) is no longer computed.
         # Auftrag 32: concat (shared function from nodes.py)
         from .nodes import _concat_segments, _has_audio_stream
-        if retime:
-            # Retime + concat: the retimed (evened out and/or stretched) segments are joined
-            concat_paths = out_paths
-        else:
-            # Concat only (without retime): the original segments are joined
-            concat_paths = paths
-        # 76: retime changes the video timing -> audio CANNOT be re-timed
-        # (no offset). Retimed segments are video-only, so the film is
-        # automatically silent with even_motion=true. If the original segments
-        # had audio, report that.
-        if retime and any(_has_audio_stream(p) for p in paths):
-            report += ("\nSound only without even_motion and time_extend 1: the film is silent (they change the video "
-                       "timing, audio is not re-timed).")
+        # 116b3: retime is always on -> the evened-out (and/or stretched) segments are joined.
+        # (The concat-only branch for even_motion=False is gone - that is Cut's job now.)
+        concat_paths = out_paths
+        # 76: even motion re-times the video -> audio CANNOT be re-timed (no offset).
+        # The retimed segments are video-only, so the film is always silent.
+        # If the original segments had audio, report that (Cut's film keeps the sound).
+        if any(_has_audio_stream(p) for p in paths):
+            report += ("\nEven Motion re-times the video, so this film is silent. Cut's film keeps the sound.")
         # 63: Settings › output_folder overrides the output folder of the FINAL
         # film (after shots/save_folder have been evaluated). _unique_output_path
         # (nodes.py:672) creates the folder and resolves relative paths against
@@ -470,8 +456,9 @@ class InfiniteMovieAssemble(io.ComfyNode):
         if isinstance(_hidden_pnginfo, dict):
             meta.update(_hidden_pnginfo)
         # 73: copy_to removed (parameter removed from _concat_segments).
+        # 116b3: own film name <name>_even (Cut already writes <name>.mp4 with sound).
         film_path, check, total_frames, out_fps = _concat_segments(
-            concat_paths, sf, sn, loop,
+            concat_paths, sf, sn + "_even", loop,
             free_vram, free_ram, metadata=meta or None, audio=bool(get_setting(settings, "audio")))
         # video_path = film_path (the final film, not the first segment)
         vp = film_path
