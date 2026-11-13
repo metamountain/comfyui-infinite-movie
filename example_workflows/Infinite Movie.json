@@ -2,7 +2,7 @@
   "id": "11de75b2-579e-4a82-9e7c-c98a0590e77e",
   "revision": 0,
   "last_node_id": 100,
-  "last_link_id": 2175,
+  "last_link_id": 2179,
   "nodes": [
     {
       "id": 1,
@@ -381,16 +381,7 @@
           "type": "SYNC",
           "slot_index": 0,
           "links": [
-            2174
-          ]
-        },
-        {
-          "localized_name": "settings ▶ chain",
-          "name": "settings ▶ chain",
-          "type": "SETTINGS",
-          "slot_index": 1,
-          "links": [
-            2172
+            2178
           ]
         }
       ],
@@ -792,10 +783,10 @@
         }
       },
       "widgets_values": [
-        "# Infinite Movie\n\nTurns a few stills into one seamless, looping film. The MiniMax H3 engine renders one shot per transition between two images; *Cut* joins the chosen shots into the final film; *Even Motion* (optional) smooths camera moves.\n\nNode pack: https://github.com/metamountain/comfyui-infinite-movie (by metamountain). Feedback and issues welcome.\n\n## How to read this workflow\nLeft: this README. Top: **1 · Engine** (MiniMax H3). Below it ONE row, read left to right – each area has its help note on top:\n2. **Settings** – LLM (one dropdown), size, output folder, film name.\n3. **Images** – load your stills (add more: they grow downwards).\n4. **Prompts** – *Prompt Style* (what the LLM is told, max words, camera) on top, then one *Auto Prompt* per transition.\n5. **Director** – seconds per shot, loop, variants. Click **AUTO LAYOUT** after changes.\n6. **Cut** – check the shots, pick A or B, **FILM ▶** makes the film (with sound).\n7. **Even Motion + Film** – shows the finished film, *Open folder*; Even Motion (off by default) for smooth camera moves.\n\nThe settings are passed along one chain: Settings → Prompt Style → Auto Prompts → Director → Cut → Even Motion.\nBefore a render starts, Run frees the GPU (unloads the LLM); if it cannot, the render is not queued and a message says why.\n\nOther engines: open **Infinite Movie - Engine LTX 2.5** or **Infinite Movie - Engine Wan 2.2**, copy its group (Ctrl+C), paste it here (Ctrl+V) and mute the MiniMax group (Ctrl+M) – only ONE engine group may be active.\n\n## Required tools\n- ffmpeg (encoding/joining films): usually already there via `imageio-ffmpeg` (installed with VideoHelperSuite), otherwise https://www.gyan.dev/ffmpeg/builds/ (Windows) or https://ffmpeg.org/download.html – put `ffmpeg` on PATH.\n- VideoHelperSuite: https://github.com/Kosinkadink/ComfyUI-VideoHelperSuite\n\n## Models – MiniMax H3 (default engine)\n- diffusion_models: [minimax_h3_fl2va_pruned_int8_convrot](https://huggingface.co/Comfy-Org/MiniMax-H3/resolve/main/diffusion_models/minimax_h3_fl2va_pruned_int8_convrot.safetensors)\n- loras: [minimax_h3_fl2v_turbo_8step_v1.1_768p_comfyui_bf16](https://huggingface.co/lightx2v/Minimax-h3-Turbo/resolve/main/minimax_h3_fl2v_turbo_8step_v1.1_768p_comfyui_bf16.safetensors)\n- text_encoders (CLIPLoader type `minimax`): [qwen3vl_32b_minimax_h3_nvfp4_awq](https://huggingface.co/Comfy-Org/MiniMax-H3/resolve/main/text_encoders/qwen3vl_32b_minimax_h3_nvfp4_awq.safetensors)\n- vae: [minimax_h3_video_vae_int8_convrot](https://huggingface.co/Comfy-Org/MiniMax-H3/resolve/main/vae/minimax_h3_video_vae_int8_convrot.safetensors) · [minimax_h3_audio_vae_fp32](https://huggingface.co/Comfy-Org/MiniMax-H3/resolve/main/vae/minimax_h3_audio_vae_fp32.safetensors)\n- Model page: https://huggingface.co/Comfy-Org/MiniMax-H3\n\n## Optional\n- LTX IC-LoRA pixel upscaler + https://github.com/Lightricks/ComfyUI-LTXVideo\n- Low VRAM (12–16 GB, untested by us): community LTX-2.5 GGUF + https://github.com/city96/ComfyUI-GGUF\n\n**Tested on:** RTX 24 GB, 768×960, single shots up to 60 s (1441 frames).\n\n```\n                          /\\                                  /\\\n              /\\         /  \\        /\\                      /  \\        /\\\n       /\\    /  \\   /\\  /    \\      /  \\    /\\      /\\      /    \\      /  \\    /\\\n      /  \\  /    \\_/  \\/      \\    /    \\__/  \\    /  \\/\\  /      \\  /\\/    \\  /  \\\n ____/    \\/                   \\__/            \\__/      \\/        \\/          \\/    \\_______\n                    _                                                _             _\n  _ __ ___    ___  | |_    __ _   _ __ ___    ___    _   _   _ __   | |_    __ _  (_)  _ __\n | '_ ` _ \\  / _ \\ | __|  / _` | | '_ ` _ \\  / _ \\  | | | | | '_ \\  | __|  / _` | | | | '_ \\\n | | | | | ||  __/ | |_  | (_| | | | | | | || (_) | | |_| | | | | | | |_  | (_| | | | | | | |\n |_| |_| |_| \\___|  \\__|  \\__,_| |_| |_| |_| \\___/   \\__,_| |_| |_|  \\__|  \\__,_| |_| |_| |_|\n\n  metamountain · infinite movie\n```\n"
+        "# Infinite Movie\n\nTurns a few stills into one seamless, looping film. The MiniMax H3 engine renders one shot per transition between two images; *Cut* joins the chosen shots into the final film; *Even Motion* (optional) smooths camera moves.\n\nNode pack: https://github.com/metamountain/comfyui-infinite-movie (by metamountain). Feedback and issues welcome.\n\n## How to read this workflow\nLeft: this README. Top: **1 · Engine** (MiniMax H3). Below it ONE row, read left to right – each area has its help note on top:\n2. **Settings** – LLM (one dropdown), size, output folder, film name.\n3. **Images** – load your stills (add more: they grow downwards).\n4. **Prompts** – *Prompt Style* (what the LLM is told, max words, camera) on top, then one *Auto Prompt* per transition.\n5. **Director** – seconds per shot, loop, variants. Click **AUTO LAYOUT** after changes.\n6. **Cut** – check the shots, pick A or B, **FILM ▶** makes the film (with sound).\n7. **Even Motion + Film** – shows the finished film, *Open folder*; Even Motion (off by default) for smooth camera moves.\n\nThe settings are passed along one chain: Settings → Prompt Style → Auto Prompts → Director; from there the `sync` link carries them on to Cut → Even Motion.\nBefore a render starts, Run frees the GPU (unloads the LLM); if it cannot, the render is not queued and a message says why.\n\nOther engines: open **Infinite Movie - Engine LTX 2.5** or **Infinite Movie - Engine Wan 2.2**, copy its group (Ctrl+C), paste it here (Ctrl+V) and mute the MiniMax group (Ctrl+M) – only ONE engine group may be active.\n\n## Required tools\n- ffmpeg (encoding/joining films): usually already there via `imageio-ffmpeg` (installed with VideoHelperSuite), otherwise https://www.gyan.dev/ffmpeg/builds/ (Windows) or https://ffmpeg.org/download.html – put `ffmpeg` on PATH.\n- VideoHelperSuite: https://github.com/Kosinkadink/ComfyUI-VideoHelperSuite\n\n## Models – MiniMax H3 (default engine)\n- diffusion_models: [minimax_h3_fl2va_pruned_int8_convrot](https://huggingface.co/Comfy-Org/MiniMax-H3/resolve/main/diffusion_models/minimax_h3_fl2va_pruned_int8_convrot.safetensors)\n- loras: [minimax_h3_fl2v_turbo_8step_v1.1_768p_comfyui_bf16](https://huggingface.co/lightx2v/Minimax-h3-Turbo/resolve/main/minimax_h3_fl2v_turbo_8step_v1.1_768p_comfyui_bf16.safetensors)\n- text_encoders (CLIPLoader type `minimax`): [qwen3vl_32b_minimax_h3_nvfp4_awq](https://huggingface.co/Comfy-Org/MiniMax-H3/resolve/main/text_encoders/qwen3vl_32b_minimax_h3_nvfp4_awq.safetensors)\n- vae: [minimax_h3_video_vae_int8_convrot](https://huggingface.co/Comfy-Org/MiniMax-H3/resolve/main/vae/minimax_h3_video_vae_int8_convrot.safetensors) · [minimax_h3_audio_vae_fp32](https://huggingface.co/Comfy-Org/MiniMax-H3/resolve/main/vae/minimax_h3_audio_vae_fp32.safetensors)\n- Model page: https://huggingface.co/Comfy-Org/MiniMax-H3\n\n## Optional\n- LTX IC-LoRA pixel upscaler + https://github.com/Lightricks/ComfyUI-LTXVideo\n- Low VRAM (12–16 GB, untested by us): community LTX-2.5 GGUF + https://github.com/city96/ComfyUI-GGUF\n\n**Tested on:** RTX 24 GB, 768×960, single shots up to 60 s (1441 frames).\n\n```\n                          /\\                                  /\\\n              /\\         /  \\        /\\                      /  \\        /\\\n       /\\    /  \\   /\\  /    \\      /  \\    /\\      /\\      /    \\      /  \\    /\\\n      /  \\  /    \\_/  \\/      \\    /    \\__/  \\    /  \\/\\  /      \\  /\\/    \\  /  \\\n ____/    \\/                   \\__/            \\__/      \\/        \\/          \\/    \\_______\n                    _                                                _             _\n  _ __ ___    ___  | |_    __ _   _ __ ___    ___    _   _   _ __   | |_    __ _  (_)  _ __\n | '_ ` _ \\  / _ \\ | __|  / _` | | '_ ` _ \\  / _ \\  | | | | | '_ \\  | __|  / _` | | | | '_ \\\n | | | | | ||  __/ | |_  | (_| | | | | | | || (_) | | |_| | | | | | | |_  | (_| | | | | | | |\n |_| |_| |_| \\___|  \\__|  \\__,_| |_| |_| |_| \\___/   \\__,_| |_| |_|  \\__|  \\__,_| |_| |_| |_|\n\n  metamountain · infinite movie\n```\n"
       ],
       "widgets_values_named": {
-        "text": "# Infinite Movie\n\nTurns a few stills into one seamless, looping film. The MiniMax H3 engine renders one shot per transition between two images; *Cut* joins the chosen shots into the final film; *Even Motion* (optional) smooths camera moves.\n\nNode pack: https://github.com/metamountain/comfyui-infinite-movie (by metamountain). Feedback and issues welcome.\n\n## How to read this workflow\nLeft: this README. Top: **1 · Engine** (MiniMax H3). Below it ONE row, read left to right – each area has its help note on top:\n2. **Settings** – LLM (one dropdown), size, output folder, film name.\n3. **Images** – load your stills (add more: they grow downwards).\n4. **Prompts** – *Prompt Style* (what the LLM is told, max words, camera) on top, then one *Auto Prompt* per transition.\n5. **Director** – seconds per shot, loop, variants. Click **AUTO LAYOUT** after changes.\n6. **Cut** – check the shots, pick A or B, **FILM ▶** makes the film (with sound).\n7. **Even Motion + Film** – shows the finished film, *Open folder*; Even Motion (off by default) for smooth camera moves.\n\nThe settings are passed along one chain: Settings → Prompt Style → Auto Prompts → Director → Cut → Even Motion.\nBefore a render starts, Run frees the GPU (unloads the LLM); if it cannot, the render is not queued and a message says why.\n\nOther engines: open **Infinite Movie - Engine LTX 2.5** or **Infinite Movie - Engine Wan 2.2**, copy its group (Ctrl+C), paste it here (Ctrl+V) and mute the MiniMax group (Ctrl+M) – only ONE engine group may be active.\n\n## Required tools\n- ffmpeg (encoding/joining films): usually already there via `imageio-ffmpeg` (installed with VideoHelperSuite), otherwise https://www.gyan.dev/ffmpeg/builds/ (Windows) or https://ffmpeg.org/download.html – put `ffmpeg` on PATH.\n- VideoHelperSuite: https://github.com/Kosinkadink/ComfyUI-VideoHelperSuite\n\n## Models – MiniMax H3 (default engine)\n- diffusion_models: [minimax_h3_fl2va_pruned_int8_convrot](https://huggingface.co/Comfy-Org/MiniMax-H3/resolve/main/diffusion_models/minimax_h3_fl2va_pruned_int8_convrot.safetensors)\n- loras: [minimax_h3_fl2v_turbo_8step_v1.1_768p_comfyui_bf16](https://huggingface.co/lightx2v/Minimax-h3-Turbo/resolve/main/minimax_h3_fl2v_turbo_8step_v1.1_768p_comfyui_bf16.safetensors)\n- text_encoders (CLIPLoader type `minimax`): [qwen3vl_32b_minimax_h3_nvfp4_awq](https://huggingface.co/Comfy-Org/MiniMax-H3/resolve/main/text_encoders/qwen3vl_32b_minimax_h3_nvfp4_awq.safetensors)\n- vae: [minimax_h3_video_vae_int8_convrot](https://huggingface.co/Comfy-Org/MiniMax-H3/resolve/main/vae/minimax_h3_video_vae_int8_convrot.safetensors) · [minimax_h3_audio_vae_fp32](https://huggingface.co/Comfy-Org/MiniMax-H3/resolve/main/vae/minimax_h3_audio_vae_fp32.safetensors)\n- Model page: https://huggingface.co/Comfy-Org/MiniMax-H3\n\n## Optional\n- LTX IC-LoRA pixel upscaler + https://github.com/Lightricks/ComfyUI-LTXVideo\n- Low VRAM (12–16 GB, untested by us): community LTX-2.5 GGUF + https://github.com/city96/ComfyUI-GGUF\n\n**Tested on:** RTX 24 GB, 768×960, single shots up to 60 s (1441 frames).\n\n```\n                          /\\                                  /\\\n              /\\         /  \\        /\\                      /  \\        /\\\n       /\\    /  \\   /\\  /    \\      /  \\    /\\      /\\      /    \\      /  \\    /\\\n      /  \\  /    \\_/  \\/      \\    /    \\__/  \\    /  \\/\\  /      \\  /\\/    \\  /  \\\n ____/    \\/                   \\__/            \\__/      \\/        \\/          \\/    \\_______\n                    _                                                _             _\n  _ __ ___    ___  | |_    __ _   _ __ ___    ___    _   _   _ __   | |_    __ _  (_)  _ __\n | '_ ` _ \\  / _ \\ | __|  / _` | | '_ ` _ \\  / _ \\  | | | | | '_ \\  | __|  / _` | | | | '_ \\\n | | | | | ||  __/ | |_  | (_| | | | | | | || (_) | | |_| | | | | | | |_  | (_| | | | | | | |\n |_| |_| |_| \\___|  \\__|  \\__,_| |_| |_| |_| \\___/   \\__,_| |_| |_|  \\__|  \\__,_| |_| |_| |_|\n\n  metamountain · infinite movie\n```\n"
+        "text": "# Infinite Movie\n\nTurns a few stills into one seamless, looping film. The MiniMax H3 engine renders one shot per transition between two images; *Cut* joins the chosen shots into the final film; *Even Motion* (optional) smooths camera moves.\n\nNode pack: https://github.com/metamountain/comfyui-infinite-movie (by metamountain). Feedback and issues welcome.\n\n## How to read this workflow\nLeft: this README. Top: **1 · Engine** (MiniMax H3). Below it ONE row, read left to right – each area has its help note on top:\n2. **Settings** – LLM (one dropdown), size, output folder, film name.\n3. **Images** – load your stills (add more: they grow downwards).\n4. **Prompts** – *Prompt Style* (what the LLM is told, max words, camera) on top, then one *Auto Prompt* per transition.\n5. **Director** – seconds per shot, loop, variants. Click **AUTO LAYOUT** after changes.\n6. **Cut** – check the shots, pick A or B, **FILM ▶** makes the film (with sound).\n7. **Even Motion + Film** – shows the finished film, *Open folder*; Even Motion (off by default) for smooth camera moves.\n\nThe settings are passed along one chain: Settings → Prompt Style → Auto Prompts → Director; from there the `sync` link carries them on to Cut → Even Motion.\nBefore a render starts, Run frees the GPU (unloads the LLM); if it cannot, the render is not queued and a message says why.\n\nOther engines: open **Infinite Movie - Engine LTX 2.5** or **Infinite Movie - Engine Wan 2.2**, copy its group (Ctrl+C), paste it here (Ctrl+V) and mute the MiniMax group (Ctrl+M) – only ONE engine group may be active.\n\n## Required tools\n- ffmpeg (encoding/joining films): usually already there via `imageio-ffmpeg` (installed with VideoHelperSuite), otherwise https://www.gyan.dev/ffmpeg/builds/ (Windows) or https://ffmpeg.org/download.html – put `ffmpeg` on PATH.\n- VideoHelperSuite: https://github.com/Kosinkadink/ComfyUI-VideoHelperSuite\n\n## Models – MiniMax H3 (default engine)\n- diffusion_models: [minimax_h3_fl2va_pruned_int8_convrot](https://huggingface.co/Comfy-Org/MiniMax-H3/resolve/main/diffusion_models/minimax_h3_fl2va_pruned_int8_convrot.safetensors)\n- loras: [minimax_h3_fl2v_turbo_8step_v1.1_768p_comfyui_bf16](https://huggingface.co/lightx2v/Minimax-h3-Turbo/resolve/main/minimax_h3_fl2v_turbo_8step_v1.1_768p_comfyui_bf16.safetensors)\n- text_encoders (CLIPLoader type `minimax`): [qwen3vl_32b_minimax_h3_nvfp4_awq](https://huggingface.co/Comfy-Org/MiniMax-H3/resolve/main/text_encoders/qwen3vl_32b_minimax_h3_nvfp4_awq.safetensors)\n- vae: [minimax_h3_video_vae_int8_convrot](https://huggingface.co/Comfy-Org/MiniMax-H3/resolve/main/vae/minimax_h3_video_vae_int8_convrot.safetensors) · [minimax_h3_audio_vae_fp32](https://huggingface.co/Comfy-Org/MiniMax-H3/resolve/main/vae/minimax_h3_audio_vae_fp32.safetensors)\n- Model page: https://huggingface.co/Comfy-Org/MiniMax-H3\n\n## Optional\n- LTX IC-LoRA pixel upscaler + https://github.com/Lightricks/ComfyUI-LTXVideo\n- Low VRAM (12–16 GB, untested by us): community LTX-2.5 GGUF + https://github.com/city96/ComfyUI-GGUF\n\n**Tested on:** RTX 24 GB, 768×960, single shots up to 60 s (1441 frames).\n\n```\n                          /\\                                  /\\\n              /\\         /  \\        /\\                      /  \\        /\\\n       /\\    /  \\   /\\  /    \\      /  \\    /\\      /\\      /    \\      /  \\    /\\\n      /  \\  /    \\_/  \\/      \\    /    \\__/  \\    /  \\/\\  /      \\  /\\/    \\  /  \\\n ____/    \\/                   \\__/            \\__/      \\/        \\/          \\/    \\_______\n                    _                                                _             _\n  _ __ ___    ___  | |_    __ _   _ __ ___    ___    _   _   _ __   | |_    __ _  (_)  _ __\n | '_ ` _ \\  / _ \\ | __|  / _` | | '_ ` _ \\  / _ \\  | | | | | '_ \\  | __|  / _` | | | | '_ \\\n | | | | | ||  __/ | |_  | (_| | | | | | | || (_) | | |_| | | | | | | |_  | (_| | | | | | | |\n |_| |_| |_| \\___|  \\__|  \\__,_| |_| |_| |_| \\___/   \\__,_| |_| |_|  \\__|  \\__,_| |_| |_| |_|\n\n  metamountain · infinite movie\n```\n"
       },
       "color": "#322",
       "bgcolor": "#533"
@@ -1031,10 +1022,10 @@
         }
       },
       "widgets_values": [
-        "## 5 · Director\nTurns images + prompts into shots.\n- `images`: number of images (adds or removes Load Image + Auto Prompt, then lays out; removed ones come back when raised).\n- **Image list** (top = first): drag an image up or down – it gets a blue frame, a blue line between the images shows where it lands. ✕ removes it. Transitions with a new image pair get an empty prompt → 🔄 regenerate.\n- `seconds` per shot, `loop` (last image back to the first), `variants` (2 = render A and B, pick in Cut), `seed`.\n- **🔗 AUTO LAYOUT**: tidies all groups and wires Director → Cut → Even Motion.\n- Output `sync ▶ Cut` → Cut (all shot data travels over this link)."
+        "## 5 · Director\nTurns images + prompts into shots.\n- `images`: number of images (adds or removes Load Image + Auto Prompt, then lays out; removed ones come back when raised).\n- **Image list** (top = first): drag an image up or down – it gets a blue frame, a blue line between the images shows where it lands. ✕ removes it. Transitions with a new image pair get an empty prompt → 🔄 regenerate.\n- `seconds` per shot, `loop` (last image back to the first), `variants` (2 = render A and B, pick in Cut), `seed`.\n- **🔗 AUTO LAYOUT**: tidies all groups and wires Director → Cut → Even Motion.\n- Output `sync ▶ Cut` → Cut: all shot data **and the settings** travel over this one link."
       ],
       "widgets_values_named": {
-        "text": "## 5 · Director\nTurns images + prompts into shots.\n- `images`: number of images (adds or removes Load Image + Auto Prompt, then lays out; removed ones come back when raised).\n- **Image list** (top = first): drag an image up or down – it gets a blue frame, a blue line between the images shows where it lands. ✕ removes it. Transitions with a new image pair get an empty prompt → 🔄 regenerate.\n- `seconds` per shot, `loop` (last image back to the first), `variants` (2 = render A and B, pick in Cut), `seed`.\n- **🔗 AUTO LAYOUT**: tidies all groups and wires Director → Cut → Even Motion.\n- Output `sync ▶ Cut` → Cut (all shot data travels over this link)."
+        "text": "## 5 · Director\nTurns images + prompts into shots.\n- `images`: number of images (adds or removes Load Image + Auto Prompt, then lays out; removed ones come back when raised).\n- **Image list** (top = first): drag an image up or down – it gets a blue frame, a blue line between the images shows where it lands. ✕ removes it. Transitions with a new image pair get an empty prompt → 🔄 regenerate.\n- `seconds` per shot, `loop` (last image back to the first), `variants` (2 = render A and B, pick in Cut), `seed`.\n- **🔗 AUTO LAYOUT**: tidies all groups and wires Director → Cut → Even Motion.\n- Output `sync ▶ Cut` → Cut: all shot data **and the settings** travel over this one link."
       },
       "color": "#322",
       "bgcolor": "#533"
@@ -1064,10 +1055,10 @@
         }
       },
       "widgets_values": [
-        "## 6 · Cut\nHere the film is decided and made.\n- Hover plays a shot; click picks it (A/B with `variants` = 2). **✓ KEEP / ✗ REDO** per shot; red *⚠ HARD CUT / SEAM* marks bad joins.\n- **▶ play** under a shot shows it big with sound below; **▶ film** plays the finished film.\n- **✎ prompt** / **⏱ seconds** change one shot and mark it REDO.\n- Big button: **FILM ▶** joins the chosen shots into the film (with sound when Settings › `audio` is on) and runs everything behind Cut; **RERENDER n ↻** renders only the marked shots.\n- Analysis of each shot: Heatmap · Frames · Particles · Sheet.\n- Outputs `video_path` (the film) → Film / Upscale, `last_frame`, `first_frame`, `sync` and `settings ▶ chain` → Even Motion."
+        "## 6 · Cut\nHere the film is decided and made.\n- Hover plays a shot; click picks it (A/B with `variants` = 2). **✓ KEEP / ✗ REDO** per shot; red *⚠ HARD CUT / SEAM* marks bad joins.\n- **▶ play** under a shot shows it big with sound below; **▶ film** plays the finished film.\n- **✎ prompt** / **⏱ seconds** change one shot and mark it REDO.\n- Big button: **FILM ▶** joins the chosen shots into the film (with sound when Settings › `audio` is on) and runs everything behind Cut; **RERENDER n ↻** renders only the marked shots.\n- Analysis of each shot: Heatmap · Frames · Particles · Sheet.\n- Outputs `sync` → Even Motion (carries all shot data and the settings), `video_path` (the film) → Film / Upscale, `last_frame`, `first_frame`."
       ],
       "widgets_values_named": {
-        "text": "## 6 · Cut\nHere the film is decided and made.\n- Hover plays a shot; click picks it (A/B with `variants` = 2). **✓ KEEP / ✗ REDO** per shot; red *⚠ HARD CUT / SEAM* marks bad joins.\n- **▶ play** under a shot shows it big with sound below; **▶ film** plays the finished film.\n- **✎ prompt** / **⏱ seconds** change one shot and mark it REDO.\n- Big button: **FILM ▶** joins the chosen shots into the film (with sound when Settings › `audio` is on) and runs everything behind Cut; **RERENDER n ↻** renders only the marked shots.\n- Analysis of each shot: Heatmap · Frames · Particles · Sheet.\n- Outputs `video_path` (the film) → Film / Upscale, `last_frame`, `first_frame`, `sync` and `settings ▶ chain` → Even Motion."
+        "text": "## 6 · Cut\nHere the film is decided and made.\n- Hover plays a shot; click picks it (A/B with `variants` = 2). **✓ KEEP / ✗ REDO** per shot; red *⚠ HARD CUT / SEAM* marks bad joins.\n- **▶ play** under a shot shows it big with sound below; **▶ film** plays the finished film.\n- **✎ prompt** / **⏱ seconds** change one shot and mark it REDO.\n- Big button: **FILM ▶** joins the chosen shots into the film (with sound when Settings › `audio` is on) and runs everything behind Cut; **RERENDER n ↻** renders only the marked shots.\n- Analysis of each shot: Heatmap · Frames · Particles · Sheet.\n- Outputs `sync` → Even Motion (carries all shot data and the settings), `video_path` (the film) → Film / Upscale, `last_frame`, `first_frame`."
       },
       "color": "#322",
       "bgcolor": "#533"
@@ -1110,14 +1101,14 @@
       "type": "InfiniteMovieFilm",
       "pos": [
         4875,
-        920
+        2224
       ],
       "size": [
         660,
         792
       ],
       "flags": {},
-      "order": 37,
+      "order": 38,
       "mode": 0,
       "inputs": [
         {
@@ -1125,7 +1116,7 @@
           "name": "video_path",
           "shape": 7,
           "type": "STRING",
-          "link": 2170
+          "link": 2176
         }
       ],
       "outputs": [],
@@ -1540,7 +1531,7 @@
       "type": "InfiniteMovieFilm",
       "pos": [
         5615,
-        920
+        2224
       ],
       "size": [
         660,
@@ -2565,7 +2556,7 @@
         420
       ],
       "flags": {},
-      "order": 38,
+      "order": 39,
       "mode": 2,
       "inputs": [
         {
@@ -2684,7 +2675,7 @@
           "widget": {
             "name": "video_path"
           },
-          "link": 2171
+          "link": 2177
         }
       ],
       "outputs": [
@@ -2898,7 +2889,7 @@
       "widgets_values_named": {
         "provider": "local server (llama.cpp, vLLM)",
         "endpoint": "http://127.0.0.1:8080/v1",
-        "model": "qwen27-q4kxl-135k",
+        "model": "",
         "api_key_env": "",
         "story": "",
         "storyboard_instruction": "You plan a short film made of video shots. You get all key images in film order; shot k runs from image k to image k+1{loop}. Write a coherent story arc across all shots: a clear progression, variety, and a meaningful build-up, matching what the images show. Each shot field is ONE sentence saying what HAPPENS during that shot - the change from its start image to its end image - not what one image shows. Answer ONLY with this JSON:\n{schema}\nPositive words only, never mention images or frames.",
@@ -2952,7 +2943,7 @@
       ],
       "size": [
         1056,
-        1068
+        2768
       ],
       "flags": {},
       "order": 36,
@@ -2962,14 +2953,7 @@
           "localized_name": "sync",
           "name": "sync",
           "type": "SYNC",
-          "link": 2174
-        },
-        {
-          "localized_name": "settings",
-          "name": "settings",
-          "shape": 7,
-          "type": "SETTINGS",
-          "link": 2172
+          "link": 2178
         },
         {
           "localized_name": "choices",
@@ -2983,12 +2967,20 @@
       ],
       "outputs": [
         {
+          "localized_name": "sync",
+          "name": "sync",
+          "type": "SYNC",
+          "links": [
+            2179
+          ]
+        },
+        {
           "localized_name": "video_path",
           "name": "video_path",
           "type": "STRING",
           "links": [
-            2170,
-            2171
+            2176,
+            2177
           ]
         },
         {
@@ -3002,22 +2994,6 @@
           "name": "first_frame",
           "type": "IMAGE",
           "links": null
-        },
-        {
-          "localized_name": "sync",
-          "name": "sync",
-          "type": "SYNC",
-          "links": [
-            2175
-          ]
-        },
-        {
-          "localized_name": "settings ▶ chain",
-          "name": "settings ▶ chain",
-          "type": "SETTINGS",
-          "links": [
-            2173
-          ]
         }
       ],
       "properties": {
@@ -3031,11 +3007,13 @@
       },
       "widgets_values": [
         "",
+        "",
         ""
       ],
       "widgets_values_named": {
         "choices": "",
-        "fc_choose": ""
+        "fc_choose": "",
+        "im_viz": ""
       }
     },
     {
@@ -3050,7 +3028,7 @@
         722
       ],
       "flags": {},
-      "order": 39,
+      "order": 37,
       "mode": 2,
       "inputs": [
         {
@@ -3058,14 +3036,7 @@
           "name": "sync",
           "shape": 7,
           "type": "SYNC",
-          "link": 2175
-        },
-        {
-          "localized_name": "settings",
-          "name": "settings",
-          "shape": 7,
-          "type": "SETTINGS",
-          "link": 2173
+          "link": 2179
         },
         {
           "localized_name": "file",
@@ -3550,39 +3521,23 @@
       "STRING"
     ],
     [
-      2170,
+      2176,
       53,
-      0,
+      1,
       68,
       0,
       "STRING"
     ],
     [
-      2171,
+      2177,
       53,
-      0,
+      1,
       98,
       13,
       "STRING"
     ],
     [
-      2172,
-      4,
-      1,
-      53,
-      1,
-      "SETTINGS"
-    ],
-    [
-      2173,
-      53,
-      4,
-      8,
-      1,
-      "SETTINGS"
-    ],
-    [
-      2174,
+      2178,
       4,
       0,
       53,
@@ -3590,9 +3545,9 @@
       "SYNC"
     ],
     [
-      2175,
+      2179,
       53,
-      3,
+      0,
       8,
       0,
       "SYNC"
@@ -3630,7 +3585,7 @@
         1995,
         -512,
         420,
-        2244
+        3548
       ],
       "color": "#3a6ea5",
       "flags": {}
@@ -3642,7 +3597,7 @@
         2455,
         -512,
         640,
-        2244
+        3548
       ],
       "color": "#5a8f3a",
       "flags": {}
@@ -3654,7 +3609,7 @@
         1355,
         -512,
         600,
-        2244
+        3548
       ],
       "color": "#8a6d3a",
       "flags": {}
@@ -3666,7 +3621,7 @@
         3135,
         -512,
         544,
-        2244
+        3548
       ],
       "color": "#6a4a8a",
       "flags": {}
@@ -3678,7 +3633,7 @@
         3719,
         -512,
         1096,
-        2244
+        3548
       ],
       "color": "#3a8a7a",
       "flags": {}
@@ -3690,7 +3645,7 @@
         4855,
         -512,
         700,
-        2244
+        3548
       ],
       "color": "#3f789e",
       "flags": {}
@@ -3702,7 +3657,7 @@
         5595,
         -512,
         700,
-        2244
+        3548
       ],
       "color": "#88A",
       "flags": {}
