@@ -459,7 +459,10 @@ class InfiniteMovieAssemble(io.ComfyNode):
         # video_path = film_path (the final film, not the first segment)
         vp = film_path
         fps_f = out_fps
-        ui_out = {"images": preview.as_dict()["images"], "text": [report], "film_path": [vp]}
+        ui_out = {"images": preview.as_dict()["images"], "text": [report], "film_path": [vp],
+                  "film_info": [{"path": vp, "name": os.path.basename(vp),
+                                 "seconds": round(total_frames / fps_f, 1) if fps_f else 0.0,
+                                 "shots": len(concat_paths), "audio": _has_audio_stream(vp)}]}
         if viz is not None:
             ui_out["im_viz"] = [viz]
         # 109: outputs video_path + last/first frame (graph/report as ui=).

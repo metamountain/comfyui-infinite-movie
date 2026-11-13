@@ -239,6 +239,7 @@ function fcClearFilms({ choose = false } = {}) {
     else if (n.comfyClass === "InfiniteMovieChooser") {
       if (choose) { n._fc_choose_entries = []; n._fc_redo_pending = null; }
       n._fc_choose_ran = null;
+      n._fc_film_done = null;   // no FILM READY bar for a removed film
       fcChooseRender(n);
     }
   }
@@ -2184,6 +2185,10 @@ app.registerExtension({
       } else if (d.output?.film?.[0]) {
         node._fc_film_error = null;   // film built again: clear the error
       }
+      // Film-done notice (user 2026-11-13: "status message when the film is done, clearly"):
+      // ui["film_info"] from Cut (review_nodes.py) and Even Motion (retime_nodes.py).
+      const fi = d.output?.film_info?.[0];
+      if (fi && !fe) { node._fc_film_done = fi; imFilmDoneNotice(node, fi); }
       const im = d.output?.images?.[0];
       if (node.comfyClass === "InfiniteMovieAssemble" && im) setGraph(node, im);
       else imvDraw(node);
@@ -2549,6 +2554,18 @@ function imErrorToast(summary, detail) {
   x.onclick = () => t.remove();
   t.appendChild(x);
   document.body.appendChild(t);
+}
+
+// Film finished: sticky-ish success toast (selectable path) + the Cut status turns into a green FILM READY bar.
+function imFilmInfoText(fi) {
+  const sec = Number(fi.seconds) || 0;
+  return `${fi.name} · ${sec.toFixed(1)} s · ${fi.shots} shot${fi.shots === 1 ? "" : "s"} · ${fi.audio ? "with sound" : "silent"}`;
+}
+function imFilmDoneNotice(node, fi) {
+  const what = node.comfyClass === "InfiniteMovieAssemble" ? "Even Motion film ready" : "Film ready";
+  const toast = app.extensionManager?.toast;
+  if (toast?.add) toast.add({ severity: "success", summary: `🎬 ${what}`, detail: `${imFilmInfoText(fi)}\n${fi.path}`, life: 15000 });
+  else fcReviewToast(`🎬 ${what}: ${imFilmInfoText(fi)}`, "#1a7f37");
 }
 
 function fcReviewToast(msg, color) {
@@ -3172,6 +3189,8 @@ function fcChooseStateIdle(node, entries, plan, marked) {
     : "Shots ready – FILM builds the film.", tone: "act", btn: "assemble" };
   const changed = (node._fc_choose_ran || "") !== fcChooseEffective(node).join(",");
   if (changed) return { text: "Choice changed – press FILM to rebuild the film.", tone: "act", btn: "assemble" };
+  if (node._fc_film_done) return { text: `✓ FILM READY · ${imFilmInfoText(node._fc_film_done)}`, tone: "done", btn: null,
+    title: node._fc_film_done.path };
   if (entries[0]?.has_variants) return { text: "Film assembled. Pick A or B per shot to change it, ✓/✗ to re-render a shot.", tone: "ok", btn: null };
   return { text: "Film assembled. Mark a shot ✗ to re-render it.", tone: "ok", btn: null };
 }
@@ -3180,12 +3199,16 @@ function fcChooseStatus(node) {
   const st = fcChooseState(node);
   const s = node._fc_choose_status, b = node._fc_choose_btn;
   if (s) {
-    const col = { warn: "#e3b341", busy: "#4fc3f7", idle: "#aaa", act: "#fff", ok: "#7ee787", err: "#d93025" }[st.tone] || "#aaa";
+    const col = { warn: "#e3b341", busy: "#4fc3f7", idle: "#aaa", act: "#fff", ok: "#7ee787", err: "#d93025", done: "#fff" }[st.tone] || "#aaa";
     const sText = node._fc_choose_status_text;
-    if (sText) { sText.textContent = st.text; sText.style.color = col; }
+    if (sText) {
+      sText.textContent = st.text; sText.style.color = col;
+      sText.style.fontWeight = st.tone === "done" ? "bold" : "";
+      sText.title = st.title || "";
+    }
     // Progress bar in the background of the status row (user 2026-11-03: „missing progress bar“)
     const pct = st.frac != null ? Math.round(Math.max(0, Math.min(1, st.frac)) * 100) : null;
-    s.style.background = pct == null ? "#202020"
+    s.style.background = pct == null ? (st.tone === "done" ? "#1a7f37" : "#202020")
       : `linear-gradient(90deg, #1f6feb 0%, #1f6feb ${pct}%, #202020 ${pct}%, #202020 100%)`;
     if (pct != null && sText) { sText.style.color = "#fff"; sText.textContent = `${pct}% · ${st.text}`; }
     fcChooseUpdateSteps(node);

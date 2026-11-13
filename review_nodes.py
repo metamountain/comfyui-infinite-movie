@@ -687,7 +687,7 @@ class InfiniteMovieChooser(io.ComfyNode):
                 json.dump(cache, f)
         # 116b2: assemble the film from the chosen segments (model: retime_nodes
         # InfiniteMovieAssemble). Settings › output_folder wins over save_folder.
-        from .nodes import _concat_segments
+        from .nodes import _concat_segments, _has_audio_stream
         from .retime_nodes import first_frame, last_frame
         from .settings_nodes import film_folder
         of = str(get_setting(settings, "output_folder") or "").strip()
@@ -715,6 +715,10 @@ class InfiniteMovieChooser(io.ComfyNode):
             last = last_frame(film_path)
             first = first_frame(film_path)
             film_ref = _video_ref(film_path, choose_dir, subfolder, os.path.basename(film_path))
+            # Film-done notice in the frontend (user 2026-11-13: "status message when the film is done, clearly").
+            ui["film_info"] = [{"path": film_path, "name": os.path.basename(film_path),
+                                "seconds": round(_total / _fps, 1) if _fps else 0.0,
+                                "shots": len(chosen_segments), "audio": _has_audio_stream(film_path)}]
         except Exception as e:  # noqa: BLE001 - tiles stay visible; film reported in ui
             film_path = ""
             last = None
