@@ -24,8 +24,8 @@ import numpy as np
 from comfy_api.latest import io
 
 from .nodes import _count_frames, _ffmpeg, _motion_check, _no_window, _run_ffmpeg_to, SYNC
-# 116b2: SETTINGS pipe (settings_nodes only imports .vram at module level -> no cycle).
-from .settings_nodes import SETTINGS, chain_settings, get_setting
+# Settings come inside sync (2026-11-13); settings_nodes only imports .vram at module level -> no cycle.
+from .settings_nodes import get_setting
 # 75: particle helpers moved here from ghost_nodes.py (ghost_nodes.py -> tools/ghost_check.py)
 import cv2
 
@@ -566,10 +566,6 @@ class InfiniteMovieChooser(io.ComfyNode):
                         "segments + film_path.",
             is_output_node=True,
             inputs=[
-                SETTINGS.Input("settings", optional=True, display_name="settings",
-                               tooltip="Shared settings from Infinite Movie · Settings (output_folder, raw, "
-                                       "audio, free_vram/free_ram). When connected, the film is written to "
-                                       "Settings › output_folder; without it, next to the shots (save_folder)."),
                 SYNC.Input("sync", display_name="sync",
                            tooltip="Pipe with all shots (segment paths, folder, name, fps, loop, variants) "
                                    "from Infinite Movie · Director."),
@@ -580,6 +576,10 @@ class InfiniteMovieChooser(io.ComfyNode):
             outputs=[
                 # 116b2: Cut assembles the film itself (model: retime_nodes
                 # InfiniteMovieAssemble); Even Motion is no longer needed.
+                # 2026-11-13 (user: "sync immer nach ganz oben"): sync, settings first, then the film outputs.
+                SYNC.Output("sync", display_name="sync",
+                             tooltip="Pipe with the chosen segment paths (segments replaced, variants preserved) "
+                                     "and film_path (116b2)."),
                 io.String.Output("video_path",
                                  tooltip="Path to the assembled film (the chosen shots concatenated, "
                                          "VHS-compatible). Same as the film written to the output folder."),
@@ -589,18 +589,16 @@ class InfiniteMovieChooser(io.ComfyNode):
                 io.Image.Output("first_frame",
                                 tooltip="The first frame of the finished film as IMAGE - e.g. to render a lead-in "
                                         "that ends where the film starts, or to loop a follow-up back to the start."),
-                SYNC.Output("sync", display_name="sync",
-                             tooltip="Pipe with the chosen segment paths (segments replaced, variants preserved) "
-                                     "and film_path (116b2)."),
-                SETTINGS.Output("settings", display_name="settings ▶ chain"),
             ],
             hidden=[io.Hidden.unique_id, io.Hidden.prompt, io.Hidden.extra_pnginfo],
         )
 
     @classmethod
-    def execute(cls, sync, choices="", settings=None):
+    def execute(cls, sync, choices=""):
         if sync is None:
             raise ValueError("InfiniteMovieChooser: sync pipe required")
+        # 2026-11-13: the settings travel inside sync (from the Director)
+        settings = sync.get("settings")
         segments = list(sync.get("segments", []))
         variants = sync.get("variants", None)
         has_variants = variants is not None and len(variants) == len(segments)
@@ -772,7 +770,7 @@ class InfiniteMovieChooser(io.ComfyNode):
         # 116c1: viewer data for the frontend (display: 116c2)
         ui["im_viz"] = [{"shots": viz_shots, "timeline": None,
                          "subfolder": subfolder.replace(os.sep, "/")}]
-        return io.NodeOutput(film_path, last, first, out_sync, chain_settings(settings), ui=ui)
+        return io.NodeOutput(out_sync, film_path, last, first, ui=ui)
 
 
 REVIEW_NODE_LIST = [InfiniteMovieChooser]

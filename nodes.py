@@ -851,10 +851,6 @@ class InfiniteMovieRender(io.ComfyNode):
                           display_name="sync ▶ Cut",
                           tooltip="Pipe mit allen Shots (Segment-Pfade, Ordner, Name, fps, loop …) von "
                                   "Infinite Movie · Director."),
-                SETTINGS.Output("settings", display_name="settings ▶ chain",
-                                tooltip="Settings-Kette (57c2): die eingehenden Settings (oder die Defaults) werden "
-                                        "an den nächsten Node der Kette weitergereicht – Auto Prompt -> Auto Prompt -> "
-                                        "Director -> Assemble -> Upscale."),
             ],
             hidden=[io.Hidden.unique_id, io.Hidden.dynprompt],
         )
@@ -1116,6 +1112,8 @@ class InfiniteMovieRender(io.ComfyNode):
             "seed": seed,
             "render_id": unique_id,  # the uid line was dropped in package 71 (NameError 2026-11-04)
             "scene_frames": scene_frames_list,
+            # 2026-11-13 (user: "settings in sync absorbieren"): behind the Director the settings travel inside sync
+            "settings": chain_settings(settings),
         }
         # 61: variants (Variants-Builder). Only present when variants=2 (segments mode).
         # segments stays the A list, so Assemble without a Chooser works unchanged.
@@ -1133,11 +1131,8 @@ class InfiniteMovieRender(io.ComfyNode):
             "class_type": "InfiniteMovieShotsOut",
             "inputs": {"segment_paths": [collector_id, 0], "sync": film_dict},
         }
-        # 57c2: settings chain - pass the incoming dict through, otherwise defaults.
-        out_settings = chain_settings(settings)
         return io.NodeOutput(
-            [shots_id, 0],      # 71: sync = slot 0 (link to InfiniteMovieShotsOut)
-            out_settings,       # 71: settings = slot 1
+            [shots_id, 0],      # 71: sync = slot 0 (link to InfiniteMovieShotsOut); carries the settings
             expand=graph,
         )
 

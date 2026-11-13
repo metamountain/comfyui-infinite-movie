@@ -25,7 +25,7 @@ from . import vram
 from .nodes import SYNC, _input_videos, _probe_size
 from .nodes import _ffmpeg, _no_window, _send_progress, _video_fps, _run_ffmpeg_to, _has_audio_stream
 # 57d: SETTINGS pipe + get_setting (no cycle: settings_nodes -> .vram + lazy .autoprompt).
-from .settings_nodes import SETTINGS, get_setting
+from .settings_nodes import get_setting
 
 _W, _H = 96, 120   # analysis size
 
@@ -271,12 +271,7 @@ class InfiniteMovieAssemble(io.ComfyNode):
                                        "Uses the RIFE in-between frames (interpolate auto picks x4). The film is "
                                        "silent then. Above about 2.5 fast motion can smear."),
                 # 73: copy_to removed (no more copy target; the film stays in the output folder).
-                # 57d: settings (SETTINGS) at the END so that the slot indices of the
-                # wired inputs (sync/segments/save_folder/save_name) do not shift.
-                SETTINGS.Input("settings", optional=True, display_name="settings",
-                               tooltip="Shared settings from Infinite Movie · Settings (cleanup after the film: "
-                                       "free_vram/free_ram). When connected, the cleanup switches "
-                                       "come from the pipe; otherwise the built-in defaults apply."),
+                # 2026-11-13: no settings input any more - the settings travel inside sync.
             ],
             outputs=[
                 # 73: outputs slim; 109: video output removed (not used in any workflow).
@@ -302,8 +297,9 @@ class InfiniteMovieAssemble(io.ComfyNode):
     def execute(cls, sync=None, file="",
                 video_path="",
                 interpolate="auto",
-                loop=True, time_extend=1.0,
-                settings=None) -> io.NodeOutput:
+                loop=True, time_extend=1.0) -> io.NodeOutput:
+        # 2026-11-13 (user: "settings in sync absorbieren"): settings come inside sync; without sync -> defaults
+        settings = sync.get("settings") if isinstance(sync, dict) else None
         stretch = min(max(float(time_extend or 1.0), 1.0), 4.0)
         # 116b3: even motion is ALWAYS on (widget removed) - this node writes the
         # evened-out film <name>_even.mp4; Cut writes the normal film with sound.
