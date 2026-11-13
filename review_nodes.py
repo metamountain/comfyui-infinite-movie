@@ -24,6 +24,8 @@ import numpy as np
 from comfy_api.latest import io
 
 from .nodes import _count_frames, _ffmpeg, _motion_check, _no_window, _run_ffmpeg_to, SYNC
+# 116b2: SETTINGS pipe (settings_nodes only imports .vram at module level -> no cycle).
+from .settings_nodes import SETTINGS, chain_settings, get_setting
 # 75: particle helpers moved here from ghost_nodes.py (ghost_nodes.py -> tools/ghost_check.py)
 import cv2
 
@@ -441,6 +443,8 @@ def _variant_entry(path: str, choose_dir: str, subfolder: str, variant_key: str,
             "info": cached.get("info", ""),
             "jerk": cached.get("jerk", 0.0),
             "score": cached.get("score", 0.0),
+            # 116b2: motion curve (max 64 points, 0..1); old cache entries have none.
+            "curve": cached.get("curve", []),
             "errors": errors + ([cached["info"]] if str(cached.get("info", "")).startswith("choose failed") else []),
         }, made
     h = hashlib.md5(sig.encode("utf-8")).hexdigest()[:8]
@@ -466,9 +470,22 @@ def _variant_entry(path: str, choose_dir: str, subfolder: str, variant_key: str,
         jerk = 0.0
     level = res["level"]
     score = level * 10 + jerk
+    # 116b2: motion curve (cumulative change 0..1, max 64 points) for the
+    # frontend; optional - a read failure must not fail the entry.
+    curve: list[float] = []
+    try:
+        from .retime_nodes import _read_rgb, motion_curve
+        frames, _w, _h = _read_rgb(path)
+        cum = motion_curve(frames)
+        if len(cum):
+            pts = np.interp(np.linspace(0, len(cum) - 1, min(64, len(cum))),
+                            np.arange(len(cum)), cum)
+            curve = [round(float(v), 3) for v in pts]
+    except Exception:  # noqa: BLE001
+        curve = []
     cache[cache_key] = {"sig": sig, "preview_file": preview_file, "still_file": still_file, **extra_files,
                         "flags": res["flags"], "level": level, "info": res["info"],
-                        "jerk": jerk, "score": score}
+                        "jerk": jerk, "score": score, "curve": curve}
     return {
         "preview": {"filename": preview_file, "subfolder": subfolder, "type": "temp"},
         "still": {"filename": still_file, "subfolder": subfolder, "type": "temp"},
@@ -481,6 +498,7 @@ def _variant_entry(path: str, choose_dir: str, subfolder: str, variant_key: str,
         "info": res["info"],
         "jerk": jerk,
         "score": score,
+        "curve": curve,
         "errors": errors,
     }, True
 
@@ -542,29 +560,45 @@ class InfiniteMovieChooser(io.ComfyNode):
             category="Infinite Movie/2 Render",
             description="Variants builder (Auftrag 61): for each transition, shows variant A and B side by side "
                         "with a comparison tile. An algorithm pre-selects the better variant (CUT/FLICKER/"
-                        "PARTICLES level + jerk metric); the user can override per transition. The chosen "
-                        "segments replace 'segments' in the sync pipe (variants is preserved), so the "
-                        "downstream Even Motion gets the chosen segments.",
+                        "PARTICLES level + jerk metric); the user can override per transition. 116b2: the "
+                        "chosen segments are concatenated into the final film (with audio) and written to the "
+                        "output folder - Even Motion is no longer needed. The sync pipe carries the chosen "
+                        "segments + film_path.",
             is_output_node=True,
             inputs=[
+                SETTINGS.Input("settings", optional=True, display_name="settings",
+                               tooltip="Shared settings from Infinite Movie · Settings (output_folder, raw, "
+                                       "audio, free_vram/free_ram). When connected, the film is written to "
+                                       "Settings › output_folder; without it, next to the shots (save_folder)."),
                 SYNC.Input("sync", display_name="sync",
-                            tooltip="Pipe with all shots (segment paths, folder, name, fps, loop, variants) "
-                                    "from Infinite Movie · Director."),
+                           tooltip="Pipe with all shots (segment paths, folder, name, fps, loop, variants) "
+                                   "from Infinite Movie · Director."),
                 io.String.Input("choices", advanced=True, default="",
                                 tooltip="Hidden (written by the frontend): per-transition choice, e.g. 'auto,b,auto' "
                                         "('a'/'b' overrides the automatic choice)."),
             ],
             outputs=[
-                # 73: only sync now (segments output removed; the chosen
-                # segments are in the sync pipe under "segments").
+                # 116b2: Cut assembles the film itself (model: retime_nodes
+                # InfiniteMovieAssemble); Even Motion is no longer needed.
+                io.String.Output("video_path",
+                                 tooltip="Path to the assembled film (the chosen shots concatenated, "
+                                         "VHS-compatible). Same as the film written to the output folder."),
+                io.Image.Output("last_frame",
+                                tooltip="The last frame of the finished film as IMAGE - connect it to the "
+                                        "Director's image input to continue the film from where it ends."),
+                io.Image.Output("first_frame",
+                                tooltip="The first frame of the finished film as IMAGE - e.g. to render a lead-in "
+                                        "that ends where the film starts, or to loop a follow-up back to the start."),
                 SYNC.Output("sync", display_name="sync",
-                             tooltip="Pipe with the chosen segment paths (segments replaced, variants preserved)."),
+                             tooltip="Pipe with the chosen segment paths (segments replaced, variants preserved) "
+                                     "and film_path (116b2)."),
+                SETTINGS.Output("settings", display_name="settings ▶ chain"),
             ],
-            hidden=[io.Hidden.unique_id],
+            hidden=[io.Hidden.unique_id, io.Hidden.prompt, io.Hidden.extra_pnginfo],
         )
 
     @classmethod
-    def execute(cls, sync, choices=""):
+    def execute(cls, sync, choices="", settings=None):
         if sync is None:
             raise ValueError("InfiniteMovieChooser: sync pipe required")
         segments = list(sync.get("segments", []))
@@ -653,11 +687,58 @@ class InfiniteMovieChooser(io.ComfyNode):
         if changed:
             with open(cache_file, "w", encoding="utf-8") as f:
                 json.dump(cache, f)
+        # 116b2: assemble the film from the chosen segments (model: retime_nodes
+        # InfiniteMovieAssemble). Settings › output_folder wins over save_folder.
+        from .nodes import _concat_segments
+        from .retime_nodes import first_frame, last_frame
+        from .settings_nodes import film_folder
+        of = str(get_setting(settings, "output_folder") or "").strip()
+        folder = film_folder(settings) if of else str(sync.get("save_folder", ""))
+        sn = str(sync.get("save_name", "film"))
+        free_vram = bool(get_setting(settings, "free_vram"))
+        free_ram = bool(get_setting(settings, "free_ram"))
+        meta = {}
+        _hidden_prompt = getattr(getattr(cls, "hidden", None), "prompt", None)
+        if _hidden_prompt is not None:
+            meta["prompt"] = _hidden_prompt
+        _hidden_pnginfo = getattr(getattr(cls, "hidden", None), "extra_pnginfo", None)
+        if isinstance(_hidden_pnginfo, dict):
+            meta.update(_hidden_pnginfo)
+        film_path = ""
+        last = None
+        first = None
+        film_ref = None
+        try:
+            film_path, _check, _total, _fps = _concat_segments(
+                chosen_segments, folder, sn, loop,
+                free_vram, free_ram, metadata=meta or None,
+                audio=bool(get_setting(settings, "audio")))
+            last = last_frame(film_path)
+            first = first_frame(film_path)
+            film_ref = _video_ref(film_path, choose_dir, subfolder, os.path.basename(film_path))
+        except Exception as e:  # noqa: BLE001 - tiles stay visible; film reported in ui
+            film_path = ""
+            last = None
+            first = None
+            film_ref = None
+            print(f"[InfiniteMovieChooser] film not written: {e}")
+        # 116b2: raw copies of the chosen shots (film order), Settings › raw.
+        if get_setting(settings, "raw"):
+            try:
+                raw_dir = os.path.join(folder, "raw")
+                os.makedirs(raw_dir, exist_ok=True)
+                for i, p in enumerate(chosen_segments, start=1):
+                    if os.path.exists(p):
+                        shutil.copy2(p, os.path.join(raw_dir, f"{sn}_shot{i:02d}.mp4"))
+            except Exception as e:  # noqa: BLE001
+                print(f"[InfiniteMovieChooser] raw copies failed: {e}")
         out_sync = dict(sync)
         out_sync["segments"] = chosen_segments
+        out_sync["film_path"] = film_path
         ui = {"infinite_movie_choose": entries}
-        # 73: only sync now (segments output removed).
-        return io.NodeOutput(out_sync, ui=ui)
+        if film_ref is not None:
+            ui["film"] = [film_ref]
+        return io.NodeOutput(film_path, last, first, out_sync, chain_settings(settings), ui=ui)
 
 
 REVIEW_NODE_LIST = [InfiniteMovieChooser]
