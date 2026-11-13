@@ -249,7 +249,7 @@ function wrapQueue() {
   const orig = app.queuePrompt.bind(app);
   app.queuePrompt = async function (...args) {
     // 73 (user 2026-11-03: „the film must not be rendered automatically“): Run only renders the shots up to
-    // Choose. ASSEMBLE in Choose builds the film first (partial run on Film/Assemble).
+    // Choose. FILM in Choose builds the film (partial run on Cut itself + its downstream output nodes).
     const userRun = !(Array.isArray(args[2]) && args[2].length);
     if (userRun) {
       const chooses = (app.graph?._nodes || []).filter((n) => n.comfyClass === "InfiniteMovieChooser"
@@ -3090,7 +3090,7 @@ function fcChooseState(node) {
   return fcChooseStateIdle(node, entries, plan, marked);
 }
 
-// 79: Schritt-Pfad 1 Prompts › 2 Run › 3 Pick › 4 ASSEMBLE (Statuszeile, vorn).
+// 79: Schritt-Pfad 1 Prompts › 2 Run › 3 Pick › 4 FILM (Statuszeile, vorn).
 function fcChooseSteps(node) {
   const entries = fcChooseEntries(node);
   const isPlaceholder = !!entries[0]?.placeholder;
@@ -3106,7 +3106,7 @@ function fcChooseSteps(node) {
   else { s1 = promptsFilled ? "done" : "open"; s2 = "current"; s3 = "open"; s4 = "open"; }
   return [
     { label: "1 Prompts", state: s1 }, { label: "2 Run", state: s2 },
-    { label: "3 Pick", state: s3 }, { label: "4 ASSEMBLE", state: s4 },
+    { label: "3 Pick", state: s3 }, { label: "4 FILM", state: s4 },
   ];
 }
 function fcChooseUpdateSteps(node) {
@@ -3125,10 +3125,10 @@ function fcChooseStateIdle(node, entries, plan, marked) {
   if (entries[0]?.placeholder) return { text: `Waiting for Run: ${entries.length} shot(s)${plan.variants ? " × 2 variants" : ""} will appear here.`, tone: "idle", btn: null };
   const redo = fcChooseRedoTokens(node);
   if (redo.length) return { text: `${redo.map((t) => t.toUpperCase()).join(", ")} marked ✗ – RERENDER renders only these with new seeds.`, tone: "act", btn: "rerender" };
-  if (node._fc_choose_ran == null) return { text: entries[0]?.has_variants ? "Shots ready – pick A or B per shot, then ASSEMBLE builds the film."
-    : "Shots ready – ASSEMBLE builds the film.", tone: "act", btn: "assemble" };
+  if (node._fc_choose_ran == null) return { text: entries[0]?.has_variants ? "Shots ready – pick A or B per shot, then FILM builds the film."
+    : "Shots ready – FILM builds the film.", tone: "act", btn: "assemble" };
   const changed = (node._fc_choose_ran || "") !== fcChooseEffective(node).join(",");
-  if (changed) return { text: "Choice changed – press ASSEMBLE to rebuild the film.", tone: "act", btn: "assemble" };
+  if (changed) return { text: "Choice changed – press FILM to rebuild the film.", tone: "act", btn: "assemble" };
   if (entries[0]?.has_variants) return { text: "Film assembled. Pick A or B per shot to change it, ✓/✗ to re-render a shot.", tone: "ok", btn: null };
   return { text: "Film assembled. Mark a shot ✗ to re-render it.", tone: "ok", btn: null };
 }
@@ -3154,7 +3154,7 @@ function fcChooseStatus(node) {
       b.textContent = "⏳ ASSEMBLING…"; b.style.background = "#30363d"; b.style.borderColor = "#4fc3f7";
       b.title = "Film is being built – see the status line above.";
     } else if (st.btn === "assemble") {
-      b.textContent = "ASSEMBLE ▶"; b.style.background = "#2ea043"; b.style.borderColor = "#2ea043";
+      b.textContent = "FILM ▶"; b.style.background = "#2ea043"; b.style.borderColor = "#2ea043";
       b.title = "Rebuild the film from the chosen variants (Director + Cut come from cache, only Even Motion runs).";
     } else if (st.btn === "rerender") {
       const m = fcChooseRedoTokens(node).length;
@@ -3449,21 +3449,18 @@ function fcChooseRender(node) {
     if (btn._fc_mode === "assemble") {
       node._fc_asm_t0 = Date.now();
       fcChooseStatus(node);
-      // Only build the film: partial run on Film (else Assemble), seeds fixed -> director/Choose from the cache
-      const all = app.graph?._nodes || [];
-      const on = (t) => all.filter((n) => n.comfyClass === t && (n.mode ?? 0) === 0).map((n) => String(n.id));
-      const targets = on("InfiniteMovieFilm").length ? on("InfiniteMovieFilm") : on("InfiniteMovieAssemble");
-      // 2026-11-08 (user: „last frame does not work“): output nodes BEHIND Assemble (Preview Image on
-      // last_frame, Movie to GIF, Save …) belong to the partial run too – otherwise they never run. Director/Choose
-      // excluded: a second director on last_frame only renders with Run.
-      for (const id of fcDownstreamOutputs(on("InfiniteMovieAssemble"))) if (!targets.includes(id)) targets.push(id);
-      if (window.__fc_review_test_skip_queue) console.log("[InfiniteMovie] test: skipped queuePrompt (ASSEMBLE)", JSON.stringify(targets));
+      // 116b4: partial run on Cut itself (it assembles the film, 116b2) + all active output nodes
+      // downstream (Preview Image on last_frame, Movie to GIF, Save …) – otherwise they never run.
+      // Seeds fixed -> the upstream chain comes from the cache. The old Film/Assemble search is gone.
+      const targets = [String(node.id)];
+      for (const id of fcDownstreamOutputs([String(node.id)])) if (!targets.includes(id)) targets.push(id);
+      if (window.__fc_review_test_skip_queue) console.log("[InfiniteMovie] test: skipped queuePrompt (FILM)", JSON.stringify(targets));
       else Promise.resolve(fcQueueFixedSeeds(targets)).catch((err) => {
         node._fc_asm_t0 = null; fcChooseStatus(node);
-        fcReviewToast("ASSEMBLE could not be queued – see console", "#d93025");
-        console.error("[InfiniteMovie] ASSEMBLE queue failed", err);
+        fcReviewToast("FILM could not be queued – see console", "#d93025");
+        console.error("[InfiniteMovie] FILM queue failed", err);
       });
-      fcReviewToast("ASSEMBLE queued – building film…");
+      fcReviewToast("FILM queued – building film…");
     } else if (btn._fc_mode === "rerender") {
       fcRerenderMarked(node, fcChooseRender);
     }
@@ -3499,8 +3496,21 @@ function fcChooseRender(node) {
   if (!node._fc_play) {
     const box = document.createElement("div");
     box.style.cssText = "width:100%;display:flex;flex-direction:column;gap:0;";
-    const title = document.createElement("div");
-    title.style.cssText = "height:20px;line-height:20px;font:bold 13px sans-serif;color:#ccc;";
+    const trow = document.createElement("div");
+    trow.style.cssText = "height:20px;display:flex;align-items:center;gap:6px;";
+    const title = document.createElement("span");
+    title.style.cssText = "flex:1;min-width:0;font:bold 13px sans-serif;color:#ccc;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;";
+    // 116b4: "▶ film" – the built film (with sound) in the preview field; shown once the film ref is known.
+    const fbtn = document.createElement("div");
+    fbtn.textContent = "▶ film";
+    fbtn.style.cssText = "flex:0 0 auto;padding:0 8px;height:20px;line-height:20px;font:bold 12px sans-serif;" +
+      "color:#fff;background:#1f6feb;border-radius:3px;cursor:pointer;display:none;";
+    fbtn.title = "Play the built film with sound in the big preview below";
+    fbtn.addEventListener("click", () => {
+      fcChoosePlay(node, "", "", node._fc_film_ref);
+      node._fc_play.title.textContent = "Film";
+    });
+    trow.appendChild(title); trow.appendChild(fbtn);
     const video = document.createElement("video");
     video.controls = true; video.loop = true; video.playsInline = true;
     video.style.cssText = `width:100%;height:${FC_CHOOSE_PLAY_H}px;object-fit:contain;background:#000;display:none;`;
@@ -3508,8 +3518,8 @@ function fcChooseRender(node) {
     hint.style.cssText = `height:${FC_CHOOSE_PLAY_H}px;display:flex;align-items:center;justify-content:center;` +
       "background:#000;color:#888;font:14px sans-serif;";
     hint.textContent = "▶ play under a shot shows it here – big, with sound";
-    box.appendChild(title); box.appendChild(video); box.appendChild(hint);
-    node._fc_play = { box, title, video, hint };
+    box.appendChild(trow); box.appendChild(video); box.appendChild(hint);
+    node._fc_play = { box, trow, title, video, hint, fbtn };
   }
   el.appendChild(node._fc_play.box);
 
@@ -3539,8 +3549,13 @@ app.registerExtension({
       this._fc_choose_entries = (message && message.infinite_movie_choose) || [];
       this._fc_choose_active = -1;
       this._fc_redo_pending = null;   // new variants are there
+      // 116b4: Cut wrote the film -> remember the ref, show "▶ film" in the preview title row.
+      if (message?.film?.[0]) {
+        this._fc_film_ref = message.film[0];
+        if (this._fc_play) this._fc_play.fbtn.style.display = "";
+      }
       // Live run: film not built yet (set by Film/Assemble first). Restored on page load
-      // (no run active): the film already exists -> not green „ASSEMBLE“ again.
+      // (no run active): the film already exists -> not green „FILM“ again.
       this._fc_choose_ran = fcRun.running ? null : fcChooseEffective(this).join(",");
       if (this.properties) this.properties.rejected = {};   // new shots: forget the rejection   // film not built yet – set by Film/Assemble first (executed event)
       fcChooseRender(this);
@@ -3769,7 +3784,7 @@ function fcFilmRender(node) {
   const filmRuns = /film|assemble/i.test(runNode);
   if (fcRun.running && filmRuns) { s.textContent = "⏳ Building film…"; s.style.color = "#4fc3f7"; }
   else if (fcRun.running) {
-    s.textContent = `⏳ ${runNode} running – film follows after ASSEMBLE` + (info?.exists ? " · showing last film" : "");
+    s.textContent = `⏳ ${runNode} running – film follows after FILM` + (info?.exists ? " · showing last film" : "");
     s.style.color = "#4fc3f7";
   }
   else if (!info) { s.textContent = "Waiting for the film – press Run."; s.style.color = "#aaa"; }
