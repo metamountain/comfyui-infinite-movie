@@ -1,6 +1,7 @@
 import { app } from "../../scripts/app.js";
 import { api } from "../../scripts/api.js";
 import { fcReviewToast } from "./im_common.js";
+import { fcRun } from "./im_cut_edit.js";
 // ---------------------------------------------------------------------------
 // InfiniteMovie.Film (2026-11-03): show the finished film + „Saved: …“ status.
 // Before the run: „Waiting for the film…“; while ComfyUI renders: „Rendering…“.

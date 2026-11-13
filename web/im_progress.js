@@ -6,7 +6,7 @@ import { imvFixWidth } from "./im_viewer.js";
 // Reads the events of the expanded segment nodes (IDs "<render>_s<i>_...", display_node = render node):
 // which segment is running, sampler step, remaining time from the mean segment duration (before the first finished
 // segment estimated from the sampler progress).
-function fmtTime(s) {
+export function fmtTime(s) {
   if (!isFinite(s) || s < 0) return "–";
   s = Math.round(s);
   return s >= 3600 ? `${Math.floor(s / 3600)}:${String(Math.floor(s / 60) % 60).padStart(2, "0")}:${String(s % 60).padStart(2, "0")}`

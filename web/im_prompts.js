@@ -1,5 +1,5 @@
 import { app } from "../../scripts/app.js";
-import { IMG, fcActive, fcImgActive, fcImgLink, fcImgOrder, fcImgRoot, getLink, interleave, settingsNodeOf, slotKey } from "./im_common.js";
+import { IMG, PR, fcActive, fcImgActive, fcImgLink, fcImgOrder, fcImgRoot, getLink, interleave, settingsNodeOf, slotKey } from "./im_common.js";
 import { wireSettingsChain } from "./im_director.js";
 // Layout button (user 2026-10-26: no switch, arrange only on click): images left, prompts right tightly
 // stacked, each image centered on the boundary between its two prompts. Sizes the user has dragged

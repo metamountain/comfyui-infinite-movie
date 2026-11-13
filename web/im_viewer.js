@@ -88,7 +88,7 @@ function imvShot(node) {
 // 2026-11-09 (user: „Assemble window to 3×3 … all analyzers to one size“): fixed area = 3×3 Load Image tiles
 // (160×160) -> 480×480, square (user 2026-11-09: portrait and landscape fit, images contain);
 // every tab fills exactly this area. Director gets the same width (IMV_NODE_W).
-const IMV_W = 480, IMV_H = 480, IMV_NODE_W = IMV_W + 24;
+export const IMV_W = 480, IMV_H = 480, IMV_NODE_W = IMV_W + 24;
 // 2026-11-13 (user: "Assemble as wide as the group"): only a minimum – AUTO LAYOUT may make it wider, the 480 area
 // stays centred (canvas margin auto).
 export function imvFixWidth(node) {

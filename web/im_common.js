@@ -27,7 +27,7 @@ import { imToggleWidget } from "./im_settings.js";
 }
 
 export const IMG = "images.image";
-const PR = "shot_prompts.prompt";
+export const PR = "shot_prompts.prompt";
 // 74: GPU pre-check – min_free_mb is a constant (Python: MIN_FREE_MB), GPU handover fixed.
 const MIN_FREE_MB = 20000;
 
@@ -311,7 +311,7 @@ export function wrapQueue() {
 // Shared helpers: toast + "Rerender marked" (Choose). The review node has been removed since 75.
 // ---------------------------------------------------------------------------
 
-const FC_REVIEW_LINE_COLORS = ["transparent", "#e6c229", "#e68929", "#d93025"];  // Verdachts-Linie (Choose)
+export const FC_REVIEW_LINE_COLORS = ["transparent", "#e6c229", "#e68929", "#d93025"];  // Verdachts-Linie (Choose)
 
 // 2026-11-11 (user: "error messages can't be copied - I hate that"): errors as ComfyUI toast (stays until closed,
 // text selectable) instead of window.alert; fallback = selectable fixed box.
@@ -332,7 +332,7 @@ function imErrorToast(summary, detail) {
 }
 
 // Film finished: sticky-ish success toast (selectable path) + the Cut status turns into a green FILM READY bar.
-function imFilmInfoText(fi) {
+export function imFilmInfoText(fi) {
   const sec = Number(fi.seconds) || 0;
   return `${fi.name} · ${sec.toFixed(1)} s · ${fi.shots} shot${fi.shots === 1 ? "" : "s"} · ${fi.audio ? "with sound" : "silent"}`;
 }

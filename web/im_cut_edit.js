@@ -1,9 +1,9 @@
 import { app } from "../../scripts/app.js";
 import { api } from "../../scripts/api.js";
-import { fcChooseRedoTokens, fcClearFilms, fcParseShotSeconds, fcQueueFixedSeeds, fcReviewToast, fcShotSecondsOf, getLink } from "./im_common.js";
+import { fcChooseRedoTokens, fcClearFilms, fcParseShotSeconds, fcQueueFixedSeeds, fcReviewToast, fcShotSecondsOf, getLink, imFilmInfoText } from "./im_common.js";
 import { fcChooseRender } from "./im_cut.js";
-import { renderEstimate } from "./im_progress.js";
-import { imvDraw, imvStop } from "./im_viewer.js";
+import { fmtTime, renderEstimate } from "./im_progress.js";
+import { IMV_H, IMV_NODE_W, imvDraw, imvStop } from "./im_viewer.js";
 export function fcRerenderMarked(node, rerenderFn) {
   const marked = fcChooseRedoTokens(node);
   if (!marked.length) return;
@@ -92,7 +92,7 @@ export function fcRerenderMarked(node, rerenderFn) {
 const FC_CHOOSE_COL = 256;           // fixed square tile per shot (image contain); node gets wider, never images smaller
 export const FC_CHOOSE_GAP = 4;
 const FC_CHOOSE_PAD = 20;            // DOM widget margin left+right in the node
-const FC_CHOOSE_HEAD_H = 20, FC_CHOOSE_STAT_H = 24, FC_CHOOSE_BTNROW_H = 34;
+export const FC_CHOOSE_HEAD_H = 20, FC_CHOOSE_STAT_H = 24, FC_CHOOSE_BTNROW_H = 34;
 // Effective choice of a shot: A/B from the widget only counts if the shot has both variants (otherwise after
 // a run with variants=1 an old „b“ sits in the widget and sheet/seam look for a variant that does not exist).
 export function fcChooseEff(e, c) { return (e?.has_variants && (c === "a" || c === "b")) ? c : (e?.auto || "a"); }
@@ -111,7 +111,7 @@ export function fcChooseQuality(v, e) {
   if (e && e.seam_bad) q.seam = { text: `⚠ HARD SEAM → next · ${(+e.seam || 0).toFixed(1)}`, color: "#fff", bg: "#b3261e" };
   return q;
 }
-const FC_CHOOSE_STATUS_H = 26, FC_CHOOSE_BIG_H = 44;
+export const FC_CHOOSE_STATUS_H = 26, FC_CHOOSE_BIG_H = 44;
 // 115: big preview field (video with sound) at the bottom of the chooser.
 // 116c2 (user: „möglichst groß, eher square“): no fixed height – the play field is SQUARE:
 // height = inner width of the Cut DOM area (node width minus the 20 px DOM margin), min 256.
@@ -120,7 +120,7 @@ export function fcChoosePlayH(node) {
   const w = node?.size?.[0] ?? 0;
   return Math.max(256, w - FC_CHOOSE_PAD);
 }
-const FC_CHOOSE_SEAM_H = 84;   // 2026-11-08: seam row (last image of this shot | first image of the next)
+export const FC_CHOOSE_SEAM_H = 84;   // 2026-11-08: seam row (last image of this shot | first image of the next)
 
 // 2026-11-08 (user: couple chooser + Assemble): show the shot in the Assemble viewer (click on the shot header
 // in the chooser) or highlight it in the chooser (seg button in the Assemble viewer). number = shot number (1-based).
@@ -146,7 +146,7 @@ export function fcChooseFocus(number) {
 }
 
 // Run state of ComfyUI (for status + greying out), global from the api events.
-const fcRun = { running: false, node: "", value: 0, max: 0 };
+export const fcRun = { running: false, node: "", value: 0, max: 0 };
 function fcChooseAll() { return (app.graph?._nodes || []).filter((n) => n.comfyClass === "InfiniteMovieChooser"); }
 function fcChooseRefreshAll() { for (const n of fcChooseAll()) fcChooseRender(n); }
 // Auto layout (web/infinite_movie_layout.js) refreshes Choose BEFORE measuring – otherwise the old width,
