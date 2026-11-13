@@ -62,7 +62,8 @@ def gif_params(**kw) -> dict:
         "format": fmt,
         "long_side": int(f("long_side", 480, 0, 4096)),
         "crop": kw.get("crop") if kw.get("crop") in CROPS else "none",
-        "nth": int(f("every_nth", 1, 1, 30)),
+        "speed": f("speed", 1.0, 0.25, 10.0),   # 2 = half as long (time-lapse), 0.5 = slow motion
+        "fps": f("fps", 0.0, 0, 60),            # frames per second of the result; 0 = the film's own rate
         "src_fps": f("src_fps", 0.0, 0, 240),    # rate of the frames going in (probe / loader); 0 = unknown
         "max_fps": f("max_fps", 0.0, 0, 240),    # extra cap (live preview)
         "start": f("start", 0.0, 0, 36000),
@@ -108,9 +109,15 @@ def _ext(p: dict) -> str:
 
 
 def out_fps(p: dict) -> float:
-    """Playback rate of the result = always the film's own rate (0 = unknown). every_nth only drops frames,
-    so the GIF plays every_nth times faster and is every_nth times shorter."""
-    return p["src_fps"]
+    """Frame rate of the result (0 = unknown). fps (0 = the film's own rate) only drops frames – the length
+    stays; speed changes the length. Never more frames than the sped-up film has, GIF at most 50."""
+    src, cap = p["src_fps"], fps_cap(p)
+    eff = src * p["speed"]                       # rate after speed (slow motion: fewer frames per second)
+    want = [x for x in (p["fps"] or src, cap) if x]
+    tgt = min(want) if want else 0.0
+    if eff:
+        return min(eff, tgt) if tgt else eff
+    return min(p["fps"], cap or 999.0) if p["fps"] else 0.0
 
 
 def fps_cap(p: dict) -> float:
@@ -120,8 +127,8 @@ def fps_cap(p: dict) -> float:
 
 
 def video_filter(p: dict, max_seconds: float = 0.0) -> str:
-    """Filter chain for one video stream: [loader frames + trim], every n-th frame played at the film's own
-    rate, fps cap, centre crop, scale, direction. Ends with label [v]."""
+    """Filter chain for one video stream: [loader frames + trim], speed, fps (drops frames, length stays),
+    centre crop, scale, direction. Ends with label [v]."""
     parts = []
     if p.get("pre"):
         # loader mode: start/end apply to the delivered frames, not to the file (no -ss/-t)
@@ -132,12 +139,12 @@ def video_filter(p: dict, max_seconds: float = 0.0) -> str:
         if p["start"] > 0 or end:
             parts.append("trim=" + ":".join(([f"start={p['start']:g}"] if p["start"] > 0 else []) +
                                             ([f"end={end:g}"] if end else [])) + ",setpts=PTS-STARTPTS")
-    if p["nth"] > 1:
-        # keep every n-th frame and play them at the film's own rate -> n times faster, n times shorter
-        parts.append(f"select='not(mod(n\\,{p['nth']}))',setpts=PTS/{p['nth']}")
-    cap, rate = fps_cap(p), out_fps(p)
-    if cap and rate > cap + 0.01:   # only when known and too high – fps= on a slower stream duplicates frames
-        parts.append(f"fps={cap:g}")
+    if abs(p["speed"] - 1.0) > 1e-6:
+        parts.append(f"setpts=PTS/{p['speed']:g}")
+    eff, rate = p["src_fps"] * p["speed"], out_fps(p)
+    if rate and (eff > rate + 0.01 or (not eff and p["fps"])):
+        # fps= drops frames (length stays); only when lower than what the stream has – else it duplicates
+        parts.append(f"fps={rate:g}")
     ratio = CROPS.get(p["crop"])
     if ratio:
         a = ratio[0] / ratio[1]
@@ -246,7 +253,7 @@ def render(src: str, out: str, p: dict, max_seconds: float = 0.0, timeout: int =
     if r.returncode != 0 or not os.path.isfile(part):
         raise RuntimeError(f"Movie to GIF: ffmpeg failed: {(r.stderr or '').strip()[-400:]}")
     os.replace(part, out)
-    info = anim_info(out, min(x for x in (out_fps(p), fps_cap(p) or 999) if x) if out_fps(p) else 0.0)
+    info = anim_info(out, out_fps(p))
     info.update(bytes=os.path.getsize(out), seconds=round(time.time() - t0, 2))
     return info
 
@@ -399,7 +406,7 @@ class InfiniteMovieGif(io.ComfyNode):
             search_aliases=["gif", "webp", "animated", "movie to gif", "video to gif", "infinite movie"],
             category="Infinite Movie",
             description="Turns a film into an animated GIF or WebP. The preview in the node updates live while you "
-                        "change size, crop, every_nth, trim, direction or colours (nothing is saved); the line "
+                        "change size, crop, trim, direction, speed, fps or colours (nothing is saved); the line "
                         "below shows the result (length, speed, estimated size). save writes the full version to "
                         "output_folder / filename, save as… chooses folder and name. Run renders the full version; "
                         "with auto_save every Run saves (batches).",
@@ -427,12 +434,6 @@ class InfiniteMovieGif(io.ComfyNode):
                 io.Boolean.Input("auto_save", display_name="auto_save (batch)", optional=True, default=False,
                                  tooltip="Off: Run only renders and shows the full version – save it with the save "
                                          "button. On: every Run saves (for batches)."),
-                io.Float.Input("start", advanced=True, optional=True, default=0.0, min=0.0, max=36000.0, step=0.1,
-                               tooltip="Start in seconds."),
-                io.Float.Input("end", advanced=True, optional=True, default=0.0, min=0.0, max=36000.0, step=0.1,
-                               tooltip="End in seconds (0 = to the end)."),
-                io.Combo.Input("direction", advanced=True, optional=True, options=DIRECTIONS, default="forward",
-                               tooltip="boomerang = forward then backward (seamless loop from any clip)."),
                 io.Int.Input("colors", advanced=True, optional=True, default=256, min=2, max=256,
                              tooltip="GIF only: palette size. Fewer colours = smaller file, more banding."),
                 io.Combo.Input("dither", advanced=True, optional=True, options=DITHERS, default=DITHERS[0],
@@ -448,12 +449,20 @@ class InfiniteMovieGif(io.ComfyNode):
                                tooltip="Only for the images input: at what rate were these frames made? "
                                        "0 = auto (read from a connected VHS Load Video, else 24). "
                                        "A wrong value makes the GIF play too fast or too slow."),
-                io.Int.Input("every_nth", optional=True, default=1, min=1, max=30, step=1,
+                io.Float.Input("start", optional=True, default=0.0, min=0.0, max=36000.0, step=0.1,
+                               tooltip="Start in seconds."),
+                io.Float.Input("end", optional=True, default=0.0, min=0.0, max=36000.0, step=0.1,
+                               tooltip="End in seconds (0 = to the end)."),
+                io.Combo.Input("direction", optional=True, options=DIRECTIONS, default="forward",
+                               tooltip="boomerang = forward then backward (seamless loop from any clip)."),
+                io.Float.Input("speed", optional=True, default=1.0, min=0.25, max=10.0, step=0.25,
+                               display_mode=io.NumberDisplay.slider,
+                               tooltip="Tempo: 1 = original length, 2 = twice as fast (half as long), 10 = time-lapse, "
+                                       "0.5 = slow motion (each frame stays longer)."),
+                io.Int.Input("fps", optional=True, default=0, min=0, max=60, step=1,
                              display_mode=io.NumberDisplay.slider,
-                             tooltip="Compression by frames: only every n-th frame goes in (1 = all, 2 = every 2nd, "
-                                     "10 = every 10th). The GIF always plays at the film's own frame rate, so it gets "
-                                     "n times shorter and faster (time-lapse) and about n times smaller. "
-                                     f"GIF plays at most {GIF_MAX_FPS} fps."),
+                             tooltip="Frames per second of the GIF (0 = the film's own rate). Fewer = choppier and "
+                                     f"smaller, the length stays the same. GIF plays at most {GIF_MAX_FPS} fps."),
             ],
             outputs=[],
             hidden=[io.Hidden.unique_id, io.Hidden.prompt],
@@ -465,10 +474,10 @@ class InfiniteMovieGif(io.ComfyNode):
         return f"{p}:{os.path.getmtime(p) if p and os.path.isfile(p) else ''}"
 
     @classmethod
-    def execute(cls, format=FORMATS[0], long_side=480, crop="none", every_nth=1, output_folder="GIF",
+    def execute(cls, format=FORMATS[0], long_side=480, crop="none", output_folder="GIF",
                 filename="GIF#", auto_save=False, start=0.0, end=0.0, direction="forward", colors=256, dither=DITHERS[0], palette=PALETTES[0],
                 quality=80, max_mb=0.0, video=None, images=None, video_path="", file="(none)",
-                source_fps=0.0) -> io.NodeOutput:
+                source_fps=0.0, speed=1.0, fps=0) -> io.NodeOutput:
         hidden = getattr(cls, "hidden", None)
         uid = str(hidden.unique_id) if hidden and hidden.unique_id is not None else ""
         rate = source_fps
@@ -477,7 +486,7 @@ class InfiniteMovieGif(io.ComfyNode):
         src = _resolve_source(video, images, video_path, file, rate)
         if uid:
             _LAST_SOURCE[uid] = os.path.abspath(src)
-        p = gif_params(format=format, long_side=long_side, crop=crop, every_nth=every_nth, start=start, end=end,
+        p = gif_params(format=format, long_side=long_side, crop=crop, speed=speed, fps=fps, start=start, end=end,
                        direction=direction, colors=colors, dither=dither, palette=palette,
                        quality=quality, src_fps=_probe(_ffmpeg(), src)["fps"])
         full = os.path.join(_tmp_dir(), f"run_{uid or 'x'}{_ext(p)}")
@@ -545,7 +554,7 @@ def gif_preview(body: dict) -> dict:
     key = hashlib.sha1(json.dumps([src, os.path.getmtime(src), p]).encode()).hexdigest()[:16]
     out = os.path.join(tmp, f"preview_{key}{_ext(p)}")
     if os.path.isfile(out):
-        info = {**anim_info(out, min(out_fps(p) or PREVIEW_FPS, PREVIEW_FPS)), "bytes": os.path.getsize(out)}
+        info = {**anim_info(out, out_fps(p) or PREVIEW_FPS), "bytes": os.path.getsize(out)}
     else:
         info = render(src, out, p, max_seconds=PREVIEW_MAX_S, timeout=60)
         prune_previews(tmp)
@@ -554,14 +563,14 @@ def gif_preview(body: dict) -> dict:
     dur_src = srcinfo.get("dur") or 0.0
     end = min(full["end"], dur_src) if (full["end"] and dur_src) else (full["end"] or dur_src)
     span = max(end - full["start"], 0.0)
-    nth, boom = full["nth"], 2 if full["direction"] == "boomerang" else 1
+    speed, boom = full["speed"], 2 if full["direction"] == "boomerang" else 1
     if p.get("pre"):   # loader frames: the preview shows all of them when it is shorter than the 8 s window
-        covered = info["dur"] * nth / boom
+        covered = info["dur"] * speed / boom
         if covered < PREVIEW_MAX_S - 0.3:
             span = covered
     rate = out_fps(full)
-    f_full = min(rate or 24.0, fps_cap(full) or 999)
-    dur_full = span / nth * boom
+    f_full = rate or min(full["fps"] or 24.0, fps_cap(full) or 999)
+    dur_full = span / speed * boom
     if info.get("w") and info.get("h") and srcinfo.get("w") and span and info.get("frames"):
         # size ≈ preview bytes per frame × area ratio × frames of the full version
         L = full["long_side"] or max(srcinfo["w"], srcinfo["h"])
@@ -570,8 +579,8 @@ def gif_preview(body: dict) -> dict:
     rel = os.path.relpath(out, folder_paths.get_temp_directory())
     sub, name = os.path.split(rel)
     result = (f"{span:.1f} s → {dur_full:.1f} s" if span else "") + \
-        (f" · {nth}× faster" if nth > 1 else "") + \
-        (f" · plays {f_full:g} fps" if rate else "") + (f" · ≈ {human(est)}" if est else "")
+        (f" · {speed:g}× faster" if speed > 1 else f" · {1 / speed:g}× slower" if speed < 1 else "") + \
+        (f" · {f_full:g} fps" if rate else "") + (f" · ≈ {human(est)}" if est else "")
     return {"ok": True, "filename": name, "subfolder": sub, "type": "temp",
             "message": result.strip(" ·") + (f" · preview: first {PREVIEW_MAX_S:g} s" if span > PREVIEW_MAX_S else "")}
 

@@ -12,7 +12,7 @@ import { api } from "../../scripts/api.js";
 const GIF_CLASS = "InfiniteMovieGif";
 const PREVIEW_H = 280;
 const INFO_H = 40;
-const PARAMS = ["format", "long_side", "crop", "every_nth", "start", "end", "direction", "colors", "dither",
+const PARAMS = ["format", "long_side", "crop", "speed", "fps", "start", "end", "direction", "colors", "dither",
   "palette", "quality", "source_fps", "output_folder", "filename"];
 const GIF_ONLY = ["colors", "dither", "palette"];
 const WEBP_ONLY = ["quality"];
