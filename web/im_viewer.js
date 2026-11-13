@@ -2,6 +2,7 @@ import { app } from "../../scripts/app.js";
 import { api } from "../../scripts/api.js";
 import { fcReviewToast, imFilmDoneNotice } from "./im_common.js";
 import { fcChooseFocus, fcChooseStatus } from "./im_cut_state.js";
+import { imToggleWidget } from "./im_settings.js";
 // Normalize Time: draw the graph of the last run below the widgets (user 2026-10-26:
 // "must be visualized which normalization takes effect"). Uses the analysis of the last run
 // (POST /infinite_movie/normalize_graph, retime_nodes.py) - no render, no encode.
@@ -456,19 +457,7 @@ app.registerExtension({
     // 58 (2026-11-02): do NOT take widgets from node.widgets – widgets_values are positional, and graphToPrompt
     // left out the required inputs file/loop (night debug 58: strength=24 > max 1.0). Only hide,
     // Vorbild ComfyUI-LTXVideo/web/js/guider_parameters_advanced.js:22-45 (hidden + computeSize).
-    const toggle = (w, show) => {
-      if (!w) return;
-      if (w._imOrigComputeSize === undefined) w._imOrigComputeSize = w.computeSize ?? null;
-      w.hidden = !show;
-      if (show) {
-        if (w._imOrigComputeSize) w.computeSize = w._imOrigComputeSize;
-        else delete w.computeSize;
-        delete w.computedHeight;
-      } else {
-        w.computeSize = () => [0, -4];
-        w.computedHeight = 0;
-      }
-    };
+    const toggle = imToggleWidget;
     // 73: copy_to is no longer a widget (input removed) -> no toggle needed.
     const setHidden = (visible) => {
       for (const name of HIDDEN_WHEN_SYNC) toggle(node.widgets?.find((x) => x.name === name), visible);

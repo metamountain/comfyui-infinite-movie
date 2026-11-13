@@ -2,6 +2,7 @@ import { app } from "../../scripts/app.js";
 import { api } from "../../scripts/api.js";
 import { fcReviewToast } from "./im_common.js";
 import { fcRun } from "./im_cut_state.js";
+import { imToggleWidget } from "./im_settings.js";
 // ---------------------------------------------------------------------------
 // InfiniteMovie.Film (2026-11-03): show the finished film + „Saved: …“ status.
 // Before the run: „Waiting for the film…“; while ComfyUI renders: „Rendering…“.
@@ -25,10 +26,7 @@ function fcFilmWidgets(node) {
   const hide = (name, show) => {
     const w = node.widgets?.find((x) => x.name === name);
     if (!w || w.hidden === !show) return;
-    if (w._imOrigComputeSize === undefined) w._imOrigComputeSize = w.computeSize ?? null;
-    w.hidden = !show;
-    if (show) { if (w._imOrigComputeSize) w.computeSize = w._imOrigComputeSize; else delete w.computeSize; delete w.computedHeight; }
-    else { w.computeSize = () => [0, -4]; w.computedHeight = 0; }
+    imToggleWidget(w, show);
   };
   const linked = (n) => node.inputs?.find((x) => x.name === n)?.link != null;
   hide("fps", linked("images"));
