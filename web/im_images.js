@@ -27,10 +27,15 @@ function fcImgPath(g, n) {
   return path;
 }
 
+// Max image count = MAX_IMAGES in nodes.py (one source, user 2026-11-13): read from the node definition.
+export function fcMaxImages() {
+  return LiteGraph.registered_node_types?.InfiniteMovieRender?.nodeData?.input?.optional?.images?.[1]?.template?.max ?? Infinity;
+}
+
 function fcSetImageCount(chain, want) {
   const g = chain.graph;
   if (!g) return;
-  want = Math.max(1, Math.min(12, Math.round(Number(want) || 1)));
+  want = Math.max(1, Math.min(fcMaxImages(), Math.round(Number(want) || 1)));
   let imgs = fcChainImages(chain);
   if (want === imgs.length) return;
   const restored = [];                                      // [new Load Image, remembered entry]
@@ -342,7 +347,7 @@ export function addImageCounter(node) {
   const w = node.addWidget("number", "image_count", n0, (v) => {
     clearTimeout(node._fcCountT);
     node._fcCountT = setTimeout(() => fcSetImageCount(node, v), 350);   // Pfeile/Ziehen entprellen
-  }, { min: 1, max: 12, step: 10, round: 1, precision: 0, serialize: false });
+  }, { min: 1, max: fcMaxImages(), step: 10, round: 1, precision: 0, serialize: false });
   w.serialize = false;
   w.label = "images";
   w.tooltip = "Number of images. More: adds Load Image nodes (copy of the last image – replace them) with their Auto Prompts and tidies the layout. Fewer: removes the last images and their prompts.";

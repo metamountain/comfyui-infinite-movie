@@ -41,8 +41,9 @@ from .media import (_count_frames, _encode_dir_to_mp4, _ffmpeg, _no_window, _seg
 from .settings_nodes import SETTINGS, get_setting, chain_settings, ASPECT_FROM_IMAGES, resolve_ratio
 
 # Image slots: Autogrow starts with one, the next appears once one is connected
-# (user 2026-10-26: max. 12). Keep in sync with MAX_IMAGES in web/infinite_movie.js.
-MAX_IMAGES = 12
+# (user 2026-11-13: max. 8 - ~40 s film, Cut fits one screen). Single source: the frontend reads it from
+# /object_info (images template max) via fcMaxImages() in web/im_images.js.
+MAX_IMAGES = 8
 
 # Auftrag 32: sync pipe - a "pipe" type (like rgthree-Context /
 # Efficiency-Pipes). Content: dict with segments, save_folder, save_name, fps,
