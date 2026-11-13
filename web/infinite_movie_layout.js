@@ -370,6 +370,13 @@ export function fcWorkflowLayout(director, second = false) {
   }
   // Film player(s) of 6 and 7 sit at the bottom edge of their group (user: "films at the bottom")
   for (const fs of [cutFilms, asmFilms]) { let b = Y + H - PAD; for (const f of [...fs].reverse()) { f.pos = [f.pos[0], b - f.size[1]]; b -= T + f.size[1] + NGAP; } }
+  // user 2026-11-13 ("5 Cut: don't fix the height of the preview, min square"): a single preview beside Cut spans
+  // from Cut's top to the group bottom; the square stays its minimum
+  if (cut.length && cutFilms.length === 1) {
+    const f = cutFilms[0], top = cut[0].pos[1];
+    f.size = [f.size[0], Math.max(f.computeSize()[1], Y + H - PAD - top)];
+    f.pos = [f.pos[0], top];
+  }
   // user 2026-11-13 ("never collapse the graph, always open"): Even Motion reaches down to its Film player, so its
   // analysis graph (image preview below the widgets) always has room inside group 7 - also before the first run
   for (const a of asm) {

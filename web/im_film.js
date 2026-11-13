@@ -46,8 +46,9 @@ export function fcFilmRender(node) {
     el.style.cssText = "width:100%;height:100%;box-sizing:border-box;display:flex;flex-direction:column;gap:4px;";
     const video = document.createElement("video");
     video.loop = true; video.muted = true; video.autoplay = true; video.controls = true; video.playsInline = true;
-    // Square video (portrait and landscape both fit, object-fit:contain), side = DOM width.
-    video.style.cssText = "width:100%;aspect-ratio:1/1;flex:none;object-fit:contain;background:#111;border-radius:3px;";
+    // user 2026-11-13 ("don't fix the height of the preview, min square"): the video fills the node height; the square
+    // (side = width) is only the minimum, set by getMinHeight below. object-fit:contain fits portrait and landscape.
+    video.style.cssText = "width:100%;flex:1 1 auto;min-height:0;object-fit:contain;background:#111;border-radius:3px;";
     // one line under the video: 📂 · status · (Film | Shot when on Cut)
     const bar = document.createElement("div");
     bar.style.cssText = `height:${FC_FILM_BAR_H}px;flex:none;display:flex;align-items:center;gap:6px;font:12px sans-serif;`;
@@ -118,8 +119,8 @@ export function fcFilmRender(node) {
     const url = api.apiURL(`/view?${q}`);
     if (v.getAttribute("src") !== url) { v.setAttribute("src", url); v.play?.().catch(() => {}); }
   } else if (v.getAttribute("src")) { v.removeAttribute("src"); v.load(); }
-  // Square player: the height always follows the width (node width set by the user or the auto layout).
-  const need = [Math.max(node.size[0], FC_FILM_W + 20), node.computeSize()[1]];
+  // Player at least square: grow to the minimum, never shrink a taller node (the auto layout stretches it).
+  const need = [Math.max(node.size[0], FC_FILM_W + 20), Math.max(node.size[1], node.computeSize()[1])];
   if (Math.abs(node.size[0] - need[0]) > 1 || Math.abs(node.size[1] - need[1]) > 1) node.setSize(need);
   node.setDirtyCanvas(true, true);
 }
