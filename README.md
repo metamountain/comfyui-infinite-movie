@@ -144,7 +144,7 @@ stays silent then. Prompts can describe sound, e.g. `sound: howling wind`.
 | **Assemble** | Joins the shots into the film. `even_motion` re-picks frames so each carries about the same change. `interpolate` RIFE x2 (fewer repeated frames). Runs only on **ASSEMBLE**. The film mp4 contains the prompt and the workflow. Viewer (3×3 Load-Image tiles, all tabs the same size): **Graph**, **Timeline**, **Heatmap**, **Frames** (slider, ▶, onion skin), **Particles** (motion trails), **Sheet** (3×3 … 8×8, click = open frame). Outputs `video_path`, `last_frame`, `first_frame`. |
 | **Film** | Plays the finished film, shows where it was saved, **📂 Open folder**, remembers the last three films. |
 | **Last Frame** | Last frame of a film – e.g. the start image of the next part. Reads frame by frame. |
-| **Movie to GIF** | Film → GIF or WebP with a live preview (nothing saved) and a result line: length, speed, size estimate. Inputs `video / images / video_path / file` (in that priority). Time controls at the bottom: `start`/`end`, `direction` (boomerang), `speed` (1 = original length, 2 = half as long, 0.5 = slow motion), `fps` (default 10, 0 = film's rate; fewer = smaller, the length stays). Crop, colours, `max_mb`. **save** writes `output/GIF/GIF#.gif` (`#` = next number), **save as…** opens the system dialog; `auto_save` saves every Run (batches). |
+| **Movie to GIF** | Any film → GIF or WebP with a live preview, **save** / **save as…**. See [Movie to GIF](#movie-to-gif). |
 | **H3 Loop / H3 Loop Decode** | Seamless loops in one MiniMax H3 pass (end wrapped around to the start while sampling). |
 | **LTX Refine / RelayVSR Upscale** | See [Upscale](#upscale). |
 
@@ -195,6 +195,50 @@ change. Plug it back in for the next story film.
   images, `story` or the instruction change.
 - **Errors** show in the ComfyUI console: `not reachable` = server not running or wrong port; `answered 404` = the
   endpoint lacks `/v1`; `environment variable … is not set` = see API keys above.
+
+## Movie to GIF
+
+Turns any film into an animated **GIF** or **WebP** – your Infinite Movie film or any other video. Works on its own,
+no other node of the pack needed.
+
+**See it before you save it.** Every change updates a small preview in the node right away – nothing is written to
+disk. Below the preview one line tells you what you will get:
+
+```
+20.0 s → 10.0 s · 2× faster · 12 fps · ≈ 10.6 MB
+```
+
+**Connect a film** – one of these is enough (if several are set, the first one wins):
+
+| Input | Example |
+|---|---|
+| `video` | Load Video |
+| `images` | VHS Load Video (the preview shows the same frames a Run gets) or any node that makes frames |
+| `video_path` | Assemble › `video_path` |
+| `file` | pick or upload a film from `ComfyUI/input` |
+
+**Controls** (top to bottom)
+
+| Control | What it does |
+|---|---|
+| `format` | GIF plays everywhere; animated WebP is usually 3–5× smaller with more colours. |
+| `long_side` | Longest side in pixels (0 = original). File size grows with its square. |
+| `crop` | Centre crop to 1:1 (avatar), 4:5 (Instagram), 9:16 (story), 16:9. |
+| `output_folder` / `filename` | Where **save** writes. Default `GIF` / `GIF#` → `ComfyUI/output/GIF/GIF1.gif`, `GIF2.gif` … (`#` = next free number, never overwrites). A full path works too. |
+| `auto_save (batch)` | Off: Run only renders – keep it with **save**. On: every Run saves (batches). |
+| `colors` · `dither` · `palette` · `quality` · `max_mb` | Advanced: GIF colours, WebP quality, a size limit in MB (e.g. 8 for Discord – the GIF shrinks step by step until it fits). |
+| `source_fps` | Only for `images`: the rate the frames were made at (0 = read from VHS Load Video, else 24). |
+| `start` / `end` | Trim in seconds (end 0 = to the end). |
+| `direction` | forward, reverse, **boomerang** (forward then back – a seamless loop from any clip). |
+| `speed` | **Tempo – changes the length.** 1 = original, 2 = half as long, 10 = time-lapse, 0.5 = slow motion. |
+| `fps` | **Frames per second – the length stays.** Default 10; fewer = choppier and smaller, 0 = the film's own rate. GIF plays at most 50 fps. |
+
+**Save**
+
+- **save** – writes the full version to `output_folder` / `filename`. Hover the button to see the exact file.
+- **save as…** – the normal system save dialog, opened in that folder. From a browser on another computer you get the
+  browser's own save dialog.
+- GIFs always loop.
 
 ## Upscale
 
