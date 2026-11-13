@@ -3,7 +3,7 @@ import { api } from "../../scripts/api.js";
 import { fcClearFilms, fcChooseRedoTokens, fcReviewToast, imFilmInfoText } from "./im_common.js";
 import { fcChooseRender } from "./im_cut.js";
 import { fmtTime, renderEstimate } from "./im_progress.js";
-import { IMV_H, IMV_NODE_W, imvDraw, imvStop } from "./im_viewer.js";
+import { IMV_NODE_W, imvDraw, imvStop } from "./im_viewer.js";
 import { fcChooseDirectorOf } from "./im_cut_edit.js";
 const FC_CHOOSE_COL = 256;           // fixed square tile per shot (image contain); node gets wider, never images smaller
 export const FC_CHOOSE_GAP = 4;
@@ -145,10 +145,11 @@ export function fcChooseLayout(node, entries) {
   const seamH = entries.some((e) => !e.placeholder && e.seam_next) ? FC_CHOOSE_SEAM_H + FC_CHOOSE_GAP : 0;
   const colH = FC_CHOOSE_HEAD_H + v * (tileH + FC_CHOOSE_GAP + FC_CHOOSE_STAT_H) + seamH + (entries[0]?.placeholder ? 0 : FC_CHOOSE_BTNROW_H + FC_CHOOSE_GAP);
   const sheet = fcChooseSheetSize(entries);
-  // The imv viewer below (same constant as in imvEnsure: IMV_H + 96 + 20) – the node height must cover it.
   // 2026-11-13: no play field in Cut any more – shots and the film play in the Film node below Cut.
+  // 2026-11-13 (user: "make Cut's window smaller"): the analysis viewer is its own widget (im_viz) below this one -
+  // its height (IMV_H + 96 + 20) was counted here a second time and left ~600 px of empty space.
   const domH = (entries.length ? colH : 0) + FC_CHOOSE_GAP + FC_CHOOSE_STATUS_H + FC_CHOOSE_GAP + FC_CHOOSE_BIG_H + 8
-    + (sheet ? FC_CHOOSE_GAP + sheet[1] : 0) + FC_CHOOSE_GAP + IMV_H + 96 + 20;
+    + (sheet ? FC_CHOOSE_GAP + sheet[1] : 0);
   return { colW, tileH, domH, sheet };
 }
 // 2026-11-08 (user: „dont like 3x3 in same window … put them to bottom“, then „2x 3x3 at the bottom side by side, i.e.
