@@ -192,18 +192,40 @@ export function fcWorkflowLayout(director, second = false) {
   let Y = TOP;
   if (engines.length) {
     let ex = X0, HE = 0;
+    // user 2026-11-13 ("compress the engine"): help on the LEFT, the nodes in columns by data flow (column = longest
+    // chain of links from an engine-internal source: loaders -> Engine In -> sampler -> decode -> Engine Out), each
+    // column stacked top-down. Height = max(help, tallest column) instead of help + hand-made block.
     engines.forEach((e, k) => {
       const ms = engineMembers[k], help = engineHelp[k];
-      const minX = ms.length ? Math.min(...ms.map((n) => n.pos[0])) : 0;
-      const minY = ms.length ? Math.min(...ms.map((n) => n.pos[1] - T)) : 0;
-      const maxX = ms.length ? Math.max(...ms.map((n) => n.pos[0] + n.size[0])) : 0;
-      const maxY = ms.length ? Math.max(...ms.map((n) => n.pos[1] + n.size[1])) : 0;
-      const bw = maxX - minX, bh = maxY - minY;
-      const w = Math.max(MINW, bw + 2 * PAD, (help ? help.size[0] : 0) + 2 * PAD);
-      const h = HEAD + helpH(help) + bh + PAD;
-      if (help) help.pos = [ex + (w - help.size[0]) / 2, TOP + HEAD + T];
-      const dx = ex + PAD - minX, dy = TOP + HEAD + helpH(help) - minY;
-      for (const n of ms) n.pos = [n.pos[0] + dx, n.pos[1] + dy];
+      const set = new Set(ms), depth = new Map();
+      const dep = (n, guard = 0) => {
+        if (depth.has(n)) return depth.get(n);
+        if (guard > 40) return 0;
+        let d = 0;
+        for (const i of n.inputs || []) {
+          if (i.link == null) continue;
+          const l = g.links?.[i.link] ?? g.links?.get?.(i.link);
+          const o = l && g.getNodeById(l.origin_id);
+          if (o && set.has(o) && o !== n) d = Math.max(d, dep(o, guard + 1) + 1);
+        }
+        depth.set(n, d);
+        return d;
+      };
+      ms.forEach((n) => dep(n));
+      const cols = [];
+      for (const n of [...ms].sort((a, b) => a.pos[1] - b.pos[1])) (cols[depth.get(n)] ||= []).push(n);
+      const used = cols.filter(Boolean);
+      const helpW = help ? help.size[0] + PAD : 0;
+      let cx = ex + PAD + helpW, bh = 0;
+      for (const c of used) {
+        let cy = TOP + HEAD + T;
+        for (const n of c) { n.pos = [cx, cy]; cy += n.size[1] + NGAP + T; }
+        bh = Math.max(bh, cy - NGAP - T - (TOP + HEAD));
+        cx += Math.max(...c.map((n) => n.size[0])) + PAD;
+      }
+      const w = Math.max(MINW, cx - ex);
+      const h = HEAD + Math.max(help ? T + help.size[1] : 0, bh) + PAD;
+      if (help) help.pos = [ex + PAD, TOP + HEAD + T];
       e.pos = [ex, TOP]; e.size = [w, h];
       ex += w + GAP; HE = Math.max(HE, h);
     });
@@ -240,13 +262,11 @@ export function fcWorkflowLayout(director, second = false) {
     sizes[1][0] = Math.max(sizes[1][0], U);
     for (const r of imgRows) if (r.length === 1) r[0].size = [U - 2 * PAD, r[0].size[1]];
   }
-  // user 2026-11-13 ("1 wider"): the engine on top spans groups 2-5 (4U + 3 GAP), help centered again
+  // user 2026-11-13 ("1 wider"): the engine on top spans groups 2-5 (4U + 3 GAP); help stays on the left
   for (const [k, e] of engines.entries()) {
     if (engines.length !== 1) break;
     const w = Math.max(e.size[0], 4 * U + 3 * GAP);
     e.size = [w, e.size[1]];
-    const help = engineHelp[k];
-    if (help) help.pos = [e.pos[0] + (w - help.size[0]) / 2, help.pos[1]];
   }
   row.forEach((_, k) => { const h = rowHelp[k]; if (h) h.size = [sizes[k][0] - 2 * PAD, HH]; });
   let x = X0;
