@@ -1094,7 +1094,7 @@ function addLayoutButton(node) {
     value: null,
     serialize: false,
     callback: cb,
-    tooltip: "Check & arrange: prompt count, wiring, positions. Connects sync and settings: Director → Cut → Even Motion.",
+    tooltip: "Check & arrange: prompt count, wiring, positions. Connects the settings chain up to the Director and sync: Director → Cut → Even Motion.",
     computeSize: (width) => [width, H],
     draw(ctx, n, width, y) {
       const m = 15, h = H - 8, x = m, bw = width - 2 * m, yy = y + 4;
@@ -1184,11 +1184,8 @@ function wireSettingsChain(director) {
   const llmIn = slotIndex(snode, "llm");
   if (story && llmIn >= 0 && snode.inputs[llmIn].link == null && story.outputs?.length) story.connect(0, snode, llmIn);
   const chainNodes = [snode, ...(style ? [style] : []), ...aps.map((a) => a.node), director];
-  // 116 (2026-11-13): Director → Cut → Even Motion (Cut makes the film, Even Motion is the optional special node behind it)
-  const cut = nodes.find((n) => n.comfyClass === "InfiniteMovieChooser");
-  if (cut) chainNodes.push(cut);
-  const assemble = nodes.find((n) => n.comfyClass === "InfiniteMovieAssemble");
-  if (assemble) chainNodes.push(assemble);
+  // 2026-11-13 (user: "settings in sync absorbieren"): the chain ends at the Director - behind it the settings travel
+  // inside sync (Director → Cut → Even Motion is wired by syncLink in the AUTO LAYOUT button).
   for (let i = 0; i < chainNodes.length - 1; i++) {
     const prev = chainNodes[i];
     const next = chainNodes[i + 1];
@@ -1779,6 +1776,15 @@ function viewUrl(im) {
 // Tabs Graph | Timeline | Heatmap | Frames; Frames with slider, ▶ and Onion Skin (3 ghosts, in the browser
 // computed). Data: ui.im_viz from retime_nodes._viz_shot/_viz_timeline (temp folder, max. 64 frames per shot).
 const IMV_TABS = ["Graph", "Timeline", "Heatmap", "Frames", "Particles", "Sheet"];
+// 116c2: tabs per node – Assemble keeps Graph/Timeline (before/after re-timing comparison),
+// Cut (Chooser) shows the shot analysis Heatmap/Frames/Particles/Sheet (its im_viz has
+// timeline: null, no graph). Start tab = first entry. Code assuming Graph/Timeline never
+// runs in Cut because those tabs do not exist there.
+function imvTabs(node) {
+  if (node?.comfyClass === "InfiniteMovieAssemble") return ["Graph", "Timeline"];
+  if (node?.comfyClass === "InfiniteMovieChooser") return ["Heatmap", "Frames", "Particles", "Sheet"];
+  return IMV_TABS;
+}
 // Particle color by speed (same scale as the heatmap, without the nearly black end)
 const IMV_LUT = [[0.0, [66, 10, 104]], [0.33, [147, 38, 103]], [0.6, [221, 81, 58]], [0.85, [252, 165, 10]], [1.0, [252, 255, 164]]];
 function imvLut(v) {
@@ -1870,14 +1876,14 @@ function imvSheetPicks(n, grid) {
 
 function imvEnsure(node) {
   if (node._imv) return node._imv;
-  const st = { tab: "Graph", seg: 0, k: 0, grid: 3, trail: 16, onion: false, timer: null, graph: null, liveTimeline: null };
+  const st = { tab: imvTabs(node)[0], seg: 0, k: 0, grid: 3, trail: 16, onion: false, timer: null, graph: null, liveTimeline: null };
   node._imv = st;
   const el = document.createElement("div");
   el.style.cssText = "display:flex;flex-direction:column;gap:4px;font:11px sans-serif;color:#D0D0D0;width:100%;";
   const row = "display:flex;gap:4px;align-items:center;height:22px;flex:none;overflow:hidden;";
   const tabRow = document.createElement("div");
   tabRow.style.cssText = row;
-  st.tabBtns = IMV_TABS.map((t) => {
+  st.tabBtns = imvTabs(node).map((t) => {
     const b = imvBtn(t, () => { st.tab = t; imvStop(st); imvDraw(node); });
     tabRow.appendChild(b);
     return b;
@@ -1957,7 +1963,7 @@ function imvDraw(node) {
   const shots = v?.shots || [];
   if (st.seg >= shots.length) st.seg = 0;
   st.tabBtns.forEach((b, i) => {
-    const on = IMV_TABS[i] === st.tab;
+    const on = imvTabs(node)[i] === st.tab;
     b.style.background = on ? "#2ea043" : "#333";
     b.style.borderColor = on ? "#2ea043" : "#555";
   });
@@ -2160,7 +2166,9 @@ app.registerExtension({
     api.addEventListener("executed", (e) => {
       const d = e.detail;
       const node = app.graph?.getNodeById(Number(d?.display_node || d?.node));
-      if (node?.comfyClass !== "InfiniteMovieAssemble") return;
+      // 116c2: Cut (Chooser) also delivers im_viz (review_nodes.py:771) -> same viewer treatment,
+      // but without setGraph/normalize_graph (no graph output there).
+      if (node?.comfyClass !== "InfiniteMovieAssemble" && node?.comfyClass !== "InfiniteMovieChooser") return;
       const viz = d.output?.im_viz?.[0];
       if (viz) {
         node.properties = node.properties || {};
@@ -2168,9 +2176,18 @@ app.registerExtension({
         const st = imvEnsure(node);
         st.liveTimeline = null; st.k = 0; imvStop(st);
       }
+      // 116c2: film build failed (review_nodes.py:724 ui["film_error"]) -> red Cut status + toast.
+      const fe = d.output?.film_error?.[0];
+      if (fe) {
+        node._fc_film_error = fe;
+        fcReviewToast(fe, "#d93025");
+      } else if (d.output?.film?.[0]) {
+        node._fc_film_error = null;   // film built again: clear the error
+      }
       const im = d.output?.images?.[0];
-      if (im) setGraph(node, im);
+      if (node.comfyClass === "InfiniteMovieAssemble" && im) setGraph(node, im);
       else imvDraw(node);
+      if (node.comfyClass === "InfiniteMovieChooser") fcChooseStatus(node);
     });
   },
   nodeCreated(node) {
@@ -2243,7 +2260,7 @@ app.registerExtension({
     // fps='') reset to the default – otherwise validation fails on fields that are hidden and thus
     // not correctable by the user. Valid values stay untouched.
     // Defaults as in retime_nodes.py InfiniteMovieAssemble.define_schema (the frontend does not know them here).
-    const DEFAULTS = { interpolate: "auto", even_motion: true, loop: true, time_extend: 1 };
+    const DEFAULTS = { interpolate: "auto", loop: true, time_extend: 1 };  // 116c2: even_motion widget gone since 116b3
     const sanitize = () => {
       for (const w of node.widgets || []) {
         const vals = w.options?.values;
@@ -2672,7 +2689,14 @@ function fcChooseQuality(v, e) {
   return q;
 }
 const FC_CHOOSE_STATUS_H = 26, FC_CHOOSE_BIG_H = 44;
-const FC_CHOOSE_PLAY_H = 512;  // 115: big preview field (video with sound) at the bottom of the chooser
+// 115: big preview field (video with sound) at the bottom of the chooser.
+// 116c2 (user: „möglichst groß, eher square“): no fixed height – the play field is SQUARE:
+// height = inner width of the Cut DOM area (node width minus the 20 px DOM margin), min 256.
+// Recomputed in fcChooseLayout on every size change; video keeps object-fit:contain.
+function fcChoosePlayH(node) {
+  const w = node?.size?.[0] ?? 0;
+  return Math.max(256, w - FC_CHOOSE_PAD);
+}
 const FC_CHOOSE_SEAM_H = 84;   // 2026-11-08: seam row (last image of this shot | first image of the next)
 
 // 2026-11-08 (user: couple chooser + Assemble): show the shot in the Assemble viewer (click on the shot header
@@ -2990,9 +3014,17 @@ function fcChooseLayout(node, entries) {
   const seamH = entries.some((e) => !e.placeholder && e.seam_next) ? FC_CHOOSE_SEAM_H + FC_CHOOSE_GAP : 0;
   const colH = FC_CHOOSE_HEAD_H + v * (tileH + FC_CHOOSE_GAP + FC_CHOOSE_STAT_H) + seamH + (entries[0]?.placeholder ? 0 : FC_CHOOSE_BTNROW_H + FC_CHOOSE_GAP);
   const sheet = fcChooseSheetSize(entries);
+  // 116c2: square play field (fcChoosePlayH) + the imv viewer below it (same constant as in
+  // imvEnsure: IMV_H + 96 + 20) – the node height must cover both, otherwise they overlap.
+  const playH = fcChoosePlayH(node);
   const domH = (entries.length ? colH : 0) + FC_CHOOSE_GAP + FC_CHOOSE_STATUS_H + FC_CHOOSE_GAP + FC_CHOOSE_BIG_H + 8
-    + (sheet ? FC_CHOOSE_GAP + sheet[1] : 0) + FC_CHOOSE_GAP + 20 + FC_CHOOSE_PLAY_H;  // 115: play field (20 = title row)
-  return { colW, tileH, domH, sheet };
+    + (sheet ? FC_CHOOSE_GAP + sheet[1] : 0) + FC_CHOOSE_GAP + 20 + playH + IMV_H + 96 + 20;  // 20 = play title row
+  // 116c2: apply the square height to the video/hint divs on every layout change.
+  if (node._fc_play) {
+    node._fc_play.video.style.height = playH + "px";
+    node._fc_play.hint.style.height = playH + "px";
+  }
+  return { colW, tileH, domH, sheet, playH };
 }
 // 2026-11-08 (user: „dont like 3x3 in same window … put them to bottom“, then „2x 3x3 at the bottom side by side, i.e.
 // under each image“): at the bottom of the chooser a row of 3×3 sheets, per shot exactly under its column (same width).
@@ -3022,7 +3054,9 @@ function fcChooseUpdateSheet(node, only = -1) {
   });
 }
 
-function fcChooseWidth(n) { return Math.max(420, FC_CHOOSE_PAD + n * FC_CHOOSE_COL + (n - 1) * FC_CHOOSE_GAP); }
+// 116c2: minimum IMV_NODE_W – the imv viewer below the play field needs the 480 px canvas
+// (imvFixWidth would otherwise fight fcChooseRender over a 1-shot node width).
+function fcChooseWidth(n) { return Math.max(IMV_NODE_W, FC_CHOOSE_PAD + n * FC_CHOOSE_COL + (n - 1) * FC_CHOOSE_GAP); }
 
 function fcChooseStableUrl(im) {
   // Stable URL WITHOUT cache buster: when switching still<->animated the file comes from the cache.
@@ -3094,6 +3128,8 @@ function fcChooseState(node) {
     const p = fcRun.max ? ` · ${fcRun.value}/${fcRun.max}` : "";
     return { text: `Rendering… please wait (${r?.phase || fcRun.node || "queued"}${p})`, tone: "busy", btn: null };
   }
+  // 116c2: film build failed (ui["film_error"] from the executed event) -> red status line.
+  if (node._fc_film_error) return { text: node._fc_film_error, tone: "err", btn: null };
   return fcChooseStateIdle(node, entries, plan, marked);
 }
 
@@ -3144,7 +3180,7 @@ function fcChooseStatus(node) {
   const st = fcChooseState(node);
   const s = node._fc_choose_status, b = node._fc_choose_btn;
   if (s) {
-    const col = { warn: "#e3b341", busy: "#4fc3f7", idle: "#aaa", act: "#fff", ok: "#7ee787" }[st.tone] || "#aaa";
+    const col = { warn: "#e3b341", busy: "#4fc3f7", idle: "#aaa", act: "#fff", ok: "#7ee787", err: "#d93025" }[st.tone] || "#aaa";
     const sText = node._fc_choose_status_text;
     if (sText) { sText.textContent = st.text; sText.style.color = col; }
     // Progress bar in the background of the status row (user 2026-11-03: „missing progress bar“)
@@ -3226,6 +3262,10 @@ function fcChooseRender(node) {
       new MutationObserver(unclip).observe(w, { attributes: true, attributeFilter: ["style"] });
     }, 0);
   }
+  // 116c2: the shot-analysis viewer sits BELOW the play field – DOM widgets stack in
+  // node.widgets order, so imvEnsure (via imvDraw) must run AFTER the fc_choose widget
+  // exists, not in onNodeCreated (that would put the viewer above the play field).
+  imvDraw(node);
   const entries = fcChooseEntries(node);
   const sig = fcChooseSig(entries);
   node._fc_choose_sig = sig;
@@ -3520,9 +3560,9 @@ function fcChooseRender(node) {
     trow.appendChild(title); trow.appendChild(fbtn);
     const video = document.createElement("video");
     video.controls = true; video.loop = true; video.playsInline = true;
-    video.style.cssText = `width:100%;height:${FC_CHOOSE_PLAY_H}px;object-fit:contain;background:#000;display:none;`;
+    video.style.cssText = `width:100%;height:${fcChoosePlayH(node)}px;object-fit:contain;background:#000;display:none;`;
     const hint = document.createElement("div");
-    hint.style.cssText = `height:${FC_CHOOSE_PLAY_H}px;display:flex;align-items:center;justify-content:center;` +
+    hint.style.cssText = `height:${fcChoosePlayH(node)}px;display:flex;align-items:center;justify-content:center;` +
       "background:#000;color:#888;font:14px sans-serif;";
     hint.textContent = "▶ play under a shot shows it here – big, with sound";
     box.appendChild(trow); box.appendChild(video); box.appendChild(hint);
@@ -3535,6 +3575,14 @@ function fcChooseRender(node) {
   // Width = all shots (fixed image size), height = content.
   const want = [fcChooseWidth(entries.length), node.computeSize()[1]];
   if (Math.abs(node.size[0] - want[0]) > 1 || Math.abs(node.size[1] - want[1]) > 1) node.setSize(want);
+  // 116c2: the square play-field height depends on the node width – on the first render
+  // fcChooseLayout ran before _fc_play existed, and a width change here changes the height;
+  // re-apply it to the video/hint divs.
+  if (node._fc_play) {
+    const ph = fcChoosePlayH(node) + "px";
+    node._fc_play.video.style.height = ph;
+    node._fc_play.hint.style.height = ph;
+  }
   node.setDirtyCanvas(true, true);
 }
 
