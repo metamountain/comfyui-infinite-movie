@@ -27,7 +27,8 @@ THINKING = ["off", "low", "medium", "high"]
 # provider -> endpoint, model, api_key_env, local (local = OpenAI-compatible server that takes chat_template_kwargs
 # for thinking and a seed; cloud APIs reject unknown fields). Ports are the programs' documented defaults.
 PROVIDERS = {
-    "local server (llama.cpp, vLLM)": {"endpoint": "http://127.0.0.1:8080/v1", "model": "", "api_key_env": "", "local": True},
+    "local server (llama.cpp, vLLM)": {"endpoint": "http://127.0.0.1:8080/v1", "model": "", "api_key_env": "",
+                                       "local": True},
     "Ollama": {"endpoint": "http://127.0.0.1:11434/v1", "model": "", "api_key_env": "", "local": True},
     "LM Studio": {"endpoint": "http://127.0.0.1:1234/v1", "model": "", "api_key_env": "", "local": True},
     "OpenAI": {"endpoint": "https://api.openai.com/v1", "model": "gpt-4o", "api_key_env": "OPENAI_API_KEY", "local": False},
@@ -74,15 +75,34 @@ def _request(cfg: dict, path: str, payload: dict | None = None, timeout: float =
 
 
 def pick_model(listing: dict) -> str:
-    """Model id from GET /models: the one with status 'loaded' if the server reports a status, else the first."""
+    """Model id from GET /models: the loaded one, else a preset, else the first that did not fail.
+
+    A llama.cpp router lists its presets next to every model in its HF cache; the cache ids (org/Repo:QUANT) are
+    tried before the presets and can be unloadable, so they are skipped unless nothing else is left.
+    """
     data = listing.get("data") or listing.get("models") or []
-    ids = [(m.get("id") or m.get("model") or m.get("name"), str((m.get("status") or {}).get("value", "")).lower()
-            if isinstance(m.get("status"), dict) else str(m.get("status") or "").lower()) for m in data]
-    ids = [(i, st) for i, st in ids if i]
-    for i, st in ids:
-        if st == "loaded":
-            return i
-    return ids[0][0] if ids else ""
+    rows = []
+    for m in data:
+        if not isinstance(m, dict):
+            continue
+        mid = m.get("id") or m.get("model") or m.get("name")
+        if not mid:
+            continue
+        st = m.get("status")
+        if isinstance(st, dict):
+            status, failed = str(st.get("value", "")).lower(), bool(st.get("failed"))
+        else:
+            status, failed = str(st or "").lower(), False
+        if failed:
+            continue
+        rows.append((mid, status, str(m.get("source") or "").lower()))
+    for mid, status, _src in rows:
+        if status == "loaded":
+            return mid
+    for mid, _status, src in rows:
+        if src == "preset":
+            return mid
+    return rows[0][0] if rows else ""
 
 
 def resolve_model(cfg: dict) -> str:
@@ -370,11 +390,17 @@ class InfiniteMovieStoryMode(io.ComfyNode):
                                tooltip="Fills endpoint, model and api_key_env with the usual values; change them "
                                        "freely afterwards. All providers speak the OpenAI chat API."),
                 io.String.Input("endpoint", default=PROVIDERS[next(iter(PROVIDERS))]["endpoint"],
-                                tooltip="Base URL of the OpenAI-compatible API, ending in /v1 (Ollama: "
-                                        "http://127.0.0.1:11434/v1). The model must read images (vision)."),
+                                tooltip="Base URL of the OpenAI-compatible API, always ending in /v1. Defaults: "
+                                        "llama.cpp http://127.0.0.1:8080/v1, vLLM http://127.0.0.1:8000/v1, Ollama "
+                                        "http://127.0.0.1:11434/v1, LM Studio http://127.0.0.1:1234/v1. Another "
+                                        "computer: its address instead of 127.0.0.1. The model must read images "
+                                        "(vision)."),
                 io.String.Input("model", default="",
-                                tooltip="Model id as the server lists it under /models. Empty (local servers only) = "
-                                        "the loaded one, else the first listed."),
+                                tooltip="Model id exactly as the server lists it under /v1/models, e.g. llama.cpp: "
+                                        "the file or preset name, Ollama: qwen2.5vl:7b, OpenAI: gpt-4o, OpenRouter: "
+                                        "google/gemini-2.5-flash. Empty (local servers only) = the loaded model, else "
+                                        "a router preset, else the first listed (models that failed to load are "
+                                        "skipped)."),
                 io.String.Input("api_key_env", default="",
                                 tooltip="NAME of the environment variable that holds your API key, e.g. "
                                         "OPENAI_API_KEY. The key itself is never stored in the workflow. Empty = no key "
