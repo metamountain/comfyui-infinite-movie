@@ -708,6 +708,7 @@ class InfiniteMovieChooser(io.ComfyNode):
         last = None
         first = None
         film_ref = None
+        ui = {"infinite_movie_choose": entries}
         try:
             film_path, _check, _total, _fps = _concat_segments(
                 chosen_segments, folder, sn, loop,
@@ -721,6 +722,8 @@ class InfiniteMovieChooser(io.ComfyNode):
             last = None
             first = None
             film_ref = None
+            # 116c1: film error visible in the viewer (display: 116c2)
+            ui["film_error"] = [str(e)]
             print(f"[InfiniteMovieChooser] film not written: {e}")
         # 116b2: raw copies of the chosen shots (film order), Settings › raw.
         if get_setting(settings, "raw"):
@@ -732,12 +735,43 @@ class InfiniteMovieChooser(io.ComfyNode):
                         shutil.copy2(p, os.path.join(raw_dir, f"{sn}_shot{i:02d}.mp4"))
             except Exception as e:  # noqa: BLE001
                 print(f"[InfiniteMovieChooser] raw copies failed: {e}")
+        # 116c1: viewer data (heatmap, frames, particles) per chosen shot -
+        # the analysis moved from Even Motion to Cut (display: 116c2). Same
+        # _viz_shot data as retime_nodes, but for the rendered shots (all
+        # frames, no re-selection). Cached per file signature in
+        # choose_dir/viz/<key>/viz.json; a failing shot is logged and skipped,
+        # Cut keeps running.
+        fps = float(sync.get("fps") or 24.0)
+        viz_shots: list[dict] = []
+        for i, path in enumerate(chosen_segments):
+            try:
+                sig = _segment_sig(path)
+                key = hashlib.sha1(f"{path}|{sig}".encode("utf-8")).hexdigest()[:12]
+                vdir = os.path.join(choose_dir, "viz", key)
+                vfile = os.path.join(vdir, "viz.json")
+                if os.path.exists(vfile):
+                    with open(vfile, encoding="utf-8") as f:
+                        d = json.load(f)
+                else:
+                    os.makedirs(vdir, exist_ok=True)
+                    from .retime_nodes import _read_rgb, _viz_shot
+                    frames, _, _ = _read_rgb(path)
+                    d = _viz_shot(frames, np.arange(len(frames)), 0, vdir, fps)
+                    d["seg"] = i + 1
+                    d["subfolder"] = (subfolder + "/viz/" + key).replace(os.sep, "/")
+                    with open(vfile, "w", encoding="utf-8") as f:
+                        json.dump(d, f, separators=(",", ":"))
+                viz_shots.append(d)
+            except Exception as e:  # noqa: BLE001
+                print(f"[InfiniteMovieChooser] viz shot {i + 1} skipped: {e}")
         out_sync = dict(sync)
         out_sync["segments"] = chosen_segments
         out_sync["film_path"] = film_path
-        ui = {"infinite_movie_choose": entries}
         if film_ref is not None:
             ui["film"] = [film_ref]
+        # 116c1: viewer data for the frontend (display: 116c2)
+        ui["im_viz"] = [{"shots": viz_shots, "timeline": None,
+                         "subfolder": subfolder.replace(os.sep, "/")}]
         return io.NodeOutput(film_path, last, first, out_sync, chain_settings(settings), ui=ui)
 
 
