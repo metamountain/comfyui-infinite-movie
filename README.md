@@ -1,8 +1,12 @@
-# Infinite Movie (ComfyUI)
+
+# Infinite Movie (ComfyUI) 
+
 
 <p align="center"><img src="assets/a4_nosun.gif" width="320" alt="Four seasons in one film: summer, autumn, winter, spring"></p>
 
 <p align="center"><sub>Four stills, one LTX 2.5 render pass (737 frames, 24 fps), shown at 2x speed.</sub></p>
+
+ Tested on 24GB Vram + 64 GB Ram .... if you have less you have to configure "engine" 
 
 **Turn a few still images into one smooth, looping film.** For each pair of images a video model renders the
 transition (start image → end image); the pack joins all shots into one film, evens out the motion and saves it.
