@@ -151,7 +151,9 @@ export function fcWorkflowLayout(director, second = false) {
   const asmFilms = allFilms.filter((f) => !cutFilms.includes(f));
   const asm = byType("InfiniteMovieAssemble"), cut = byType("InfiniteMovieChooser");
   const blockW = upBlock.length ? Math.max(...upBlock.map((n) => n.pos[0] + n.size[0])) - Math.min(...upBlock.map((n) => n.pos[0])) : 0;
-  const inner678 = Math.max(MINW - 2 * PAD, ...cut.map((n) => n.size[0]), blockW);
+  // user 2026-11-13: "after 6 the work is done, 7 8 are extras" -> Cut (group 6) alone sets the width of 6-9;
+  // a wider Upscale block only widens group 8 itself
+  const inner678 = Math.max(MINW - 2 * PAD, ...cut.map((n) => n.size[0]));
   for (const a of asm) a.size = [inner678, a.computeSize()[1]];
   // square player: width first, then the height follows from the Film node's getMinHeight (side = width - 20)
   for (const f of [...cutFilms, ...asmFilms, ...upFilms]) { f.size = [inner678, f.size[1]]; f.size = [inner678, f.computeSize()[1]]; }
@@ -222,6 +224,10 @@ export function fcWorkflowLayout(director, second = false) {
     const h = HEAD + helpH(help) + imgRows.reduce((s, r) => s + rowH(r), 0) + NGAP * (imgRows.length - 1) + PAD;
     return [w, h];
   });
+  // user 2026-11-13: "5 as wide as 4" - Director and Prompts groups share one width (the wider one)
+  const w45 = Math.max(sizes[2][0], sizes[3][0]);
+  sizes[2][0] = sizes[3][0] = w45;
+  director.size = [w45 - 2 * PAD, director.size[1]];   // the Director node fills its group
   row.forEach((_, k) => { const h = rowHelp[k]; if (h) h.size = [sizes[k][0] - 2 * PAD, HH]; });
   let x = X0;
   row.forEach(([grp, ns, side], k) => {
@@ -288,7 +294,7 @@ export function fcWorkflowLayout(director, second = false) {
     const ms = upBlock.length ? upBlock : upMembers;
     const minX = Math.min(...ms.map((n) => n.pos[0])), minY = Math.min(...ms.map((n) => n.pos[1] - T));
     const maxY = Math.max(...ms.map((n) => n.pos[1] + n.size[1]));
-    const w = Math.max(MINW, inner678 + 2 * PAD);
+    const w = Math.max(MINW, inner678 + 2 * PAD, blockW + 2 * PAD);
     if (upHelp) upHelp.size = [w - 2 * PAD, HH];
     if (upHelp) upHelp.pos = [x + (w - upHelp.size[0]) / 2, Y + HEAD + T];
     const dx = x + PAD - minX, dy = Y + HEAD + helpH(upHelp) - minY;

@@ -164,6 +164,51 @@ def _send_render_plan(node_id, segments: int, width: int, height: int, frames: i
     return data
 
 
+def _send_segment_done(unique_id, index, total, frames):
+    """119: notify the Cut node that segment `index` of this render is done.
+
+    Sends `infinite_movie.segment_done` {node, index, total, seconds, view}:
+    `node` is the render node's id (the Cut node's Director), `index` is 0-based
+    (expansion.py:877 `for i, (...) in enumerate(plan)` -> `inputs["index"] = i`),
+    `seconds` is the wall-clock time since the previous segment of this render
+    (read from `_SEG_MARK` BEFORE `_log_segment_timing` resets the mark), and
+    `view` is the middle frame as a JPEG (long side <= 512) in the temp
+    directory. Never raises: a side-channel bug must never break a render.
+    Returns the payload (for tests).
+    """
+    data = {"node": _render_id_from(unique_id), "index": int(index), "total": int(total),
+            "seconds": None, "view": None}
+    try:
+        mark = _SEG_MARK.get(data["node"])
+        if mark is not None:
+            data["seconds"] = round(time.time() - mark, 3)
+        if isinstance(frames, torch.Tensor) and frames.shape[0] > 0:
+            from PIL import Image
+            import folder_paths
+            mid = frames[frames.shape[0] // 2]
+            arr = np.clip(mid.detach().cpu().numpy(), 0.0, 1.0)
+            if arr.ndim == 3 and arr.shape[-1] == 1:
+                arr = np.repeat(arr, 3, axis=-1)
+            img = Image.fromarray((arr * 255).astype(np.uint8))
+            w, h = img.size
+            scale = min(1.0, 512.0 / max(w, h))
+            if scale < 1.0:
+                img = img.resize((max(1, int(round(w * scale))), max(1, int(round(h * scale)))), Image.LANCZOS)
+            name = f"im_seg_{data['node']}_{data['index']}.jpg"
+            img.save(os.path.join(folder_paths.get_temp_directory(), name), quality=85)
+            data["view"] = {"filename": name, "subfolder": "", "type": "temp"}
+    except Exception:  # noqa: BLE001
+        pass
+    try:
+        from server import PromptServer
+        inst = PromptServer.instance
+        if inst is not None:
+            inst.send_sync("infinite_movie.segment_done", data)
+    except Exception:  # noqa: BLE001
+        pass
+    return data
+
+
 def _display_node_id(cls) -> str | None:
     """Return the VISIBLE node id to send in-node text to.
 
@@ -678,6 +723,9 @@ class InfiniteMovieSegmentSave(io.ComfyNode):
         old_key = open(key_file, encoding="utf-8").read().strip() if os.path.exists(key_file) else None
         if _segment_is_complete(path, expected_frames) and (key is None or key == old_key):
             print(f"[InfiniteMovieSegmentSave] segment {index} already complete, skipping: {path}")
+            # 119: the Cut node sees reused segments too (no timing mark is reset
+            # here - _log_segment_timing is not called for skipped segments).
+            _send_segment_done(unique_id, index, total, frames)
             return io.NodeOutput(path)
         if os.path.exists(path):
             # Never overwrite: keep the previous render under old/ (seg_001_01.mp4, ...).
@@ -701,6 +749,10 @@ class InfiniteMovieSegmentSave(io.ComfyNode):
             with open(key_file, "w", encoding="utf-8") as f:
                 f.write(key)
         print(f"[InfiniteMovieSegmentSave] wrote segment {index}: {path} ({expected_frames} frames)")
+        # 119: live segment tile in the Cut node (middle frame + per-shot render
+        # time). MUST run BEFORE _log_segment_timing: that resets the _SEG_MARK
+        # mark (see above), so the seconds delta is only valid up to this line.
+        _send_segment_done(unique_id, index, total, frames)
         # 88: log the per-segment duration (time since the previous mark of this
         # render). Reused segments (PrimitiveString) never run execute(), so they
         # are not logged (intended). The early "already complete" skip returns

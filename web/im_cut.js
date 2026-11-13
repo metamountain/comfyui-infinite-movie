@@ -1,8 +1,10 @@
 import { app } from "../../scripts/app.js";
+import { api } from "../../scripts/api.js";
 import { FC_REVIEW_LINE_COLORS, IMG, fcQueueFixedSeeds, fcReviewToast, fcShotSecondsOf } from "./im_common.js";
 import { fcChooseDirectorOf, fcChooseEditPrompt, fcChooseEditSeconds, fcRerenderMarked } from "./im_cut_edit.js";
 import { FC_CHOOSE_BIG_H, FC_CHOOSE_BTNROW_H, FC_CHOOSE_GAP, FC_CHOOSE_HEAD_H, FC_CHOOSE_SEAM_H, FC_CHOOSE_STATUS_H, FC_CHOOSE_STAT_H, fcAsmFocus, fcChooseApplyActive, fcChooseEff, fcChooseEffective, fcChooseEntries, fcChooseFocus, fcChooseGetChoices, fcChooseLayout, fcChoosePick, fcChoosePlay, fcChooseQuality, fcChooseSig, fcChooseStableUrl, fcChooseStatus, fcChooseUpdateSheet, fcChooseWidth, fcRun } from "./im_cut_state.js";
 import { fcDownstreamOutputs } from "./im_film.js";
+import { fmtTime } from "./im_progress.js";
 import { imToggleWidget } from "./im_settings.js";
 import { imvDraw } from "./im_viewer.js";
 export function fcChooseRender(node) {
@@ -113,6 +115,9 @@ export function fcChooseRender(node) {
         img.style.cssText = "width:100%;height:100%;object-fit:contain;display:block;" +
           (dim ? "opacity:0.35;filter:grayscale(0.8);" : "");
         t.appendChild(img);
+        // 119: live middle frame while this segment is rendering (segment_done, per-shot JPEG).
+        // fcChooseApplyActive never touches placeholder tiles (no v.still) -> the src stays.
+        if (e.placeholder && node._fc_live?.[i]?.url) img.src = node._fc_live[i].url;
         if (!e.placeholder) {
           const lab = document.createElement("div");
           const on = sel || !e.has_variants;
@@ -160,8 +165,12 @@ export function fcChooseRender(node) {
           `overflow:hidden;text-overflow:ellipsis;padding:0 4px;border-radius:3px;color:${q.color};background:${q.bg};`;
         const stx = document.createElement("span");
         stx.style.cssText = "flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;";
-        stx.textContent = pending ? (fcRun.running ? "waiting for render…" : "queued for re-render")
-          : v.score === undefined ? (e.placeholder ? (fcRun.running ? "waiting for render…" : "") : "") : q.text;
+        // 119: per-shot render time (⏱ m:ss) from segment_done – live for placeholders,
+        // kept for real entries while _fc_live[i].seconds is known.
+        const liveT = node._fc_live?.[i]?.seconds != null ? `⏱ ${fmtTime(node._fc_live[i].seconds)}` : "";
+        stx.textContent = pending ? (fcRun.running ? (liveT || "waiting for render…") : "queued for re-render")
+          : v.score === undefined ? (e.placeholder ? (fcRun.running ? (liveT || "waiting for render…") : liveT) : "")
+          : (liveT ? `${liveT} · ${q.text}` : q.text);
         st.appendChild(stx);
         // 115: "▶ play" – this shot's full video (with sound) in the preview field below
         if (v.video && !e.placeholder) {
@@ -498,5 +507,48 @@ app.registerExtension({
     };
     setTimeout(refreshEstimate, 1500);
   },
+});
+
+// ---------------------------------------------------------------------------
+// InfiniteMovie.CutLive (task 119): finished segments appear live in the Cut
+// tiles (middle frame as JPEG) with the per-shot render time (⏱ m:ss).
+// `infinite_movie.segment_done` {node, index, total, seconds, view} comes from
+// _send_segment_done in nodes.py (index 0-based, node = the render/Director id).
+// ---------------------------------------------------------------------------
+api.addEventListener("infinite_movie.segment_done", (e) => {
+  const d = e.detail || {};
+  const dir = d.node != null ? app.graph?.getNodeById?.(Number(d.node)) : null;
+  if (!dir) return;
+  for (const c of app.graph?._nodes || []) {
+    if (c.comfyClass !== "InfiniteMovieChooser" || fcChooseDirectorOf(c) !== dir) continue;
+    c._fc_live = c._fc_live || {};
+    c._fc_live[d.index] = {
+      url: d.view ? fcChooseStableUrl(d.view) + "&t=" + Date.now() : "",   // cache buster: the file is overwritten per run
+      seconds: d.seconds ?? null,
+    };
+    c._fc_choose_sig = null;   // force fcChooseRender
+    fcChooseRender(c);
+  }
+});
+// New run start (first expansion event "<render>_…", like im_progress.chainOf):
+// clear the live tiles once per run. NOT cleared at run end – real entries keep
+// showing ⏱ m:ss from _fc_live[i].seconds.
+api.addEventListener("executing", (e) => {
+  const d = e.detail;
+  if (d == null || (typeof d === "object" && d.node == null)) {   // run finished
+    for (const n of app.graph?._nodes || []) if (n._fc_live_run) n._fc_live_run = false;
+    return;
+  }
+  const m = String(typeof d === "object" ? d.node : d).match(/^(\d+)_/);
+  if (!m) return;
+  const dir = app.graph?.getNodeById?.(Number(m[1]));
+  if (dir?.comfyClass !== "InfiniteMovieRender" || dir._fc_live_run) return;
+  dir._fc_live_run = true;
+  for (const c of app.graph?._nodes || []) {
+    if (c.comfyClass !== "InfiniteMovieChooser" || fcChooseDirectorOf(c) !== dir) continue;
+    c._fc_live = {};
+    c._fc_choose_sig = null;
+    fcChooseRender(c);
+  }
 });
 

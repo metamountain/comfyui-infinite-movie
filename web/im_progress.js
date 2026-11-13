@@ -146,7 +146,7 @@ app.registerExtension({
         const by = y + 4 + h - 8;
         ctx.fillStyle = "#333";
         ctx.fillRect(x, by, w, 8);
-        ctx.fillStyle = p.phase === "done" ? "#66bb6a" : "#4fc3f7";
+        ctx.fillStyle = p.phase === "done" ? "#66bb6a" : "#39ff14";   // user 2026-11-13: rendering bar neon green
         ctx.fillRect(x, by, w * frac, 8);
         ctx.fillStyle = "#ddd";
         ctx.font = "12px sans-serif";

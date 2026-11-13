@@ -297,8 +297,13 @@ function fcChooseStateIdle(node, entries, plan, marked) {
     : "Shots ready – FILM builds the film.", tone: "act", btn: "assemble" };
   const changed = (node._fc_choose_ran || "") !== fcChooseEffective(node).join(",");
   if (changed) return { text: "Choice changed – press FILM to rebuild the film.", tone: "act", btn: "assemble" };
-  if (node._fc_film_done) return { text: `✓ FILM READY · ${imFilmInfoText(node._fc_film_done)}`, tone: "done", btn: null,
-    title: node._fc_film_done.path };
+  if (node._fc_film_done) {
+    // 119: total render time (Director's _fcProg t0→end) in the green done line.
+    const dir = fcChooseDirectorOf(node);
+    const rt = dir?._fcProg?.t0 && dir._fcProg.end ? ` · rendered in ${fmtTime(renderEstimate(dir).el)}` : "";
+    return { text: `✓ FILM READY · ${imFilmInfoText(node._fc_film_done)}${rt}`, tone: "done", btn: null,
+      title: node._fc_film_done.path };
+  }
   if (entries[0]?.has_variants) return { text: "Film assembled. Pick A or B per shot to change it, ✓/✗ to re-render a shot.", tone: "ok", btn: null };
   return { text: "Film assembled. Mark a shot ✗ to re-render it.", tone: "ok", btn: null };
 }
@@ -317,8 +322,10 @@ export function fcChooseStatus(node) {
     // Progress bar in the background of the status row (user 2026-11-03: „missing progress bar“)
     const pct = st.frac != null ? Math.round(Math.max(0, Math.min(1, st.frac)) * 100) : null;
     s.style.background = pct == null ? (st.tone === "done" ? "#1a7f37" : "#202020")
-      : `linear-gradient(90deg, #1f6feb 0%, #1f6feb ${pct}%, #202020 ${pct}%, #202020 100%)`;
-    if (pct != null && sText) { sText.style.color = "#fff"; sText.textContent = `${pct}% · ${st.text}`; }
+      : `linear-gradient(90deg, #39ff14 0%, #39ff14 ${pct}%, #202020 ${pct}%, #202020 100%)`;   // user 2026-11-13: neon green
+    // white text with a dark outline: readable on the neon part and on the dark rest
+    if (pct != null && sText) { sText.style.color = "#fff"; sText.style.textShadow = "0 0 3px #000, 0 0 2px #000"; sText.textContent = `${pct}% · ${st.text}`; }
+    else if (sText) sText.style.textShadow = "";
     fcChooseUpdateSteps(node);
   }
   if (b) {
