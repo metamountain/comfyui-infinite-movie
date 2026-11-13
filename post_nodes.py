@@ -11,7 +11,7 @@ import numpy as np
 import torch
 from PIL import Image
 
-from .nodes import _count_frames, _ffmpeg, _no_window
+from .media import _count_frames, _ffmpeg, _no_window
 
 
 def _clean_prompt(text: str) -> str:

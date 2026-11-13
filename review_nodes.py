@@ -23,7 +23,8 @@ import numpy as np
 
 from comfy_api.latest import io
 
-from .nodes import _count_frames, _ffmpeg, _motion_check, _no_window, _run_ffmpeg_to, SYNC
+from .media import _count_frames, _ffmpeg, _motion_check, _no_window, _run_ffmpeg_to
+from .nodes import SYNC
 # Settings come inside sync (2026-11-13); settings_nodes only imports .vram at module level -> no cycle.
 from .settings_nodes import get_setting
 # 75: particle helpers moved here from ghost_nodes.py (ghost_nodes.py -> tools/ghost_check.py)
@@ -687,7 +688,7 @@ class InfiniteMovieChooser(io.ComfyNode):
                 json.dump(cache, f)
         # 116b2: assemble the film from the chosen segments (model: retime_nodes
         # InfiniteMovieAssemble). Settings › output_folder wins over save_folder.
-        from .nodes import _concat_segments, _has_audio_stream
+        from .media import _concat_segments, _has_audio_stream
         from .retime_nodes import first_frame, last_frame
         from .settings_nodes import film_folder
         of = str(get_setting(settings, "output_folder") or "").strip()

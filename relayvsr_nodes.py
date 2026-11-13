@@ -21,7 +21,8 @@ from comfy_api.latest import io
 
 from . import vram
 from .chunk_upscale_nodes import (_read_virtual, _resolve_source, output_with_preview, stream_chunks)
-from .nodes import _count_frames, _probe_size, _send_progress
+from .media import _count_frames, _probe_size
+from .nodes import _send_progress
 from .post_nodes import _probe_fps
 
 KEYFRAME_INTERVAL = 15     # comfy.ldm.wan.model_vsr.RELAY_KEYFRAME_INTERVAL: every 15th frame goes through the model

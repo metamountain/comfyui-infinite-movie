@@ -26,7 +26,7 @@ import time
 
 from comfy_api.latest import io
 
-from .nodes import _ffmpeg, _input_videos, _no_window
+from .media import _ffmpeg, _input_videos, _no_window
 
 FORMATS = ["GIF", "WebP (animated, smaller)"]
 CROPS = {"none": None, "1:1": (1, 1), "4:5": (4, 5), "9:16": (9, 16), "16:9": (16, 9)}

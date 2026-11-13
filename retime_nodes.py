@@ -22,8 +22,10 @@ from comfy_api.latest import io
 
 from . import vram
 # 75: _input_videos moved from ghost_nodes.py to nodes.py
-from .nodes import SYNC, _input_videos, _probe_size
-from .nodes import _ffmpeg, _no_window, _send_progress, _video_fps, _run_ffmpeg_to, _has_audio_stream
+from .nodes import SYNC
+from .media import _input_videos, _probe_size
+from .nodes import _send_progress
+from .media import _ffmpeg, _has_audio_stream, _no_window, _run_ffmpeg_to, _video_fps
 # 57d: SETTINGS pipe + get_setting (no cycle: settings_nodes -> .vram + lazy .autoprompt).
 from .settings_nodes import get_setting
 
@@ -427,7 +429,7 @@ class InfiniteMovieAssemble(io.ComfyNode):
         # graph + report only remain as a ui= display (preview.as_dict()).
         # images_out (RAM-hungry) is no longer computed.
         # Auftrag 32: concat (shared function from nodes.py)
-        from .nodes import _concat_segments, _has_audio_stream
+        from .media import _concat_segments, _has_audio_stream
         # 116b3: retime is always on -> the evened-out (and/or stretched) segments are joined.
         # (The concat-only branch for even_motion=False is gone - that is Cut's job now.)
         concat_paths = out_paths

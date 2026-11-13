@@ -30,7 +30,8 @@ import torch
 from comfy_api.latest import io, ui
 
 from . import vram
-from .nodes import _count_frames, _ffmpeg, _no_window, _probe_size, _send_progress
+from .media import _count_frames, _ffmpeg, _no_window, _probe_size
+from .nodes import _send_progress
 from .post_nodes import _probe_fps
 from .upscale_universal.upscale_crop_universal import _scale_for, _snap as _snap_mult
 

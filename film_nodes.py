@@ -15,7 +15,7 @@ import time
 
 from comfy_api.latest import io
 
-from .nodes import _ffmpeg
+from .media import _ffmpeg
 
 
 def _no_window() -> dict:
