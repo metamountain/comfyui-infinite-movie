@@ -1,9 +1,9 @@
 """117c: ffmpeg / video helpers extracted from nodes.py (Auftrag 117c).
+117e: _to_numpy_image now lives in shot_utils.py, which imports neither .nodes
+nor .media, so media.py imports it at module level (no cycle).
 
 Shared by the *_nodes.py modules. They live here so nodes.py stays focused on
-the node classes. media.py must NOT import .nodes (circular import); the single
-cross-dependency (_write_frames_to_dir -> _to_numpy_image) is a lazy import
-inside the function body.
+the node classes.
 """
 from __future__ import annotations
 
@@ -16,6 +16,7 @@ import numpy as np
 import torch
 
 from . import vram
+from .shot_utils import _to_numpy_image
 
 
 # 75: _input_videos moved here from ghost_nodes.py (ghost_nodes.py -> tools/ghost_check.py)
@@ -71,7 +72,6 @@ def _no_window() -> dict:
 
 def _write_frames_to_dir(frames: torch.Tensor, tmp_dir: str, fps: int) -> None:
     """Write a frames tensor (B, H, W, C) float [0,1] to PNG files in tmp_dir."""
-    from .nodes import _to_numpy_image  # lazy: avoid circular import (117c)
     from PIL import Image
     img = _to_numpy_image(frames)
     # img is (B, H, W, C)

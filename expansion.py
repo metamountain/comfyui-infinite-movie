@@ -860,7 +860,7 @@ def build_expansion_graph(unique_id: str, preset: str,
     # Auftrag 41A: per-scene lengths (n_scenes entries)
     n_scenes = n_images - 1 if n_images > 1 else 1   # 1 image: open shot (+ loop shot back if loop)
     if scene_seconds:
-        from .nodes import _scene_frames
+        from .shot_utils import _scene_frames
         scene_lengths = _scene_frames(scene_seconds, cfg["fps"], cfg["length_mod"], length)
     else:
         scene_lengths = [length] * n_scenes
