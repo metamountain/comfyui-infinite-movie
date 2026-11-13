@@ -423,7 +423,9 @@ def _derive_cfg_from_graph(template: dict, out_node: dict) -> dict:
     # Find the seed node
     for nid, n in template.items():
         ct = n.get("class_type", "")
-        if ct in ("RandomNoise", "KSamplerAdvanced"):
+        # 2026-11-13: plain KSampler too (MiniMax H3 engine) - before, its seed stayed
+        # the Engine In literal 42: every shot, variant B and REDO used the same seed.
+        if ct in ("RandomNoise", "KSamplerAdvanced", "KSampler"):
             cfg["seed_class_types"] = (ct,)
             break
 
@@ -749,8 +751,9 @@ def build_segment(template: dict, cfg: dict, prefix: str,
     # 4. Set seed on all sampler / noise nodes.
     for nid, n in seg.items():
         if n["class_type"] in cfg["seed_class_types"]:
-            if "noise_seed" in n["inputs"]:
-                n["inputs"]["noise_seed"] = seed
+            for key in ("noise_seed", "seed"):   # KSamplerAdvanced/RandomNoise | KSampler
+                if key in n["inputs"]:
+                    n["inputs"][key] = seed
 
     # 5. Set size / length.
     for nid, n in seg.items():
