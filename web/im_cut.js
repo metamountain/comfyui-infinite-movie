@@ -285,10 +285,10 @@ export function fcChooseRender(node) {
       if (window.__fc_review_test_skip_queue) console.log("[InfiniteMovie] test: skipped queuePrompt (FILM)", JSON.stringify(targets));
       else Promise.resolve(fcQueueFixedSeeds(targets)).catch((err) => {
         node._fc_asm_t0 = null; fcChooseStatus(node);
-        fcReviewToast("FILM could not be queued – see console", "#d93025");
+        fcReviewToast("RENDER VIDEO could not be queued – see console", "#d93025");
         console.error("[InfiniteMovie] FILM queue failed", err);
       });
-      fcReviewToast("FILM queued – building film…");
+      fcReviewToast("RENDER VIDEO queued – building film…");
     } else if (btn._fc_mode === "rerender") {
       fcRerenderMarked(node, fcChooseRender);
     }

@@ -275,7 +275,7 @@ function fcChooseSteps(node) {
   else { s1 = promptsFilled ? "done" : "open"; s2 = "current"; s3 = "open"; s4 = "open"; }
   return [
     { label: "1 Prompts", state: s1 }, { label: "2 Run", state: s2 },
-    { label: "3 Pick", state: s3 }, { label: "4 FILM", state: s4 },
+    { label: "3 Pick", state: s3 }, { label: "4 RENDER", state: s4 },
   ];
 }
 function fcChooseUpdateSteps(node) {
@@ -294,15 +294,15 @@ function fcChooseStateIdle(node, entries, plan, marked) {
   if (entries[0]?.placeholder) return { text: `Waiting for Run: ${entries.length} shot(s)${plan.variants ? " × 2 variants" : ""} will appear here.`, tone: "idle", btn: null };
   const redo = fcChooseRedoTokens(node);
   if (redo.length) return { text: `${redo.map((t) => t.toUpperCase()).join(", ")} marked ✗ – RERENDER renders only these with new seeds.`, tone: "act", btn: "rerender" };
-  if (node._fc_choose_ran == null) return { text: entries[0]?.has_variants ? "Shots ready – pick A or B per shot, then FILM builds the film."
-    : "Shots ready – FILM builds the film.", tone: "act", btn: "assemble" };
+  if (node._fc_choose_ran == null) return { text: entries[0]?.has_variants ? "Shots ready – pick A or B per shot, then RENDER VIDEO builds the film."
+    : "Shots ready – RENDER VIDEO builds the film.", tone: "act", btn: "assemble" };
   const changed = (node._fc_choose_ran || "") !== fcChooseEffective(node).join(",");
-  if (changed) return { text: "Choice changed – press FILM to rebuild the film.", tone: "act", btn: "assemble" };
+  if (changed) return { text: "Choice changed – press RENDER VIDEO to rebuild the film.", tone: "act", btn: "assemble" };
   if (node._fc_film_done) {
     // 119: total render time (Director's _fcProg t0→end) in the green done line.
     const dir = fcChooseDirectorOf(node);
     const rt = dir?._fcProg?.t0 && dir._fcProg.end ? ` · rendered in ${fmtTime(renderEstimate(dir).el)}` : "";
-    return { text: `✓ FILM READY · ${imFilmInfoText(node._fc_film_done)}${rt}`, tone: "done", btn: null,
+    return { text: `✓ VIDEO READY · ${imFilmInfoText(node._fc_film_done)}${rt}`, tone: "done", btn: null,
       title: node._fc_film_done.path };
   }
   if (entries[0]?.has_variants) return { text: "Film assembled. Pick A or B per shot to change it, ✓/✗ to re-render a shot.", tone: "ok", btn: null };
@@ -336,7 +336,7 @@ export function fcChooseStatus(node) {
       b.textContent = "⏳ ASSEMBLING…"; b.style.background = "#30363d"; b.style.borderColor = "#4fc3f7";
       b.title = "Film is being built – see the status line above.";
     } else if (st.btn === "assemble") {
-      b.textContent = "FILM ▶"; b.style.background = "#2ea043"; b.style.borderColor = "#2ea043";
+      b.textContent = "RENDER VIDEO ▶"; b.style.background = "#2ea043"; b.style.borderColor = "#2ea043";
       b.title = "Rebuild the film from the chosen variants (Director + Cut come from cache, only Even Motion runs).";
     } else if (st.btn === "rerender") {
       const m = fcChooseRedoTokens(node).length;

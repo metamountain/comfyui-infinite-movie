@@ -88,6 +88,14 @@ function imvShot(node) {
 // (160×160) -> 480×480, square (user 2026-11-09: portrait and landscape fit, images contain);
 // every tab fills exactly this area. Director gets the same width (IMV_NODE_W).
 export const IMV_W = 480, IMV_H = 480, IMV_NODE_W = IMV_W + 24;
+// 2026-11-13 (user: "Cut as tall as the layout allows, content as big as possible"): AUTO LAYOUT may give a node its
+// own area height (properties.imv_h); the area is then as wide as the node. Without it the area stays 480×480.
+export const IMV_MIN_H = 200;
+function imvArea(node) {
+  const h = Number(node?.properties?.imv_h);
+  if (!(h >= IMV_MIN_H)) return [IMV_W, IMV_H];
+  return [Math.max(IMV_W, Math.round((node.size?.[0] || IMV_NODE_W) - 24)), Math.round(h)];
+}
 // 2026-11-13 (user: "Assemble as wide as the group"): only a minimum – AUTO LAYOUT may make it wider, the 480 area
 // stays centred (canvas margin auto).
 export function imvFixWidth(node) {
@@ -190,8 +198,8 @@ function imvEnsure(node) {
   // slider and info row would stick out below the frame (user 2026-11-09 "don't fit in frame").
   node.addDOMWidget("im_viz", "div", el, {
     serialize: false,
-    getMinHeight: () => IMV_H + 96 + 20,
-    getMaxHeight: () => IMV_H + 96 + 20,
+    getMinHeight: () => imvArea(node)[1] + 96 + 20,
+    getMaxHeight: () => imvArea(node)[1] + 96 + 20,
   });
   return st;
 }
@@ -228,9 +236,12 @@ export function imvDraw(node) {
   st.gridLbl.style.display = isSheet ? "" : "none";
 
   imvFixWidth(node);
-  const W = IMV_W, H = IMV_H;
+  const [W, H] = imvArea(node);
   const c = st.canvas, ctx = c.getContext("2d");
-  if (c.width !== W || c.height !== H) { c.width = W; c.height = H; }
+  if (c.width !== W || c.height !== H) {
+    c.width = W; c.height = H;
+    c.style.width = W + "px"; c.style.height = H + "px";
+  }
   ctx.globalAlpha = 1;
   ctx.fillStyle = "#121212";
   ctx.fillRect(0, 0, W, H);

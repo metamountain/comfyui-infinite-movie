@@ -29,7 +29,7 @@ A local vision model writes the prompts for you if you like. Built for a single 
 4. **Set the number of images** in Director › `images` (1–8) – Load Image nodes and their Auto Prompts are added and laid out for you. Then **load your pictures** into them (1 image works too, see [One image](#one-image)).
 5. **Write the prompts.** Type a few keywords into each *Auto Prompt* and press **🔄 Regenerate prompt**, or write the
    prompt yourself.
-6. **Run.** The shots render and stop at *Choose*. Look at them, keep or redo, then press **FILM ▶** – the film
+6. **Run.** The shots render and stop at *Choose*. Look at them, keep or redo, then press **RENDER VIDEO ▶** – the film
    appears in the *Film* node and in your output folder.
 
 ## The workflow at a glance
@@ -43,7 +43,7 @@ The engine sits at the top, below it one row read from left to right. Every area
 | **3 · Images** | Your stills, top to bottom = order in the film. |
 | **4 · Prompts** | *Prompt Style* (how prompts are written) and one *Auto Prompt* per transition. |
 | **5 · Director** | `images` (how many), the image list (drag to reorder, ✕ to remove), seconds per shot, `loop` (last image back to the first), `variants` (1 or 2 per shot). |
-| **6 · Cut** | Check the shots, pick A/B, **FILM ▶** writes the film (with sound). |
+| **6 · Cut** | Check the shots, pick A/B, **RENDER VIDEO ▶** writes the film (with sound). |
 | **7 · Even Motion + Film** | optional: smooth camera moves, `<name>_even.mp4`. |
 | **8 · Upscale** | Optional (muted): sharper, larger film. Select the group and press Ctrl+M to turn it on. |
 
@@ -138,13 +138,13 @@ stays silent then. Prompts can describe sound, e.g. `sound: howling wind`.
 
 | Node | What it does |
 |---|---|
-| **Settings** | Shared settings for the whole chain: `prompt_model`, `aspect` + `long_side` (both sides rounded to 32; 4:5 + 960 = 768×960), `output_folder` (**📂 Choose folder**, default `Infinite Movie` – inside it `cache_movies/<film_name>/` and `raw/`), `film_name`, switch `raw`, `audio`, **📦 Check models**. GPU check on Run: if another program holds too much GPU memory, nothing is queued and a message names it – the pack never closes other programs. |
+| **Settings** | Shared settings for the whole chain: `prompt_model`, `aspect` + `long_side` (both sides rounded to 32; 4:5 + 960 = 768×960), `output_folder` (**📂 Choose folder**, default `infinite_movie` – inside it `cache_movies/<film_name>/` and `raw/`), `film_name`, switch `raw`, `audio`, **📦 Check models**. GPU check on Run: if another program holds too much GPU memory, nothing is queued and a message names it – the pack never closes other programs. |
 | **Story Mode (LLM)** | Optional. Plug `LLM` into Settings › `LLM` (AUTO LAYOUT does it): a bigger vision LLM then writes the prompts instead of `prompt_model` (greyed out while plugged in). It first reads **all** images and plans the film – an arc plus one beat per shot – then every Auto Prompt writes its shot from its two images and its beat. `story` = your red thread (goes into every system prompt). Both instructions are editable; **↺ Restore default prompts** brings the originals back. The plan shows in the node (**④ Plan result**). **Simple prompts:** unplug the `LLM` cable (or bypass the node) – `prompt_model` writes again. Setup: [Story Mode setup](#story-mode-setup). |
 | **Prompt Style** | What the prompt model is told, `max_words`, `camera` (appended; `none` = no camera sentence). |
 | **Auto Prompt** | One per transition. Looks at both images and writes the prompt from your keywords when you press **🔄 Regenerate prompt** (only this node; ~20 s with Qwen3-VL 4B). Never writes on Run: a filled prompt is used as is. |
 | **Director** | 1–8 images + one prompt per transition → renders all shots. `images` sets the count: more adds Load Image nodes (copy of the last image) with Auto Prompts, fewer removes the last ones (remembered). The image list below it reorders (drag) and removes (✕) images. `seconds` per shot (snapped to the engine's frame grid), `loop`, `variants` (`2` = render A and B per shot). Rendered shots are kept: a shot is rendered again only when its seed changes (`reseed` or the base `seed`) – an edited prompt or image alone does not re-render it. Outputs `sync ▶ Cut`, `settings ▶ chain`. Shows progress and remaining time. |
 | **Engine Start / Engine Result** | Left and right edge of an engine group (see [Engines](#engines)). |
-| **Cut** | One tile per shot (A above B with variants). Hover plays, click picks; **✓ KEEP / ✗ REDO** per shot. Each tile shows a check in plain words: green *✓ smooth*, yellow *△ slight flicker*, red *⚠ HARD CUT / HARD SEAM*. **✎ prompt** and **⏱ seconds** change one shot and mark it REDO. Big button: **FILM ▶** (build the film from your picks) or **RERENDER n ↻** (only the marked shots). 3×3 contact sheet of the shot under the mouse. Outputs `video_path`, `last_frame`, `first_frame`, `sync`, `settings ▶ chain`. **▶ film** plays the built film in the preview field. |
+| **Cut** | One tile per shot (A above B with variants). Hover plays, click picks; **✓ KEEP / ✗ REDO** per shot. Each tile shows a check in plain words: green *✓ smooth*, yellow *△ slight flicker*, red *⚠ HARD CUT / HARD SEAM*. **✎ prompt** and **⏱ seconds** change one shot and mark it REDO. Big button: **RENDER VIDEO ▶** (build the film from your picks) or **RERENDER n ↻** (only the marked shots). 3×3 contact sheet of the shot under the mouse. Outputs `video_path`, `last_frame`, `first_frame`, `sync`, `settings ▶ chain`. **▶ film** plays the built film in the preview field. |
 | **Even Motion** | Joins the shots into the film. `even_motion` re-picks frames so each carries about the same change. `time_extend` (1–4×) makes the film longer and slower at the same fps from RIFE in-between frames (silent then). `interpolate` auto = RIFE x2, x4 with time_extend. Runs only on **FILM**. The film mp4 contains the prompt and the workflow. Viewer (3×3 Load-Image tiles, all tabs the same size): **Graph**, **Timeline**, **Heatmap**, **Frames** (slider, ▶, onion skin), **Particles** (motion trails), **Sheet** (3×3 … 8×8, click = open frame). Outputs `video_path`, `last_frame`, `first_frame`. |
 | **Video Preview** | Plays any video in a square player (video, images + audio like Video Combine, video_path or a file) and passes it on as **video**. Shows where it was saved, **📂 Open folder**, remembers the last three films. Below Cut: switch **Film / Single shot** (Cut's ▶ play shows the shot here). |
 | **Last Frame** | Last frame of a film – e.g. the start image of the next part. Reads frame by frame. |

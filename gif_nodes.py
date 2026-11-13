@@ -421,7 +421,7 @@ class InfiniteMovieGif(io.ComfyNode):
                 io.Image.Input("images", optional=True, tooltip="Frame batch (priority 2), e.g. VHS Load Video."),
                 io.String.Input("video_path", default="", optional=True,
                                 tooltip="Path of a film (priority 3), e.g. Assemble → video_path."),
-                io.Combo.Input("file", options=_input_videos(), upload=io.UploadType.video, optional=True,
+                io.Combo.Input("file", options=_input_videos(), default="(none)", upload=io.UploadType.video, optional=True,
                                tooltip="Film from ComfyUI/input (priority 4, used when nothing else is set)."),
                 io.Combo.Input("format", optional=True, options=FORMATS, default=FORMATS[0],
                                tooltip="GIF plays everywhere; animated WebP is usually 3-5× smaller with more colours."),

@@ -242,7 +242,7 @@ export function fcClearFilms({ choose = false } = {}) {
     else if (n.comfyClass === "InfiniteMovieChooser") {
       if (choose) { n._fc_choose_entries = []; n._fc_redo_pending = null; }
       n._fc_choose_ran = null;
-      n._fc_film_done = null;   // no FILM READY bar for a removed film
+      n._fc_film_done = null;   // no VIDEO READY bar for a removed film
       fcChooseRender(n);
     }
   }
@@ -331,7 +331,7 @@ function imErrorToast(summary, detail) {
   document.body.appendChild(t);
 }
 
-// Film finished: sticky-ish success toast (selectable path) + the Cut status turns into a green FILM READY bar.
+// Film finished: sticky-ish success toast (selectable path) + the Cut status turns into a green VIDEO READY bar.
 export function imFilmInfoText(fi) {
   const sec = Number(fi.seconds) || 0;
   return `${fi.name} · ${sec.toFixed(1)} s · ${fi.shots} shot${fi.shots === 1 ? "" : "s"} · ${fi.audio ? "with sound" : "silent"}`;

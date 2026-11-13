@@ -179,7 +179,7 @@ class InfiniteMovieFilm(io.ComfyNode):
                                tooltip="Only with images: frames per second."),
                 io.String.Input("video_path", optional=True, force_input=True,
                                 tooltip="Path of a film (priority 3), e.g. Even Motion → video_path."),
-                io.Combo.Input("file", options=_input_videos(), upload=io.UploadType.video, optional=True,
+                io.Combo.Input("file", options=_input_videos(), default="(none)", upload=io.UploadType.video, optional=True,
                                tooltip="Film from ComfyUI/input (priority 4)."),
             ],
             outputs=[io.Video.Output("video")],

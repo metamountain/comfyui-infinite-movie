@@ -91,7 +91,7 @@ def settings_defaults() -> dict:
         "long_side": LONG_SIDE_DEFAULT,
         "width": 0,    # without a Settings node: size of the engine (0 = engine default)
         "height": 0,
-        "output_folder": "Infinite Movie",
+        "output_folder": "infinite_movie",
         "film_name": "",
         # 116b1: raw = the chosen shots are saved one by one to <output_folder>/raw/ as well.
         "raw": False,
@@ -124,7 +124,7 @@ def get_setting(settings, key):
 def film_folder(settings) -> str:
     """116b1: film folder from settings > output_folder.
 
-    Empty -> "Infinite Movie"; a relative name lies inside ComfyUI/output,
+    Empty -> "infinite_movie"; a relative name lies inside ComfyUI/output,
     an absolute path stays as is.
     """
     import os
@@ -132,7 +132,7 @@ def film_folder(settings) -> str:
     import folder_paths
     folder = str(get_setting(settings, "output_folder") or "").strip()
     if not folder:
-        folder = "Infinite Movie"
+        folder = "infinite_movie"
     if not os.path.isabs(folder):
         folder = os.path.join(folder_paths.get_output_directory(), folder)
     return folder
@@ -168,7 +168,7 @@ class InfiniteMovieSettings(io.ComfyNode):
                 io.Int.Input("long_side", default=LONG_SIDE_DEFAULT, min=256, max=2048, step=32,
                              tooltip="Longest side in pixels (rounded to 32). 960 with 4:5 = 768×960 (LTX template); "
                                      "1344 with 4:5 = 1088×1344 (≈ Instagram 1080×1350)."),
-                io.String.Input("output_folder", default="Infinite Movie",
+                io.String.Input("output_folder", default="infinite_movie",
                                 tooltip="Folder for the films. A relative name lies inside ComfyUI/output. "
                                         "Inside it: cache_movies/<film_name>/ = rendered shots (render cache, "
                                         "safe to delete), raw/ = the chosen shots when raw is on. Use 📂 Choose folder."),

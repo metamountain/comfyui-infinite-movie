@@ -10,6 +10,7 @@
 // Each help note "Help: N · …" sits centered on top INSIDE its group "N · …". Notes without a matching group
 // stay with the README. Anchor: x = README group, y = top edge of the engine.
 import { app } from "../../scripts/app.js";
+import { IMV_H, IMV_MIN_H, imvDraw } from "./im_viewer.js";
 
 const T = 30;        // node title bar
 const HEAD = 64;     // group header: title (32) + room for the node badge (#id …)
@@ -320,6 +321,13 @@ export function fcWorkflowLayout(director, second = false) {
       placeCol(row[0][1], row[0][2], rowHelp[0], row[0][0].pos[0], Y, sizes[0][0]);
     }
   }
+  // user 2026-11-13 ("Director and Cut as tall as the layout allows, content as big as possible"): first both at
+  // their natural height (so they never make the row taller), they grow to the group bottom after H is known.
+  for (const n of [director, ...cut]) {
+    n.properties ||= {};
+    delete n.properties.imv_h; delete n.properties.im_row;
+    n.size = [n.size[0], n.computeSize()[1]];
+  }
   // 6: the preview sits at the right edge of the double-width group
   if (row[4][0]) for (const f of cutFilms) f.pos = [row[4][0].pos[0] + sizes[4][0] - PAD - f.size[0], f.pos[1]];
   // Group height from the real content (prompts can reach below the last image)
@@ -340,6 +348,22 @@ export function fcWorkflowLayout(director, second = false) {
   }
   const H = Math.max(...sizes.map((s) => s[1]), bottom - Y + PAD, upNeed, gifNeed);
   row.forEach(([grp, ns], k) => { if (grp && (ns.length || grp)) grp.size = [sizes[k][0], H]; });
+  // ...now grow: Director's image list gets taller rows, Cut's analysis area gets taller, both end at the group bottom
+  const floor = Y + H - PAD;
+  const nImg = director.widgets?.some((w) => w.name === "im_layers") ? Math.max(1, imgRows.length) : 0;
+  const dExtra = floor - (director.pos[1] + director.size[1]);
+  if (nImg && dExtra > nImg) {
+    director.properties.im_row = 64 + Math.floor(dExtra / nImg);
+    director.size = [director.size[0], director.computeSize()[1]];
+  }
+  for (const c of cut) {
+    const extra = floor - (c.pos[1] + c.size[1]);
+    if (extra > 0 && c.widgets?.some((w) => w.name === "im_viz")) {
+      c.properties.imv_h = Math.max(IMV_MIN_H, IMV_H + extra);
+      c.size = [c.size[0], c.computeSize()[1]];
+    }
+    if (c._imv) imvDraw(c);
+  }
   // Film player(s) of 6 and 7 sit at the bottom edge of their group (user: "films at the bottom")
   for (const fs of [cutFilms, asmFilms]) { let b = Y + H - PAD; for (const f of [...fs].reverse()) { f.pos = [f.pos[0], b - f.size[1]]; b -= T + f.size[1] + NGAP; } }
   // 8 Upscale right of 7, content as a block, help centered on top, same height as the row

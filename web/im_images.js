@@ -212,11 +212,14 @@ function fcDeleteImage(chain, k) {
 }
 
 const IM_ROW = 64;
+// 2026-11-13 (user: "Director as tall as the layout allows, content as big as possible"): AUTO LAYOUT may set a
+// larger row height (properties.im_row); the thumbnails grow with it. Without it: 64.
+const imRow = (n) => Math.max(IM_ROW, Math.round(Number(n?.properties?.im_row) || IM_ROW));
 const IM_FLASH = 1200;   // ms, landing glow after a drag
 export function addImageLayers(node) {
   if (node.widgets?.find((w) => w.name === "im_layers")) return;
   const M = 15, DEL = 28;
-  const rowAt = (w, y) => Math.floor((y - w._y - 4) / IM_ROW);
+  const rowAt = (w, y) => Math.floor((y - w._y - 4) / imRow(node));
   node.addCustomWidget({
     name: "im_layers",
     type: "im_layers",
@@ -225,7 +228,7 @@ export function addImageLayers(node) {
     options: { serialize: false },
     tooltip: "Image order of the film, top = first. Drag an image up or down – the blue line shows where it lands; ✕ removes it " +
       "(raising the images counter brings it back). Transitions that change get an empty prompt – regenerate them.",
-    computeSize: (width) => [width, Math.max(1, fcChainImages(node).length) * IM_ROW + 8],
+    computeSize: (width) => [width, Math.max(1, fcChainImages(node).length) * imRow(node) + 8],
     draw(ctx, n, width, y) {
       this._y = y; this._w = width;
       const g = n.graph;
@@ -235,7 +238,7 @@ export function addImageLayers(node) {
       ctx.save();
       rows.forEach(([img, orig], k) => {
         const root = fcImgRoot(g, img);
-        const x = M, bw = width - 2 * M, ry = y + 4 + k * IM_ROW, rh = IM_ROW - 6, cy = ry + rh / 2;
+        const x = M, bw = width - 2 * M, ry = y + 4 + k * imRow(n), rh = imRow(n) - 6, cy = ry + rh / 2;
         const dragged = d && orig === d.from;
         const fl = this._flash && this._flash.id === root.id ? 1 - (performance.now() - this._flash.t0) / IM_FLASH : 0;
         // user: "the frame being moved blue, the target a blue line"
@@ -265,8 +268,10 @@ export function addImageLayers(node) {
         const im = root.imgs?.[0];
         const ih = rh - 8;
         if (im?.naturalWidth) {
-          const iw = Math.min(ih * 1.8, ih * im.naturalWidth / im.naturalHeight);
-          ctx.drawImage(im, tx, ry + 4, iw, ih);
+          const ar = im.naturalWidth / im.naturalHeight;
+          const iw = Math.min(ih * 1.8, ih * ar, Math.max(20, bw - 28 - DEL - 60));
+          const dh = Math.min(ih, iw / ar);   // aspect kept when the row width limits the image
+          ctx.drawImage(im, tx, ry + 4 + (ih - dh) / 2, iw, dh);
           tx += iw + 10;
         } else {
           ctx.fillStyle = "#333"; ctx.fillRect(tx, ry + 4, ih * 0.8, ih);
@@ -283,7 +288,7 @@ export function addImageLayers(node) {
         ctx.fillText("✕", x + bw - DEL / 2, cy);
       });
       if (d && d.gap != null) {
-        const ly = y + 4 + d.gap * IM_ROW - 3, x0 = M - 4, x1 = width - M + 4;
+        const ly = y + 4 + d.gap * imRow(n) - 3, x0 = M - 4, x1 = width - M + 4;
         ctx.strokeStyle = "#4af"; ctx.fillStyle = "#4af"; ctx.lineWidth = 4;
         ctx.beginPath(); ctx.moveTo(x0, ly); ctx.lineTo(x1, ly); ctx.stroke();
         for (const x of [x0, x1]) { ctx.beginPath(); ctx.arc(x, ly, 5, 0, 2 * Math.PI); ctx.fill(); }
@@ -304,7 +309,7 @@ export function addImageLayers(node) {
       if (t === "pointermove" || t === "mousemove") {
         if (!this._drag) return false;
         // drop gap 0..N (line between rows); the own place (above/below itself) = no move
-        const gap = Math.max(0, Math.min(N, Math.round((pos[1] - this._y - 4) / IM_ROW)));
+        const gap = Math.max(0, Math.min(N, Math.round((pos[1] - this._y - 4) / imRow(n))));
         this._drag.gap = gap === this._drag.from || gap === this._drag.from + 1 ? null : gap;
         n.setDirtyCanvas(true, false);
         return true;
