@@ -333,6 +333,9 @@ class InfiniteMovieAssemble(io.ComfyNode):
             paths = list(sync.get("segments", []))
             sf = sync.get("save_folder", sf) or sf
             sn = sync.get("save_name", sn) or sn
+            # 2026-11-13: named after Cut's film (infinite_movie_018 -> infinite_movie_018_even, like _upscale)
+            if sync.get("film_path"):
+                sn = os.path.splitext(os.path.basename(str(sync["film_path"])))[0] or sn
             if "loop" in sync:
                 loop = bool(sync["loop"])
             # Auftrag 41A: per-scene frames from the film dict

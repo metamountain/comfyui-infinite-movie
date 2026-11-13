@@ -366,6 +366,12 @@ export function fcWorkflowLayout(director, second = false) {
   }
   // Film player(s) of 6 and 7 sit at the bottom edge of their group (user: "films at the bottom")
   for (const fs of [cutFilms, asmFilms]) { let b = Y + H - PAD; for (const f of [...fs].reverse()) { f.pos = [f.pos[0], b - f.size[1]]; b -= T + f.size[1] + NGAP; } }
+  // user 2026-11-13 ("never collapse the graph, always open"): Even Motion reaches down to its Film player, so its
+  // analysis graph (image preview below the widgets) always has room inside group 7 - also before the first run
+  for (const a of asm) {
+    const below = asmFilms.length ? Math.min(...asmFilms.map((f) => f.pos[1])) - T - NGAP : Y + H - PAD;
+    a.size = [a.size[0], Math.max(a.computeSize()[1], below - a.pos[1])];
+  }
   // 8 Upscale right of 7, content as a block, help centered on top, same height as the row
   if (upGrp && upMembers.length) {
     // block = loaders + upscaler as they are arranged; the Film player(s) below it (same width as group 7)

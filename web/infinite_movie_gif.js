@@ -208,7 +208,7 @@ function buildWidget(node) {
   el.style.cssText = "width:100%;height:100%;display:flex;flex-direction:column;justify-content:flex-end;gap:4px;";  // stretched node: preview stays at the bottom
   const img = document.createElement("img");
   img.style.cssText = "width:100%;aspect-ratio:1/1;flex:none;object-fit:contain;background:#111;border-radius:3px;display:block;";
-  img.alt = "GIF preview";
+  img.alt = "";   // 2026-11-13: no broken-image icon + text before the first preview
   const info = document.createElement("div");
   info.style.cssText = `min-height:${INFO_H}px;font:12px sans-serif;color:#bbb;word-break:break-word;`;
   el.appendChild(img); el.appendChild(info);
