@@ -240,7 +240,10 @@ class InfiniteMovieAssemble(io.ComfyNode):
                         "(Director › seconds / per-shot ⏱); with interpolate RIFE there are more frames to pick from "
                         "and fewer duplicates. time_extend makes the film longer and slower (same fps) from the RIFE "
                         "in-between frames. Draws an analysis graph below the widgets (grey = as rendered, "
-                        "coloured = evened out).",
+                        "coloured = evened out).\n"
+                        "time_extend: longer film, slower motion, same fps. 1 = as rendered, 2 = twice as long, up to 4. "
+                        "Uses the RIFE in-between frames (interpolate auto picks x4); the film is silent then. Above "
+                        "about 2.5 fast motion can smear.",
             is_output_node=True,
             inputs=[
                 # Auftrag 32: shots (SHOTS) as the FIRST input (highest priority).
