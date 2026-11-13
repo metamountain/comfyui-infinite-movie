@@ -409,7 +409,11 @@ class InfiniteMovieGif(io.ComfyNode):
                         "change size, crop, trim, direction, speed, fps or colours (nothing is saved); the line "
                         "below shows the result (length, speed, estimated size). save writes the full version to "
                         "output_folder / filename, save as… chooses folder and name. Run renders the full version; "
-                        "with auto_save every Run saves (batches).",
+                        "with auto_save every Run saves (batches).\n"
+                        "speed: 1 = original length, 2 = twice as fast (half as long), 10 = time-lapse, 0.5 = slow "
+                        "motion (each frame stays longer).\n"
+                        "fps: frames per second of the GIF (0 = the film's own rate). Fewer = choppier and smaller, "
+                        f"the length stays the same. GIF plays at most {GIF_MAX_FPS} fps.",
             is_output_node=True,
             inputs=[
                 io.Video.Input("video", optional=True,
@@ -456,13 +460,9 @@ class InfiniteMovieGif(io.ComfyNode):
                 io.Combo.Input("direction", optional=True, options=DIRECTIONS, default="forward",
                                tooltip="boomerang = forward then backward (seamless loop from any clip)."),
                 io.Float.Input("speed", optional=True, default=1.0, min=0.25, max=10.0, step=0.25,
-                               display_mode=io.NumberDisplay.slider,
-                               tooltip="Tempo: 1 = original length, 2 = twice as fast (half as long), 10 = time-lapse, "
-                                       "0.5 = slow motion (each frame stays longer)."),
-                io.Int.Input("fps", optional=True, default=0, min=0, max=60, step=1,
-                             display_mode=io.NumberDisplay.slider,
-                             tooltip="Frames per second of the GIF (0 = the film's own rate). Fewer = choppier and "
-                                     f"smaller, the length stays the same. GIF plays at most {GIF_MAX_FPS} fps."),
+                               display_mode=io.NumberDisplay.slider),   # help in the description: a tooltip covers the slider
+                io.Int.Input("fps", optional=True, default=10, min=0, max=60, step=1,
+                             display_mode=io.NumberDisplay.slider),
             ],
             outputs=[],
             hidden=[io.Hidden.unique_id, io.Hidden.prompt],
@@ -477,7 +477,7 @@ class InfiniteMovieGif(io.ComfyNode):
     def execute(cls, format=FORMATS[0], long_side=480, crop="none", output_folder="GIF",
                 filename="GIF#", auto_save=False, start=0.0, end=0.0, direction="forward", colors=256, dither=DITHERS[0], palette=PALETTES[0],
                 quality=80, max_mb=0.0, video=None, images=None, video_path="", file="(none)",
-                source_fps=0.0, speed=1.0, fps=0) -> io.NodeOutput:
+                source_fps=0.0, speed=1.0, fps=10) -> io.NodeOutput:
         hidden = getattr(cls, "hidden", None)
         uid = str(hidden.unique_id) if hidden and hidden.unique_id is not None else ""
         rate = source_fps
