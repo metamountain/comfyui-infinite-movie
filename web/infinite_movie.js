@@ -4,6 +4,25 @@
 import { app } from "../../scripts/app.js";
 import { api } from "../../scripts/api.js";
 
+// Slider tooltips (user 2026-11-13: "tooltips bei slidern nicht im slide bereich"): the canvas tooltip sits
+// 5 px above the cursor and covers the slider while dragging. Over a slider, lift it above the widget's top edge.
+{
+  const st = document.createElement("style");
+  st.textContent = "body.imv-slider-tip .node-tooltip { transform: translate(5px, calc(-100% - 6px - var(--imv-tip-dy, 0px))) !important; }";
+  document.head.appendChild(st);
+  window.addEventListener("mousemove", () => {
+    const c = app.canvas, n = c?.node_over;
+    const w = n && !n.flags?.collapsed ? c.getWidgetAtCursor?.() : null;
+    const on = !!w && (w.type === "slider" || w.options?.display === "slider") && w.last_y != null;
+    document.body.classList.toggle("imv-slider-tip", on);
+    if (on) {
+      // + canvas top: the tooltip's parent starts there, but its top is the page-relative canvas.mouse
+      const dy = (c.graph_mouse[1] - (n.pos[1] + w.last_y)) * (c.ds?.scale || 1) + c.canvas.getBoundingClientRect().top;
+      document.body.style.setProperty("--imv-tip-dy", `${Math.max(0, dy)}px`);
+    }
+  }, { passive: true });
+}
+
 const IMG = "images.image";
 const PR = "shot_prompts.prompt";
 // 74: GPU pre-check – min_free_mb is a constant (Python: MIN_FREE_MB), GPU handover fixed.
