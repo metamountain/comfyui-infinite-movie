@@ -211,6 +211,19 @@ def _picks_for(curves: list, fps: float, strength: float, rendered_seconds, keep
 ASSEMBLE_STRENGTH = 0.8   # 1 = fully even change per frame, 0 = unchanged timing; 0.8 keeps a short rest on the key images (only with even_motion)
 ASSEMBLE_KEEP = 1.0       # share of each shot's rendered length that stays in the film; 1 = the whole shot (only with even_motion)
 
+# 2026-11-13: interpolate auto + stretch (old values RIFE x2/x4/off stay valid for saved workflows)
+INTERPOLATE = ["auto", "RIFE x2", "RIFE x4", "off"]
+
+
+def rife_passes(interpolate: str, stretch: float, retime: bool) -> int:
+    """RIFE x2 passes before picking: 0 = none, 1 = x2, 2 = x4. auto: x2 to smooth, x4 as soon as stretch > 1
+    (at least twice the frames needed to pick from). Nothing when nothing is re-picked."""
+    if not retime or interpolate == "off":
+        return 0
+    if interpolate in ("RIFE x2", "RIFE x4"):
+        return 1 if interpolate == "RIFE x2" else 2
+    return 2 if stretch > 1.001 else 1
+
 
 class InfiniteMovieAssemble(io.ComfyNode):
     @classmethod
@@ -225,7 +238,8 @@ class InfiniteMovieAssemble(io.ComfyNode):
                         "shots stand nearly still near the key images and change mostly in the middle, so the output "
                         "frames are re-picked to carry about the same change each. Each shot keeps its rendered length "
                         "(Director › seconds / per-shot ⏱); with interpolate RIFE there are more frames to pick from "
-                        "and fewer duplicates. Draws an analysis graph below the widgets (grey = as rendered, "
+                        "and fewer duplicates. time_extend makes the film longer and slower (same fps) from the RIFE "
+                        "in-between frames. Draws an analysis graph below the widgets (grey = as rendered, "
                         "coloured = evened out).",
             is_output_node=True,
             inputs=[
@@ -244,10 +258,10 @@ class InfiniteMovieAssemble(io.ComfyNode):
                                        "a single video is treated as one segment"),
                 io.String.Input("video_path", advanced=True, default="", optional=True, tooltip="file path"),
                 # 110 (2026-11-10): strength removed as a widget -> ASSEMBLE_STRENGTH (0.8)
-                io.Combo.Input("interpolate", advanced=True, options=["off", "RIFE x2", "RIFE x4"], default="RIFE x2", optional=True,
-                               tooltip="Interpolate in-between frames first, then pick. Only effective when even_motion=true. "
-                                       "'off' = pick from the original frames (fastest, no GPU); 'RIFE x2' = 2x frames; "
-                                       "'RIFE x4' = 4x (smoothest, most GPU time)."),
+                io.Combo.Input("interpolate", advanced=True, options=INTERPOLATE, default="auto", optional=True,
+                               tooltip="In-between frames (RIFE) to pick from, for even_motion and time_extend. 'auto' = "
+                                       "RIFE x2, with time_extend above 1 RIFE x4 (at least twice the frames needed). "
+                                       "'off' = original frames only (fastest, no GPU; time_extend then repeats frames)."),
                 # 57d: free_vram/free_ram now in the Settings node
                 # (settings input at the end of the schema).
                 # 110 (2026-11-10): keep removed as a widget -> ASSEMBLE_KEEP (1.0 = the whole shot)
@@ -257,6 +271,12 @@ class InfiniteMovieAssemble(io.ComfyNode):
                 io.Boolean.Input("loop", default=True,
                                  tooltip="true = also drop the last frame of the last segment (seamless loop); "
                                          "false = keep it (the film ends on the last image)."),
+                # 2026-11-13 (user: "RIFE zur Filmverlängerung"): the picking keeps stretch× the frames
+                io.Float.Input("time_extend", optional=True, default=1.0, min=1.0, max=4.0, step=0.25,
+                               display_mode=io.NumberDisplay.slider,
+                               tooltip="Longer film, slower motion, same fps: 1 = as rendered, 2 = twice as long, up to 4. "
+                                       "Uses the RIFE in-between frames (interpolate auto picks x4). The film is "
+                                       "silent then. Above about 2.5 fast motion can smear."),
                 # 73: copy_to removed (no more copy target; the film stays in the output folder).
                 # 57d: settings (SETTINGS) at the END so that the slot indices of the
                 # wired inputs (shots/segments/save_folder/save_name) do not shift.
@@ -288,9 +308,15 @@ class InfiniteMovieAssemble(io.ComfyNode):
     @classmethod
     def execute(cls, shots=None, file="",
                 video_path="",
-                interpolate="off",
-                even_motion=True, loop=True,
+                interpolate="auto",
+                even_motion=True, loop=True, time_extend=1.0,
                 settings=None) -> io.NodeOutput:
+        stretch = min(max(float(time_extend or 1.0), 1.0), 4.0)
+        # retime = re-pick frames: for even_motion and/or stretch (without even_motion: plain time = slow motion)
+        retime = bool(even_motion) or stretch > 1.001
+        strength = ASSEMBLE_STRENGTH if even_motion else 0.0
+        passes = rife_passes(interpolate, stretch, retime)
+        interpolate = ("off", "RIFE x2", "RIFE x4")[passes]   # resolved, for graph/cache
         # 57d: free_vram/free_ram
         # come from the Settings node (SETTINGS pipe); without it -> defaults.
         free_vram = get_setting(settings, "free_vram")
@@ -335,10 +361,10 @@ class InfiniteMovieAssemble(io.ComfyNode):
         from fractions import Fraction
         fps_f = float(Fraction(rate))   # "24000/1001" -> 23.976
         fps_in = fps_f
-        if interpolate != "off":
+        if passes:
             # RIFE x2 (twice for x4) per segment; picking then happens on the dense frames
             from .post_nodes import _rife_x2
-            times = 2 if interpolate == "RIFE x4" else 1
+            times = passes
             vram.wait_acquire(min_free_mb=8000, timeout_s=3600)
             try:
                 dense = []
@@ -366,7 +392,10 @@ class InfiniteMovieAssemble(io.ComfyNode):
             per_scene_seconds = [f / fps_f for f in scene_frames_list]
         else:
             per_scene_seconds = [max(len(c) - 1, 1) / fps_in for c in curves]
-        picks, n_out, report = _picks_for(curves, fps_f, ASSEMBLE_STRENGTH, per_scene_seconds, ASSEMBLE_KEEP)
+        per_scene_seconds = [s * stretch for s in per_scene_seconds]   # stretch: keep stretch× the frames
+        picks, n_out, report = _picks_for(curves, fps_f, strength, per_scene_seconds, ASSEMBLE_KEEP)
+        if stretch > 1.001:
+            report = f"time_extend {stretch:g}× (slower, {interpolate})\n" + report
         out_paths = []
         # 86: viewer data (timeline, heatmap, used frames) in the temp folder; errors here are never fatal.
         import time as _time
@@ -400,7 +429,7 @@ class InfiniteMovieAssemble(io.ComfyNode):
                                 "seconds": per_scene_seconds, "keep": ASSEMBLE_KEEP,
                                 "viz_dir": viz_dir if viz is not None else None}
         out_seconds = [max(n - 1, 1) / fps_f for n in n_out]
-        graph = draw_graph(curves, picks, fps_f, ASSEMBLE_STRENGTH, out_seconds, fps_in, interpolate)
+        graph = draw_graph(curves, picks, fps_f, strength, out_seconds, fps_in, interpolate)
         print(f"[InfiniteMovieAssemble]\n{report}")
         from comfy_api.latest import ui
         preview = ui.PreviewImage(graph, cls=cls)
@@ -409,8 +438,8 @@ class InfiniteMovieAssemble(io.ComfyNode):
         # images_out (RAM-hungry) is no longer computed.
         # Auftrag 32: concat (shared function from nodes.py)
         from .nodes import _concat_segments, _has_audio_stream
-        if even_motion:
-            # Retime + concat: the retimed segments are joined
+        if retime:
+            # Retime + concat: the retimed (evened out and/or stretched) segments are joined
             concat_paths = out_paths
         else:
             # Concat only (without retime): the original segments are joined
@@ -419,8 +448,9 @@ class InfiniteMovieAssemble(io.ComfyNode):
         # (no offset). Retimed segments are video-only, so the film is
         # automatically silent with even_motion=true. If the original segments
         # had audio, report that.
-        if even_motion and any(_has_audio_stream(p) for p in paths):
-            report += "\nSound only without even_motion: the film is silent (even_motion changes the video timing, audio is not re-timed)."
+        if retime and any(_has_audio_stream(p) for p in paths):
+            report += ("\nSound only without even_motion and time_extend 1: the film is silent (they change the video "
+                       "timing, audio is not re-timed).")
         # 63: Settings › output_folder overrides the output folder of the FINAL
         # film (after shots/save_folder have been evaluated). _unique_output_path
         # (nodes.py:672) creates the folder and resolves relative paths against

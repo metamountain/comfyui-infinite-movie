@@ -16,6 +16,7 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import shutil
 import subprocess
 
 import numpy as np
@@ -366,12 +367,46 @@ def _short_err(what: str, e: Exception) -> str:
     return f"{what} failed: {(msg[-1] if msg else type(e).__name__)[:120]}"
 
 
+def _inside(path: str, root: str) -> bool:
+    """True if path lies inside root (case-insensitive, same drive)."""
+    try:
+        a, r = os.path.realpath(os.path.abspath(path)), os.path.realpath(os.path.abspath(root))
+        return os.path.commonpath([a.lower(), r.lower()]) == r.lower()
+    except ValueError:  # other drive
+        return False
+
+
+def _video_ref(path: str, choose_dir: str, subfolder: str, name: str) -> dict | None:
+    """115: /view address of the full video (with sound) of one variant:
+    directly if the file is already in the ComfyUI output or temp folder,
+    otherwise a link (or copy) into choose_dir, so the browser can play it.
+    Model: gif_nodes.view_ref. Existing file of the same size is kept."""
+    if not os.path.exists(path):
+        return None
+    import folder_paths
+    ap = os.path.abspath(path)
+    for kind, base in (("output", folder_paths.get_output_directory()), ("temp", folder_paths.get_temp_directory())):
+        base = os.path.abspath(base)
+        if _inside(ap, base):
+            sub, fname = os.path.split(os.path.relpath(ap, base))
+            return {"filename": fname, "subfolder": sub, "type": kind}
+    dest = os.path.join(choose_dir, name)
+    if not (os.path.exists(dest) and os.path.getsize(dest) == os.path.getsize(path)):
+        if os.path.exists(dest):
+            os.remove(dest)
+        try:
+            os.link(path, dest)
+        except OSError:
+            shutil.copy2(path, dest)
+    return {"filename": name, "subfolder": subfolder, "type": "temp"}
+
+
 def _variant_entry(path: str, choose_dir: str, subfolder: str, variant_key: str,
                    cache: dict, cache_key: str) -> tuple[dict, bool]:
     """Preview (animated WebP) + still + checks + jerk for one
     variant. Cached by size/mtime (like the review node). Returns (entry, changed)."""
     if not os.path.exists(path):
-        return {"preview": None, "still": None, "flags": [], "level": 0,
+        return {"preview": None, "still": None, "video": None, "flags": [], "level": 0,
                 "info": f"segment file not found: {os.path.basename(path)}",
                 "errors": [f"file missing: {os.path.basename(path)}"],
                 "jerk": 0.0, "score": 0.0}, False
@@ -397,6 +432,8 @@ def _variant_entry(path: str, choose_dir: str, subfolder: str, variant_key: str,
         return {
             "preview": {"filename": cached["preview_file"], "subfolder": subfolder, "type": "temp"},
             "still": {"filename": cached["still_file"], "subfolder": subfolder, "type": "temp"},
+            # 115: full video with sound (same hash as the still)
+            "video": _video_ref(path, choose_dir, subfolder, cached["still_file"].replace("_still.webp", ".mp4")),
             **{ui: ({"filename": cached[key], "subfolder": subfolder, "type": "temp"} if cached.get(key) else None)
                for key, (_fn, _sfx, ui) in _EXTRAS.items()},
             "flags": cached.get("flags", []),
@@ -435,6 +472,8 @@ def _variant_entry(path: str, choose_dir: str, subfolder: str, variant_key: str,
     return {
         "preview": {"filename": preview_file, "subfolder": subfolder, "type": "temp"},
         "still": {"filename": still_file, "subfolder": subfolder, "type": "temp"},
+        # 115: full video with sound (same hash as the still)
+        "video": _video_ref(path, choose_dir, subfolder, f"{variant_key}_{h}.mp4"),
         **{ui: ({"filename": extra_files[key], "subfolder": subfolder, "type": "temp"} if extra_files[key] else None)
            for key, (_fn, _sfx, ui) in _EXTRAS.items()},
         "flags": res["flags"],

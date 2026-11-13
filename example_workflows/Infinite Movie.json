@@ -794,7 +794,8 @@
         true,
         true,
         "",
-        "RIFE x2",
+        "auto",
+        1.0,
         "image",
         ""
       ],

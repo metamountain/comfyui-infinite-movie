@@ -153,6 +153,15 @@ export function fcWorkflowLayout(director, second = false) {
   const blockW = upBlock.length ? Math.max(...upBlock.map((n) => n.pos[0] + n.size[0])) - Math.min(...upBlock.map((n) => n.pos[0])) : 0;
   const inner78 = Math.max(MINW - 2 * PAD, ...asm.map((n) => n.size[0]), blockW);
   for (const f of [...asmFilms, ...upFilms]) f.size = [inner78, inner78 - FILM_SIDE + FILM_EXTRA];
+  // 2026-11-13 (user: "Assemble height = Choose height, old (before the play field)"): Assemble as tall as Choose
+  // without its big play field (20 title + 512 video + 4 gap); the analysis graph image fills the extra height.
+  const ch = byType("InfiniteMovieChooser")[0];
+  if (ch) {
+    const chooseH = ch.size[1] - (ch._fc_play ? 536 : 0);
+    for (const a of asm) a.size = [a.size[0], Math.max(a.computeSize()[1], chooseH)];
+  }
+  // 2026-11-13 (user: "Assemble as wide as the group"): same width as the Film player below it
+  for (const a of asm) a.size = [inner78, a.size[1]];
   const used = new Set([...engineHelp, upHelp, ...storyHelp].filter(Boolean));
   const rowHelp = row.map(([grp]) => {
     const h = grp && allNotes.find((n) => isHelp(n) && !used.has(n) && helpFits(n, grp));

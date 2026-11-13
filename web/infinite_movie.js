@@ -1858,8 +1858,10 @@ function imvShot(node) {
 // (160×160) -> 480×480, square (user 2026-11-09: portrait and landscape fit, images contain);
 // every tab fills exactly this area. Director gets the same width (IMV_NODE_W).
 const IMV_W = 480, IMV_H = 480, IMV_NODE_W = IMV_W + 24;
+// 2026-11-13 (user: "Assemble as wide as the group"): only a minimum – AUTO LAYOUT may make it wider, the 480 area
+// stays centred (canvas margin auto).
 function imvFixWidth(node) {
-  if (!node?.size || Math.abs(node.size[0] - IMV_NODE_W) < 1) return;
+  if (!node?.size || node.size[0] >= IMV_NODE_W - 1) return;
   node.setSize([IMV_NODE_W, Math.max(node.size[1], node.computeSize()[1])]);
 }
 
@@ -2256,7 +2258,7 @@ app.registerExtension({
     // fps='') reset to the default – otherwise validation fails on fields that are hidden and thus
     // not correctable by the user. Valid values stay untouched.
     // Defaults as in retime_nodes.py InfiniteMovieAssemble.define_schema (the frontend does not know them here).
-    const DEFAULTS = { interpolate: "RIFE x2", even_motion: true, loop: true };
+    const DEFAULTS = { interpolate: "auto", even_motion: true, loop: true, time_extend: 1 };
     const sanitize = () => {
       for (const w of node.widgets || []) {
         const vals = w.options?.values;
@@ -2264,7 +2266,8 @@ app.registerExtension({
         if (w.type === "combo" && Array.isArray(vals) && vals.length && !vals.includes(w.value)) {
           if (w.name === "file") continue; // file list: an unknown file stays visible as an error
           w.value = vals.includes(def) ? def : vals[0];
-        } else if (w.type === "number" && (w.value === "" || w.value === null || !Number.isFinite(Number(w.value)))) {
+        } else if ((w.type === "number" || w.type === "slider" || w.name === "time_extend")
+          && (w.value === "" || w.value === null || !Number.isFinite(Number(w.value)))) {
           w.value = def ?? w.options?.min ?? 0;
         } else if (w.type === "toggle" && typeof w.value !== "boolean") {
           w.value = def ?? true;
@@ -2684,6 +2687,7 @@ function fcChooseQuality(v, e) {
   return q;
 }
 const FC_CHOOSE_STATUS_H = 26, FC_CHOOSE_BIG_H = 44;
+const FC_CHOOSE_PLAY_H = 512;  // 115: big preview field (video with sound) at the bottom of the chooser
 const FC_CHOOSE_SEAM_H = 84;   // 2026-11-08: seam row (last image of this shot | first image of the next)
 
 // 2026-11-08 (user: couple chooser + Assemble): show the shot in the Assemble viewer (click on the shot header
@@ -3002,7 +3006,7 @@ function fcChooseLayout(node, entries) {
   const colH = FC_CHOOSE_HEAD_H + v * (tileH + FC_CHOOSE_GAP + FC_CHOOSE_STAT_H) + seamH + (entries[0]?.placeholder ? 0 : FC_CHOOSE_BTNROW_H + FC_CHOOSE_GAP);
   const sheet = fcChooseSheetSize(entries);
   const domH = (entries.length ? colH : 0) + FC_CHOOSE_GAP + FC_CHOOSE_STATUS_H + FC_CHOOSE_GAP + FC_CHOOSE_BIG_H + 8
-    + (sheet ? FC_CHOOSE_GAP + sheet[1] : 0);
+    + (sheet ? FC_CHOOSE_GAP + sheet[1] : 0) + FC_CHOOSE_GAP + 20 + FC_CHOOSE_PLAY_H;  // 115: play field (20 = title row)
   return { colW, tileH, domH, sheet };
 }
 // 2026-11-08 (user: „dont like 3x3 in same window … put them to bottom“, then „2x 3x3 at the bottom side by side, i.e.
@@ -3196,6 +3200,18 @@ function fcChoosePick(node, i, letter) {
   fcChooseRender(node);
 }
 
+// 115: play one shot's full video (with sound) in the big preview field at the bottom of the chooser.
+function fcChoosePlay(node, number, letter, ref) {
+  const p = node._fc_play;
+  if (!p || !ref) return;
+  p.video.src = fcChooseStableUrl(ref);
+  p.video.style.display = "block";
+  p.hint.style.display = "none";
+  p.title.textContent = `Shot ${number}${letter ? " · " + letter : ""}`;
+  p.video.muted = false;
+  p.video.play().catch(() => {});
+}
+
 function fcChooseRender(node) {
   let el = node._fc_choose_el;
   if (!el) {
@@ -3342,10 +3358,27 @@ function fcChooseRender(node) {
         const st = document.createElement("div");
         // 75 (user 2026-11-03: „features bigger so you can recognize them“): finding in plain text + color
         const q = fcChooseQuality(v, e);
-        st.style.cssText = `height:${FC_CHOOSE_STAT_H}px;font:bold 13px/${FC_CHOOSE_STAT_H}px sans-serif;white-space:nowrap;` +
+        st.style.cssText = `height:${FC_CHOOSE_STAT_H}px;display:flex;align-items:center;` +
+          `font:bold 13px/${FC_CHOOSE_STAT_H}px sans-serif;white-space:nowrap;` +
           `overflow:hidden;text-overflow:ellipsis;padding:0 4px;border-radius:3px;color:${q.color};background:${q.bg};`;
-        st.textContent = pending ? (fcRun.running ? "waiting for render…" : "queued for re-render")
+        const stx = document.createElement("span");
+        stx.style.cssText = "flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;";
+        stx.textContent = pending ? (fcRun.running ? "waiting for render…" : "queued for re-render")
           : v.score === undefined ? (e.placeholder ? (fcRun.running ? "waiting for render…" : "") : "") : q.text;
+        st.appendChild(stx);
+        // 115: "▶ play" – this shot's full video (with sound) in the preview field below
+        if (v.video && !e.placeholder) {
+          const pb = document.createElement("div");
+          pb.textContent = "▶ play";
+          pb.style.cssText = "flex:0 0 auto;padding:0 8px;height:20px;line-height:20px;font:bold 12px sans-serif;" +
+            "color:#fff;background:#1f6feb;border-radius:3px;cursor:pointer;";
+          pb.title = "Play this video with sound in the big preview below";
+          pb.addEventListener("click", (ev) => {
+            ev.stopPropagation();
+            fcChoosePlay(node, e.number, e.has_variants ? k.toUpperCase() : "", v.video);
+          });
+          st.appendChild(pb);
+        }
         if (pending) { st.style.color = "#4fc3f7"; st.style.background = "transparent"; }
         st.title = (e.auto_reason || "") + (v.info ? "\n" + v.info : "");
         col.appendChild(st);
@@ -3481,6 +3514,26 @@ function fcChooseRender(node) {
     el.appendChild(srow);
     fcChooseUpdateSheet(node);
   }
+
+  // 115: big preview field at the very bottom. Built ONCE (node._fc_play) and re-appended here –
+  // el.innerHTML="" above dropped it; re-adding the SAME element in the same synchronous pass
+  // keeps a running video playing.
+  if (!node._fc_play) {
+    const box = document.createElement("div");
+    box.style.cssText = "width:100%;display:flex;flex-direction:column;gap:0;";
+    const title = document.createElement("div");
+    title.style.cssText = "height:20px;line-height:20px;font:bold 13px sans-serif;color:#ccc;";
+    const video = document.createElement("video");
+    video.controls = true; video.loop = true; video.playsInline = true;
+    video.style.cssText = `width:100%;height:${FC_CHOOSE_PLAY_H}px;object-fit:contain;background:#000;display:none;`;
+    const hint = document.createElement("div");
+    hint.style.cssText = `height:${FC_CHOOSE_PLAY_H}px;display:flex;align-items:center;justify-content:center;` +
+      "background:#000;color:#888;font:14px sans-serif;";
+    hint.textContent = "▶ play under a shot shows it here – big, with sound";
+    box.appendChild(title); box.appendChild(video); box.appendChild(hint);
+    node._fc_play = { box, title, video, hint };
+  }
+  el.appendChild(node._fc_play.box);
 
   fcChooseStatus(node);
   fcChooseApplyActive(node);
