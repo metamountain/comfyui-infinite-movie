@@ -729,7 +729,7 @@ class InfiniteMovieRender(io.ComfyNode):
         )
         return io.Schema(
             node_id="InfiniteMovieRender",
-            display_name="Infinite Movie · Director",
+            display_name="Director · Infinite Movie",
             search_aliases=["infinite movie", "infinite_movie", "film", "movie", "video", "ltx", "wan",
                             "render", "director"],
             category="Infinite Movie/2 Render",
@@ -1150,7 +1150,7 @@ class InfiniteMovieSegmentSave(io.ComfyNode):
     def define_schema(cls):
         return io.Schema(
             node_id="InfiniteMovieSegmentSave", is_dev_only=True,
-            display_name="Infinite Movie · Segment Save (internal)",
+            display_name="Segment Save (internal) · Infinite Movie",
             search_aliases=["infinite movie", "infinite_movie", "film", "movie", "video", "ltx", "wan"],
             category="Infinite Movie/9 Internal",
             description="Writes one segment's frames to an mp4 file (ffmpeg). Skips if the segment already exists and is complete (resume).",
@@ -1246,7 +1246,7 @@ class InfiniteMovieSegmentPaths(io.ComfyNode):
         )
         return io.Schema(
             node_id="InfiniteMovieSegmentPaths", is_dev_only=True,
-            display_name="Infinite Movie · Segment Paths (internal)",
+            display_name="Segment Paths (internal) · Infinite Movie",
             search_aliases=["infinite movie", "infinite_movie", "film", "movie", "video", "ltx", "wan"],
             category="Infinite Movie/9 Internal",
             description="Joins the segment mp4 paths (one per input) into a single multiline string. Inside InfiniteMovieRender it acts as the ordering collector that depends on every segment.",
@@ -1303,7 +1303,7 @@ class InfiniteMovieShotsOut(io.ComfyNode):
     def define_schema(cls):
         return io.Schema(
             node_id="InfiniteMovieShotsOut", is_dev_only=True,
-            display_name="Infinite Movie · Shots Out (internal)",
+            display_name="Shots Out (internal) · Infinite Movie",
             search_aliases=["infinite movie", "infinite_movie", "film", "movie", "video", "ltx", "wan"],
             category="Infinite Movie/9 Internal",
             description="Internal bridge: takes the shots dict (literal) and the collector's segment_paths (link) and returns the shots dict with the real segment paths. Used by InfiniteMovieRender to block on the expansion without a visible output.",
@@ -1458,7 +1458,7 @@ class InfiniteMovieFramesCollect(io.ComfyNode):
     def define_schema(cls):
         return io.Schema(
             node_id="InfiniteMovieFramesCollect", is_dev_only=True,
-            display_name="Infinite Movie · Frames Collect (internal)",
+            display_name="Frames Collect (internal) · Infinite Movie",
             search_aliases=["infinite movie", "infinite_movie", "film", "movie", "video", "ltx", "wan"],
             category="Infinite Movie/9 Internal",
             description="Reads the segment mp4s in order, removes the seam duplicates (same convention as "

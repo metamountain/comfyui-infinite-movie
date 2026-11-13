@@ -217,7 +217,7 @@ class InfiniteMovieAssemble(io.ComfyNode):
     def define_schema(cls):
         return io.Schema(
             node_id="InfiniteMovieAssemble",
-            display_name="Infinite Movie · Assemble",
+            display_name="Assemble · Infinite Movie",
             search_aliases=["infinite movie", "infinite_movie", "film", "movie", "video", "retime", "even motion", "ease", "smooth",
                             "normalize", "speed"],
             category="Infinite Movie/3 Assemble",

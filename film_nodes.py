@@ -105,7 +105,7 @@ class InfiniteMovieFilm(io.ComfyNode):
     def define_schema(cls):
         return io.Schema(
             node_id="InfiniteMovieFilm",
-            display_name="Infinite Movie · Film",
+            display_name="Film · Infinite Movie",
             category="Infinite Movie",
             description="Shows the finished film (looping preview) and confirms where it was saved.",
             inputs=[

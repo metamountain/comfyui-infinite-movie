@@ -130,7 +130,7 @@ class InfiniteMovieSettings(io.ComfyNode):
         from .autoprompt import prompt_models, default_prompt_model
         return io.Schema(
             node_id="InfiniteMovieSettings",
-            display_name="Infinite Movie · Settings",
+            display_name="Settings · Infinite Movie",
             search_aliases=["infinite movie", "infinite_movie", "film", "movie", "video", "settings", "gpu"],
             category="Infinite Movie/0 Setup",
             description="Shared settings for the whole chain: the local prompt model, format and output. "
@@ -316,7 +316,7 @@ class InfiniteMovieStyle(io.ComfyNode):
         from .autoprompt import CAMERA_OPTIONS, STORY_SYSTEM, MAX_STORY_WORDS
         return io.Schema(
             node_id="InfiniteMovieStyle",
-            display_name="Infinite Movie · Prompt Style",
+            display_name="Prompt Style · Infinite Movie",
             category="Infinite Movie/0 Setup",
             search_aliases=["infinite movie", "prompt style", "system prompt", "instruction"],
             description="What the prompt model is told when it writes the shot prompts (system prompt), plus length "

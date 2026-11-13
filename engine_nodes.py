@@ -36,7 +36,7 @@ class InfiniteMovieEngineIn(io.ComfyNode):
     def define_schema(cls):
         return io.Schema(
             node_id="InfiniteMovieEngineIn",
-            display_name="Infinite Movie · Engine Start (from Director)",
+            display_name="Engine Start (from Director) · Infinite Movie",
             search_aliases=["infinite movie", "engine", "pack", "start"],
             category="Infinite Movie/0 Setup",
             description="Build your video model between Engine Start and Engine Result (any loaders/samplers), "
@@ -91,7 +91,7 @@ class InfiniteMovieEngineOut(io.ComfyNode):
     def define_schema(cls):
         return io.Schema(
             node_id="InfiniteMovieEngineOut",
-            display_name="Infinite Movie · Engine Result (to Director)",
+            display_name="Engine Result (to Director) · Infinite Movie",
             search_aliases=["infinite movie", "engine", "pack", "result"],
             category="Infinite Movie/0 Setup",
             description="Build your video model between Engine Start and Engine Result (any loaders/samplers), "

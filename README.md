@@ -85,7 +85,7 @@ automatic download set the environment variable `HF_TOKEN` to your Hugging Face 
 The video model is always **visible** in the workflow as an engine group:
 
 ```
-Infinite Movie · Engine Start (from Director)  →  your model chain  →  Infinite Movie · Engine Result (to Director)
+Engine Start (from Director) · Infinite Movie  →  your model chain  →  Engine Result (to Director) · Infinite Movie
 ```
 
 | Engine | Workflow with only this group | fps | Frame grid | Sound |
@@ -100,7 +100,7 @@ Infinite Movie · Engine Start (from Director)  →  your model chain  →  Infi
 - The *Director* finds the one active *Engine Result* by itself. With several active groups, connect the wanted
   *Engine Result* to the Director's `engine` input.
 - **Own engine (any video model):** easiest is to copy an engine group and swap the model nodes. From scratch:
-  1. Add **Infinite Movie · Engine Start** and **Infinite Movie · Engine Result** (double-click the canvas, search "Engine").
+  1. Add **Engine Start · Infinite Movie** and **Engine Result · Infinite Movie** (double-click the canvas, search "Engine").
   2. Engine Start → your model: `start_image` / `end_image` → the image-to-video (first/last frame) node, `prompt` → text
      encoder, `seed` → sampler, `width` / `height` / `length` → the video/latent size.
   3. Decoded frames (IMAGE) → Engine Result › `images` (or a VIDEO → `video`), sound → `audio`.
@@ -164,7 +164,7 @@ half-finished film.
 The small `prompt_model` writes each shot from its two images only. For a film that tells one story, use a bigger
 vision LLM through **Story Mode (LLM)**:
 
-1. Add **Infinite Movie · Story Mode (LLM)** (it sits under Settings in the example workflow and comes **off** – purple = bypassed: click it and press **Ctrl+B** to switch it on).
+1. Add **Story Mode (LLM) · Infinite Movie** (it sits under Settings in the example workflow and comes **off** – purple = bypassed: click it and press **Ctrl+B** to switch it on).
 2. Plug its output `LLM` into Settings › `LLM`.
 3. Pick a `provider`: it fills `endpoint`, `model` and `api_key_env`. Change them freely afterwards.
 4. Write your red thread into `story` (optional), then **🔄 Regenerate prompt** on the Auto Prompts. The plan
@@ -245,14 +245,14 @@ disk. Below the preview one line tells you what you will get:
 Group **8 · Upscale** (muted, Ctrl+M turns it on) in the main workflow upscales the assembled film with RelayVSR x4:
 
 ```
-Assemble › video_path  →  Infinite Movie · RelayVSR Upscale (x4 → 1920, ram_gb 16)  →  Film
+Assemble › video_path  →  RelayVSR Upscale · Infinite Movie (x4 → 1920, ram_gb 16)  →  Film
 ```
 
 LTX Refine is no longer in the main workflow; it is the alternative in its own workflow `Upscaler/Infinite Movie - LTX Upscale` (template folder `example_workflows/Upscaler/`)
 for any film:
 
 ```
-VHS Load Video  →  Upscale Crop Universal (×1.3334, multiple of 64)  →  Infinite Movie · LTX Refine (1:1)
+VHS Load Video  →  Upscale Crop Universal (×1.3334, multiple of 64)  →  LTX Refine · Infinite Movie (1:1)
 ```
 
 - **RelayVSR Upscale** (core RelayVSR x2/x4, ComfyUI ≥ 0.45): UNETLoader `relayvsr_x2_…`/`relayvsr_x4_…` + VAELoader

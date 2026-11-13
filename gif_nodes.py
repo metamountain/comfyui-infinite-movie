@@ -402,7 +402,7 @@ class InfiniteMovieGif(io.ComfyNode):
     def define_schema(cls):
         return io.Schema(
             node_id="InfiniteMovieGif",
-            display_name="Infinite Movie · Movie to GIF",
+            display_name="Movie to GIF · Infinite Movie",
             search_aliases=["gif", "webp", "animated", "movie to gif", "video to gif", "infinite movie"],
             category="Infinite Movie",
             description="Turns a film into an animated GIF or WebP. The preview in the node updates live while you "

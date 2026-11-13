@@ -117,7 +117,7 @@ class InfiniteMovieH3Loop(io.ComfyNode):
     def define_schema(cls):
         return io.Schema(
             node_id="InfiniteMovieH3Loop",
-            display_name="Infinite Movie · H3 Loop",
+            display_name="H3 Loop · Infinite Movie",
             category="Infinite Movie/engine",
             description="Seamless loop for MiniMax H3: samples the video with its end wrapped around to its start "
                         "(circular padding), so the last frame flows into the first. Put it between the model "
@@ -147,7 +147,7 @@ class InfiniteMovieH3LoopDecode(io.ComfyNode):
     def define_schema(cls):
         return io.Schema(
             node_id="InfiniteMovieH3LoopDecode",
-            display_name="Infinite Movie · H3 Loop Decode",
+            display_name="H3 Loop Decode · Infinite Movie",
             category="Infinite Movie/engine",
             description="Decodes an H3 Loop latent with wrapped context on both sides and returns exactly one loop "
                         "(17k frames) – the last frame flows into the first without a jump.",
@@ -203,7 +203,7 @@ class InfiniteMovieLastFrame(io.ComfyNode):
     def define_schema(cls):
         return io.Schema(
             node_id="InfiniteMovieLastFrame",
-            display_name="Infinite Movie · Last Frame",
+            display_name="Last Frame · Infinite Movie",
             category="Infinite Movie/tools",
             description="The last frame of a film – e.g. the start image for the next shot "
                         "(loop in two passes: shot 1 runs free, its last frame -> shot 2 back to the first image). "

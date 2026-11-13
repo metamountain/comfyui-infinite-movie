@@ -318,7 +318,7 @@ class InfiniteMovieLTXRefine(io.ComfyNode):
     def define_schema(cls):
         return io.Schema(
             node_id="InfiniteMovieLTXRefine",
-            display_name="Infinite Movie · LTX Refine",
+            display_name="LTX Refine · Infinite Movie",
             category="Infinite Movie/5 Upscale",
             is_output_node=True,
             description=("Refines a whole film with LTX-2.5, chunk by chunk (fits 24 GB). Typical: upscale with "

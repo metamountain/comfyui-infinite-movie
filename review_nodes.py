@@ -498,7 +498,7 @@ class InfiniteMovieChooser(io.ComfyNode):
     def define_schema(cls):
         return io.Schema(
             node_id="InfiniteMovieChooser",
-            display_name="Infinite Movie · Choose",
+            display_name="Choose · Infinite Movie",
             search_aliases=["infinite movie", "infinite_movie", "choose", "chooser", "variant", "variants"],
             category="Infinite Movie/2 Render",
             description="Variants builder (Auftrag 61): for each transition, shows variant A and B side by side "

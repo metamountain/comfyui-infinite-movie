@@ -356,7 +356,7 @@ class InfiniteMovieStoryMode(io.ComfyNode):
     def define_schema(cls):
         return io.Schema(
             node_id="InfiniteMovieStoryMode",
-            display_name="Infinite Movie · Story Mode (LLM)",
+            display_name="Story Mode (LLM) · Infinite Movie",
             category="Infinite Movie/0 Setup",
             search_aliases=["infinite movie", "story", "story mode", "llm", "openai", "ollama", "lm studio", "gemini",
                             "openrouter", "local llm", "vision", "prompt model", "server"],

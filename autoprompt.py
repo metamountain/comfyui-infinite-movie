@@ -249,7 +249,7 @@ class InfiniteMovieAutoPromptV2(io.ComfyNode):
         from .settings_nodes import SETTINGS
         return io.Schema(
             node_id="InfiniteMovieAutoPrompt",
-            display_name="Infinite Movie · Auto Prompt",
+            display_name="Auto Prompt · Infinite Movie",
             search_aliases=["infinite movie", "infinite_movie", "film", "movie", "video", "ltx", "wan", "prompt"],
             category="Infinite Movie/1 Prompt",
             description="Writes the prompt for one transition (image_from → image_to) with the local prompt model "

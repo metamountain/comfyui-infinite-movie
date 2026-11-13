@@ -100,7 +100,7 @@ class InfiniteMovieRelayVSRUpscale(io.ComfyNode):
     def define_schema(cls):
         return io.Schema(
             node_id="InfiniteMovieRelayVSRUpscale",
-            display_name="Infinite Movie · RelayVSR Upscale",
+            display_name="RelayVSR Upscale · Infinite Movie",
             category="Infinite Movie/5 Upscale",
             is_output_node=True,
             description=("Upscales a whole film of any length with RelayVSR (x2 or x4), segment by segment: ram_gb sets "
