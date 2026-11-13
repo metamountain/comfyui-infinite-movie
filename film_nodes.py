@@ -20,11 +20,9 @@ import numpy as np
 
 from comfy_api.latest import io
 
-from .media import _ffmpeg, _input_videos
+from .media import _ffmpeg, _input_videos, _no_window
 
 
-def _no_window() -> dict:
-    return {"creationflags": subprocess.CREATE_NO_WINDOW} if os.name == "nt" else {}
 
 
 def _probe(path: str) -> dict:

@@ -118,8 +118,11 @@ def _clean_prompt(text: str, max_words: int = 350) -> str:
     """Clean an LLM-generated prompt: remove think blocks, Markdown, and
     truncate to max_words at a word boundary."""
     import re
-    # Remove think...think and think.../think blocks (case-insensitive).
-    text = re.sub(r"think.*?/think", "", text, flags=re.DOTALL | re.IGNORECASE)
+    # Remove <think>...</think> blocks and stray tags (case-insensitive). 2026-11-13: the old pattern had no angle
+    # brackets: "<think>x</think>Prompt" became "<>Prompt", and plain text between a word "think" and a later
+    # "/think" was cut out.
+    text = re.sub(r"<think>.*?</think>", "", text, flags=re.DOTALL | re.IGNORECASE)
+    text = re.sub(r"</?think>", "", text, flags=re.IGNORECASE)
     # Remove Markdown formatting: **bold**, *italic*, # headers, `code`.
     text = re.sub(r"\*\*(.*?)\*\*", r"\1", text)
     text = re.sub(r"\*(.*?)\*", r"\1", text)
