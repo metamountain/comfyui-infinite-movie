@@ -127,6 +127,10 @@ export function fcWorkflowLayout(director, second = false) {
   const upMembers = upGrp ? (g._nodes || []).filter((n) => !isNote(n) && !inEngine(n) && !coreImages.has(n) && inRect(n, gRect(upGrp))) : [];
   const upHelp = upGrp ? allNotes.find((n) => isHelp(n) && helpFits(n, upGrp)) || null : null;
   const upSet = new Set(upMembers);
+  // 9 Movie to GIF (optional, 2026-11-13): right of Upscale, help on top, the GIF node(s) below.
+  const gifGrp = groups.find((x) => !isEngineGroup(x) && /gif/i.test(x.title || ""));
+  const gifHelp = gifGrp ? allNotes.find((n) => isHelp(n) && helpFits(n, gifGrp)) || null : null;
+  const gifNodes = (g._nodes || []).filter((n) => n.comfyClass === "InfiniteMovieGif" && !inEngine(n) && !upSet.has(n));
   const nodes = (g._nodes || []).filter((n) => !inEngine(n) && !upSet.has(n));
   const byType = (t) => nodes.filter((n) => n.comfyClass === t || n.type === t);
 
@@ -157,12 +161,14 @@ export function fcWorkflowLayout(director, second = false) {
   // without its big play field (20 title + 512 video + 4 gap); the analysis graph image fills the extra height.
   const ch = byType("InfiniteMovieChooser")[0];
   if (ch) {
-    const chooseH = ch.size[1] - (ch._fc_play ? 536 : 0);
+    // Cut without its big (square, 116c2) play field and its analysis viewer – both measured, not fixed numbers
+    const domH = (el) => (el && el.offsetHeight ? el.offsetHeight + 4 : 0);
+    const chooseH = ch.size[1] - domH(ch._fc_play?.box) - (ch._imv ? 480 + 96 + 20 + 4 : 0);
     for (const a of asm) a.size = [a.size[0], Math.max(a.computeSize()[1], chooseH)];
   }
   // 2026-11-13 (user: "Assemble as wide as the group"): same width as the Film player below it
   for (const a of asm) a.size = [inner78, a.size[1]];
-  const used = new Set([...engineHelp, upHelp, ...storyHelp].filter(Boolean));
+  const used = new Set([...engineHelp, upHelp, gifHelp, ...storyHelp].filter(Boolean));
   const rowHelp = row.map(([grp]) => {
     const h = grp && allNotes.find((n) => isHelp(n) && !used.has(n) && helpFits(n, grp));
     if (h) used.add(h);
@@ -288,6 +294,17 @@ export function fcWorkflowLayout(director, second = false) {
     for (const f of upBlock.length ? [...upFilms].reverse() : []) { f.pos = [x + PAD, b - f.size[1]]; b -= T + f.size[1] + NGAP; }
     upGrp.pos = [x, Y];
     upGrp.size = [w, H];
+  }
+  // 9 Movie to GIF right of 8 (or of 7 without Upscale): help on top, GIF node(s) one under another, row height
+  if (gifGrp && gifNodes.length) {
+    const gx = upGrp && upMembers.length ? upGrp.pos[0] + upGrp.size[0] + GAP : x;
+    const w = Math.max(MINW, ...gifNodes.map((n) => n.size[0] + 2 * PAD));
+    for (const n of gifNodes) n.size = [w - 2 * PAD, n.size[1]];
+    if (gifHelp) { gifHelp.size = [w - 2 * PAD, HH]; gifHelp.pos = [gx + PAD, Y + HEAD + T]; }
+    let gy = Y + HEAD + helpH(gifHelp) + T;
+    for (const n of gifNodes) { n.pos = [gx + (w - n.size[0]) / 2, gy]; gy += n.size[1] + NGAP + T; }
+    gifGrp.pos = [gx, Y];
+    gifGrp.size = [w, H];
   }
 
   // 0 README at the front, separate, at the height of the row

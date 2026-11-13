@@ -1,8 +1,8 @@
 {
   "id": "11de75b2-579e-4a82-9e7c-c98a0590e77e",
   "revision": 0,
-  "last_node_id": 100,
-  "last_link_id": 2179,
+  "last_node_id": 102,
+  "last_link_id": 2180,
   "nodes": [
     {
       "id": 1,
@@ -223,7 +223,7 @@
         764
       ],
       "flags": {},
-      "order": 35,
+      "order": 36,
       "mode": 0,
       "inputs": [
         {
@@ -424,7 +424,7 @@
         152
       ],
       "flags": {},
-      "order": 28,
+      "order": 29,
       "mode": 0,
       "inputs": [
         {
@@ -531,7 +531,7 @@
         152
       ],
       "flags": {},
-      "order": 31,
+      "order": 32,
       "mode": 0,
       "inputs": [
         {
@@ -638,7 +638,7 @@
         250
       ],
       "flags": {},
-      "order": 24,
+      "order": 25,
       "mode": 0,
       "inputs": [
         {
@@ -803,7 +803,7 @@
         152
       ],
       "flags": {},
-      "order": 33,
+      "order": 34,
       "mode": 0,
       "inputs": [
         {
@@ -1101,14 +1101,14 @@
       "type": "InfiniteMovieFilm",
       "pos": [
         4875,
-        2224
+        1874
       ],
       "size": [
         660,
         792
       ],
       "flags": {},
-      "order": 38,
+      "order": 39,
       "mode": 0,
       "inputs": [
         {
@@ -1148,7 +1148,7 @@
         330
       ],
       "flags": {},
-      "order": 26,
+      "order": 27,
       "mode": 0,
       "inputs": [
         {
@@ -1300,7 +1300,7 @@
         152
       ],
       "flags": {},
-      "order": 34,
+      "order": 35,
       "mode": 0,
       "inputs": [
         {
@@ -1531,14 +1531,14 @@
       "type": "InfiniteMovieFilm",
       "pos": [
         5615,
-        2224
+        1874
       ],
       "size": [
         660,
         792
       ],
       "flags": {},
-      "order": 40,
+      "order": 42,
       "mode": 2,
       "inputs": [
         {
@@ -1681,7 +1681,7 @@
         82
       ],
       "flags": {},
-      "order": 22,
+      "order": 23,
       "mode": 0,
       "inputs": [
         {
@@ -2043,7 +2043,7 @@
         220
       ],
       "flags": {},
-      "order": 23,
+      "order": 24,
       "mode": 0,
       "inputs": [
         {
@@ -2168,7 +2168,7 @@
         46
       ],
       "flags": {},
-      "order": 29,
+      "order": 30,
       "mode": 0,
       "inputs": [
         {
@@ -2215,7 +2215,7 @@
         46
       ],
       "flags": {},
-      "order": 30,
+      "order": 31,
       "mode": 0,
       "inputs": [
         {
@@ -2262,7 +2262,7 @@
         122
       ],
       "flags": {},
-      "order": 32,
+      "order": 33,
       "mode": 0,
       "inputs": [
         {
@@ -2378,7 +2378,7 @@
         26
       ],
       "flags": {},
-      "order": 25,
+      "order": 26,
       "mode": 0,
       "inputs": [
         {
@@ -2422,7 +2422,7 @@
         262
       ],
       "flags": {},
-      "order": 27,
+      "order": 28,
       "mode": 0,
       "inputs": [
         {
@@ -2556,7 +2556,7 @@
         420
       ],
       "flags": {},
-      "order": 39,
+      "order": 40,
       "mode": 2,
       "inputs": [
         {
@@ -2943,10 +2943,10 @@
       ],
       "size": [
         1056,
-        2768
+        2744
       ],
       "flags": {},
-      "order": 36,
+      "order": 37,
       "mode": 0,
       "inputs": [
         {
@@ -2980,7 +2980,8 @@
           "type": "STRING",
           "links": [
             2176,
-            2177
+            2177,
+            2180
           ]
         },
         {
@@ -2997,12 +2998,13 @@
         }
       ],
       "properties": {
-        "ue_properties": {
-          "widget_ue_connectable": {},
-          "input_ue_unconnectable": {}
-        },
         "Node name for S&R": "InfiniteMovieChooser",
         "marked": [],
+        "ue_properties": {
+          "widget_ue_connectable": {},
+          "input_ue_unconnectable": {},
+          "version": "7.8"
+        },
         "rejected": {}
       },
       "widgets_values": [
@@ -3025,10 +3027,10 @@
       ],
       "size": [
         660,
-        722
+        1084
       ],
       "flags": {},
-      "order": 37,
+      "order": 38,
       "mode": 2,
       "inputs": [
         {
@@ -3117,11 +3119,12 @@
         }
       ],
       "properties": {
+        "Node name for S&R": "InfiniteMovieAssemble",
         "ue_properties": {
           "widget_ue_connectable": {},
-          "input_ue_unconnectable": {}
-        },
-        "Node name for S&R": "InfiniteMovieAssemble"
+          "input_ue_unconnectable": {},
+          "version": "7.8"
+        }
       },
       "widgets_values": [
         "(none)",
@@ -3141,6 +3144,307 @@
         "upload": "image",
         "im_viz": ""
       }
+    },
+    {
+      "id": 101,
+      "type": "InfiniteMovieGif",
+      "pos": [
+        6355,
+        -78
+      ],
+      "size": [
+        380,
+        890
+      ],
+      "flags": {},
+      "order": 41,
+      "mode": 2,
+      "inputs": [
+        {
+          "localized_name": "video",
+          "name": "video",
+          "shape": 7,
+          "type": "VIDEO",
+          "link": null
+        },
+        {
+          "localized_name": "images",
+          "name": "images",
+          "shape": 7,
+          "type": "IMAGE",
+          "link": null
+        },
+        {
+          "localized_name": "video_path",
+          "name": "video_path",
+          "shape": 7,
+          "type": "STRING",
+          "widget": {
+            "name": "video_path"
+          },
+          "link": 2180
+        },
+        {
+          "localized_name": "file",
+          "name": "file",
+          "shape": 7,
+          "type": "COMBO",
+          "widget": {
+            "name": "file"
+          },
+          "link": null
+        },
+        {
+          "localized_name": "format",
+          "name": "format",
+          "shape": 7,
+          "type": "COMBO",
+          "widget": {
+            "name": "format"
+          },
+          "link": null
+        },
+        {
+          "localized_name": "long_side",
+          "name": "long_side",
+          "shape": 7,
+          "type": "INT",
+          "widget": {
+            "name": "long_side"
+          },
+          "link": null
+        },
+        {
+          "localized_name": "crop",
+          "name": "crop",
+          "shape": 7,
+          "type": "COMBO",
+          "widget": {
+            "name": "crop"
+          },
+          "link": null
+        },
+        {
+          "localized_name": "output_folder",
+          "name": "output_folder",
+          "shape": 7,
+          "type": "STRING",
+          "widget": {
+            "name": "output_folder"
+          },
+          "link": null
+        },
+        {
+          "localized_name": "filename",
+          "name": "filename",
+          "shape": 7,
+          "type": "STRING",
+          "widget": {
+            "name": "filename"
+          },
+          "link": null
+        },
+        {
+          "localized_name": "auto_save (batch)",
+          "name": "auto_save",
+          "shape": 7,
+          "type": "BOOLEAN",
+          "widget": {
+            "name": "auto_save"
+          },
+          "link": null
+        },
+        {
+          "localized_name": "colors",
+          "name": "colors",
+          "shape": 7,
+          "type": "INT",
+          "widget": {
+            "name": "colors"
+          },
+          "link": null
+        },
+        {
+          "localized_name": "dither",
+          "name": "dither",
+          "shape": 7,
+          "type": "COMBO",
+          "widget": {
+            "name": "dither"
+          },
+          "link": null
+        },
+        {
+          "localized_name": "palette",
+          "name": "palette",
+          "shape": 7,
+          "type": "COMBO",
+          "widget": {
+            "name": "palette"
+          },
+          "link": null
+        },
+        {
+          "localized_name": "quality",
+          "name": "quality",
+          "shape": 7,
+          "type": "INT",
+          "widget": {
+            "name": "quality"
+          },
+          "link": null
+        },
+        {
+          "localized_name": "max_mb",
+          "name": "max_mb",
+          "shape": 7,
+          "type": "FLOAT",
+          "widget": {
+            "name": "max_mb"
+          },
+          "link": null
+        },
+        {
+          "localized_name": "source_fps",
+          "name": "source_fps",
+          "shape": 7,
+          "type": "FLOAT",
+          "widget": {
+            "name": "source_fps"
+          },
+          "link": null
+        },
+        {
+          "localized_name": "start",
+          "name": "start",
+          "shape": 7,
+          "type": "FLOAT",
+          "widget": {
+            "name": "start"
+          },
+          "link": null
+        },
+        {
+          "localized_name": "end",
+          "name": "end",
+          "shape": 7,
+          "type": "FLOAT",
+          "widget": {
+            "name": "end"
+          },
+          "link": null
+        },
+        {
+          "localized_name": "direction",
+          "name": "direction",
+          "shape": 7,
+          "type": "COMBO",
+          "widget": {
+            "name": "direction"
+          },
+          "link": null
+        },
+        {
+          "localized_name": "speed",
+          "name": "speed",
+          "shape": 7,
+          "type": "FLOAT",
+          "widget": {
+            "name": "speed"
+          },
+          "link": null
+        },
+        {
+          "localized_name": "fps",
+          "name": "fps",
+          "shape": 7,
+          "type": "INT",
+          "widget": {
+            "name": "fps"
+          },
+          "link": null
+        }
+      ],
+      "outputs": [],
+      "properties": {
+        "Node name for S&R": "InfiniteMovieGif",
+        "ue_properties": {
+          "widget_ue_connectable": {},
+          "input_ue_unconnectable": {},
+          "version": "7.8"
+        }
+      },
+      "widgets_values": [
+        "",
+        "(none)",
+        "GIF",
+        480,
+        "none",
+        "GIF",
+        "GIF#",
+        false,
+        256,
+        "sierra2_4a",
+        "global (best for calm films)",
+        80,
+        0,
+        0,
+        0,
+        0,
+        "forward",
+        1,
+        10,
+        ""
+      ],
+      "widgets_values_named": {
+        "video_path": "",
+        "file": "(none)",
+        "format": "GIF",
+        "long_side": 480,
+        "crop": "none",
+        "output_folder": "GIF",
+        "filename": "GIF#",
+        "auto_save": false,
+        "colors": 256,
+        "dither": "sierra2_4a",
+        "palette": "global (best for calm films)",
+        "quality": 80,
+        "max_mb": 0,
+        "source_fps": 0,
+        "start": 0,
+        "end": 0,
+        "direction": "forward",
+        "speed": 1,
+        "fps": 10,
+        "gif_preview": ""
+      }
+    },
+    {
+      "id": 102,
+      "type": "MarkdownNote",
+      "pos": [
+        6355,
+        -418
+      ],
+      "size": [
+        140,
+        60
+      ],
+      "flags": {},
+      "order": 22,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [],
+      "title": "Help: 9 · Movie to GIF",
+      "properties": {},
+      "widgets_values": [
+        "## 9 · Movie to GIF (optional)\n- Off by default. **Select the node, Ctrl+M** turns it on; then **FILM ▶** also makes a GIF (or WebP / MP4 loop) of the film.\n- Input: the film from Cut (`video_path`). Any video works: `video`, `images`, `video_path` or a file from the list.\n- `format`, `long_side` (480 = small and sharp), `crop` (square, 4:5 …).\n- Time, at the bottom above the preview: `start` / `end` cut a part, `direction` (forward, backward, ping-pong), **`speed`** changes the length (2 = twice as fast, 0.5 = slow motion), **`fps`** changes only the smoothness and the size (0 = the film's own rate).\n- The preview line shows length, speed, fps and the expected file size before you save.\n- **save** / **save as**; `auto_save (batch)` saves every run into `output_folder` (`filename` with # = counter)."
+      ],
+      "widgets_values_named": {
+        "text": "## 9 · Movie to GIF (optional)\n- Off by default. **Select the node, Ctrl+M** turns it on; then **FILM ▶** also makes a GIF (or WebP / MP4 loop) of the film.\n- Input: the film from Cut (`video_path`). Any video works: `video`, `images`, `video_path` or a file from the list.\n- `format`, `long_side` (480 = small and sharp), `crop` (square, 4:5 …).\n- Time, at the bottom above the preview: `start` / `end` cut a part, `direction` (forward, backward, ping-pong), **`speed`** changes the length (2 = twice as fast, 0.5 = slow motion), **`fps`** changes only the smoothness and the size (0 = the film's own rate).\n- The preview line shows length, speed, fps and the expected file size before you save.\n- **save** / **save as**; `auto_save (batch)` saves every run into `output_folder` (`filename` with # = counter)."
+      },
+      "color": "#322",
+      "bgcolor": "#533"
     }
   ],
   "links": [
@@ -3449,6 +3753,46 @@
       "IM_STORY_MODE"
     ],
     [
+      2176,
+      53,
+      1,
+      68,
+      0,
+      "STRING"
+    ],
+    [
+      2177,
+      53,
+      1,
+      98,
+      13,
+      "STRING"
+    ],
+    [
+      2178,
+      4,
+      0,
+      53,
+      0,
+      "SYNC"
+    ],
+    [
+      2179,
+      53,
+      0,
+      8,
+      0,
+      "SYNC"
+    ],
+    [
+      2180,
+      53,
+      1,
+      101,
+      2,
+      "STRING"
+    ],
+    [
       2116,
       71,
       1,
@@ -3519,38 +3863,6 @@
       4,
       16,
       "STRING"
-    ],
-    [
-      2176,
-      53,
-      1,
-      68,
-      0,
-      "STRING"
-    ],
-    [
-      2177,
-      53,
-      1,
-      98,
-      13,
-      "STRING"
-    ],
-    [
-      2178,
-      4,
-      0,
-      53,
-      0,
-      "SYNC"
-    ],
-    [
-      2179,
-      53,
-      0,
-      8,
-      0,
-      "SYNC"
     ]
   ],
   "groups": [
@@ -3585,7 +3897,7 @@
         1995,
         -512,
         420,
-        3548
+        3198
       ],
       "color": "#3a6ea5",
       "flags": {}
@@ -3597,7 +3909,7 @@
         2455,
         -512,
         640,
-        3548
+        3198
       ],
       "color": "#5a8f3a",
       "flags": {}
@@ -3609,7 +3921,7 @@
         1355,
         -512,
         600,
-        3548
+        3198
       ],
       "color": "#8a6d3a",
       "flags": {}
@@ -3621,7 +3933,7 @@
         3135,
         -512,
         544,
-        3548
+        3198
       ],
       "color": "#6a4a8a",
       "flags": {}
@@ -3633,7 +3945,7 @@
         3719,
         -512,
         1096,
-        3548
+        3198
       ],
       "color": "#3a8a7a",
       "flags": {}
@@ -3645,7 +3957,7 @@
         4855,
         -512,
         700,
-        3548
+        3198
       ],
       "color": "#3f789e",
       "flags": {}
@@ -3657,7 +3969,19 @@
         5595,
         -512,
         700,
-        3548
+        3198
+      ],
+      "color": "#88A",
+      "flags": {}
+    },
+    {
+      "id": 63,
+      "title": "9 · Movie to GIF",
+      "bounding": [
+        6335,
+        -512,
+        420,
+        3198
       ],
       "color": "#88A",
       "flags": {}
@@ -3667,10 +3991,10 @@
   "extra": {
     "ue_links": [],
     "ds": {
-      "scale": 0.8052550000000009,
+      "scale": 0.18,
       "offset": [
-        -2956.484263497785,
-        872.7334085174899
+        -3500,
+        900
       ]
     },
     "links_added_by_ue": []
