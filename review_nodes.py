@@ -23,7 +23,7 @@ import numpy as np
 
 from comfy_api.latest import io
 
-from .nodes import _count_frames, _ffmpeg, _motion_check, _no_window, _run_ffmpeg_to, SHOTS
+from .nodes import _count_frames, _ffmpeg, _motion_check, _no_window, _run_ffmpeg_to, SYNC
 # 75: particle helpers moved here from ghost_nodes.py (ghost_nodes.py -> tools/ghost_check.py)
 import cv2
 
@@ -537,17 +537,17 @@ class InfiniteMovieChooser(io.ComfyNode):
     def define_schema(cls):
         return io.Schema(
             node_id="InfiniteMovieChooser",
-            display_name="Choose · Infinite Movie",
-            search_aliases=["infinite movie", "infinite_movie", "choose", "chooser", "variant", "variants"],
+            display_name="Cut · Infinite Movie",
+            search_aliases=["infinite movie", "infinite_movie", "cut", "choose", "chooser", "variant", "variants"],
             category="Infinite Movie/2 Render",
             description="Variants builder (Auftrag 61): for each transition, shows variant A and B side by side "
                         "with a comparison tile. An algorithm pre-selects the better variant (CUT/FLICKER/"
                         "PARTICLES level + jerk metric); the user can override per transition. The chosen "
-                        "segments replace 'segments' in the shots pipe (variants is preserved), so the "
-                        "downstream Assemble gets the chosen segments.",
+                        "segments replace 'segments' in the sync pipe (variants is preserved), so the "
+                        "downstream Even Motion gets the chosen segments.",
             is_output_node=True,
             inputs=[
-                SHOTS.Input("shots", display_name="shots",
+                SYNC.Input("sync", display_name="sync",
                             tooltip="Pipe with all shots (segment paths, folder, name, fps, loop, variants) "
                                     "from Infinite Movie · Director."),
                 io.String.Input("choices", advanced=True, default="",
@@ -555,20 +555,20 @@ class InfiniteMovieChooser(io.ComfyNode):
                                         "('a'/'b' overrides the automatic choice)."),
             ],
             outputs=[
-                # 73: only shots now (segments output removed; the chosen
-                # segments are in the shots pipe under "segments").
-                SHOTS.Output("shots", display_name="shots",
+                # 73: only sync now (segments output removed; the chosen
+                # segments are in the sync pipe under "segments").
+                SYNC.Output("sync", display_name="sync",
                              tooltip="Pipe with the chosen segment paths (segments replaced, variants preserved)."),
             ],
             hidden=[io.Hidden.unique_id],
         )
 
     @classmethod
-    def execute(cls, shots, choices=""):
-        if shots is None:
-            raise ValueError("InfiniteMovieChooser: shots pipe required")
-        segments = list(shots.get("segments", []))
-        variants = shots.get("variants", None)
+    def execute(cls, sync, choices=""):
+        if sync is None:
+            raise ValueError("InfiniteMovieChooser: sync pipe required")
+        segments = list(sync.get("segments", []))
+        variants = sync.get("variants", None)
         has_variants = variants is not None and len(variants) == len(segments)
         n = len(segments)
         if n == 0:
@@ -635,7 +635,7 @@ class InfiniteMovieChooser(io.ComfyNode):
         # 78: seam per shot: last frame of shot i vs first frame of
         # shot i+1 (with loop: last -> first). Same downscaling/difference
         # as _jerk_metric; threshold JERK_HARD. Measured on the chosen segments.
-        loop = bool(shots.get("loop", False))
+        loop = bool(sync.get("loop", False))
         for i in range(n):
             if i + 1 < n:
                 nxt = i + 1
@@ -653,11 +653,11 @@ class InfiniteMovieChooser(io.ComfyNode):
         if changed:
             with open(cache_file, "w", encoding="utf-8") as f:
                 json.dump(cache, f)
-        out_shots = dict(shots)
-        out_shots["segments"] = chosen_segments
+        out_sync = dict(sync)
+        out_sync["segments"] = chosen_segments
         ui = {"infinite_movie_choose": entries}
-        # 73: only shots now (segments output removed).
-        return io.NodeOutput(out_shots, ui=ui)
+        # 73: only sync now (segments output removed).
+        return io.NodeOutput(out_sync, ui=ui)
 
 
 REVIEW_NODE_LIST = [InfiniteMovieChooser]

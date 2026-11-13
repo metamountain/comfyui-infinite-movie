@@ -376,9 +376,9 @@
       ],
       "outputs": [
         {
-          "localized_name": "shots ▶ Assemble",
-          "name": "shots ▶ Assemble",
-          "type": "SHOTS",
+          "localized_name": "sync ▶ Cut",
+          "name": "sync ▶ Cut",
+          "type": "SYNC",
           "slot_index": 0,
           "links": [
             2108
@@ -651,10 +651,10 @@
       "mode": 0,
       "inputs": [
         {
-          "localized_name": "shots",
-          "name": "shots",
+          "localized_name": "sync",
+          "name": "sync",
           "shape": 7,
-          "type": "SHOTS",
+          "type": "SYNC",
           "link": 2109
         },
         {
@@ -1089,9 +1089,9 @@
       "mode": 0,
       "inputs": [
         {
-          "localized_name": "shots",
-          "name": "shots",
-          "type": "SHOTS",
+          "localized_name": "sync",
+          "name": "sync",
+          "type": "SYNC",
           "link": 2108
         },
         {
@@ -1106,9 +1106,9 @@
       ],
       "outputs": [
         {
-          "localized_name": "shots",
-          "name": "shots",
-          "type": "SHOTS",
+          "localized_name": "sync",
+          "name": "sync",
+          "type": "SYNC",
           "slot_index": 0,
           "links": [
             2109
@@ -3089,7 +3089,7 @@
       0,
       53,
       0,
-      "SHOTS"
+      "SYNC"
     ],
     [
       2110,
@@ -3385,7 +3385,7 @@
       0,
       8,
       0,
-      "SHOTS"
+      "SYNC"
     ],
     [
       68,
@@ -3519,7 +3519,7 @@
     },
     {
       "id": 58,
-      "title": "6 · Choose",
+      "title": "6 · Cut",
       "bounding": [
         3799,
         -512,
@@ -3531,7 +3531,7 @@
     },
     {
       "id": 59,
-      "title": "7 · Assemble + Film",
+      "title": "7 · Even Motion + Film",
       "bounding": [
         4947,
         -512,

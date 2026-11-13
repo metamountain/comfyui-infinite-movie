@@ -22,7 +22,7 @@ from comfy_api.latest import io
 
 from . import vram
 # 75: _input_videos moved from ghost_nodes.py to nodes.py
-from .nodes import SHOTS, _input_videos, _probe_size
+from .nodes import SYNC, _input_videos, _probe_size
 from .nodes import _ffmpeg, _no_window, _send_progress, _video_fps, _run_ffmpeg_to, _has_audio_stream
 # 57d: SETTINGS pipe + get_setting (no cycle: settings_nodes -> .vram + lazy .autoprompt).
 from .settings_nodes import SETTINGS, get_setting
@@ -230,10 +230,10 @@ class InfiniteMovieAssemble(io.ComfyNode):
     def define_schema(cls):
         return io.Schema(
             node_id="InfiniteMovieAssemble",
-            display_name="Assemble · Infinite Movie",
+            display_name="Even Motion · Infinite Movie",
             search_aliases=["infinite movie", "infinite_movie", "film", "movie", "video", "retime", "even motion", "ease", "smooth",
-                            "normalize", "speed"],
-            category="Infinite Movie/3 Assemble",
+                            "normalize", "speed", "assemble"],
+            category="Infinite Movie/3 Even Motion",
             description="Joins the shots into one film and, with even_motion, evens out their motion: first-last-frame "
                         "shots stand nearly still near the key images and change mostly in the middle, so the output "
                         "frames are re-picked to carry about the same change each. Each shot keeps its rendered length "
@@ -246,16 +246,16 @@ class InfiniteMovieAssemble(io.ComfyNode):
                         "about 2.5 fast motion can smear.",
             is_output_node=True,
             inputs=[
-                # Auftrag 32: shots (SHOTS) as the FIRST input (highest priority).
-                # 57b: movie -> shots (ID + display); 57b2: type -> SHOTS.
-                SHOTS.Input("shots", optional=True, display_name="shots",
+                # Auftrag 32: sync (SYNC) as the FIRST input (highest priority).
+                # 57b: movie -> shots; 57b2: type renamed (now uppercase); 116a: shots -> sync (ID + display + type).
+                SYNC.Input("sync", optional=True, display_name="sync",
                          tooltip="Pipe mit allen Shots (Segment-Pfade, Ordner, Name, fps, loop …) von "
                                  "Infinite Movie · Director (highest priority). When connected, "
                                  "segments/save_folder/save_name/fps/loop come from the pipe; otherwise "
                                  "connect video_path/file directly."),
                 # 73: segments/save_folder/save_name removed as socket inputs
-                # ("less is more") - they now always come from the shots pipe
-                # (or Settings › output_folder). shots has the highest priority.
+                # ("less is more") - they now always come from the sync pipe
+                # (or Settings › output_folder). sync has the highest priority.
                 io.Combo.Input("file", advanced=True, options=_input_videos(), upload=io.UploadType.video,
                                tooltip="direct load from ComfyUI/input (used when nothing is connected); "
                                        "a single video is treated as one segment"),
@@ -282,7 +282,7 @@ class InfiniteMovieAssemble(io.ComfyNode):
                                        "silent then. Above about 2.5 fast motion can smear."),
                 # 73: copy_to removed (no more copy target; the film stays in the output folder).
                 # 57d: settings (SETTINGS) at the END so that the slot indices of the
-                # wired inputs (shots/segments/save_folder/save_name) do not shift.
+                # wired inputs (sync/segments/save_folder/save_name) do not shift.
                 SETTINGS.Input("settings", optional=True, display_name="settings",
                                tooltip="Shared settings from Infinite Movie · Settings (cleanup after the film: "
                                        "free_vram/free_ram). When connected, the cleanup switches "
@@ -309,7 +309,7 @@ class InfiniteMovieAssemble(io.ComfyNode):
         )
 
     @classmethod
-    def execute(cls, shots=None, file="",
+    def execute(cls, sync=None, file="",
                 video_path="",
                 interpolate="auto",
                 even_motion=True, loop=True, time_extend=1.0,
@@ -338,24 +338,24 @@ class InfiniteMovieAssemble(io.ComfyNode):
         sf = ""
         sn = "film"
         scene_frames_list = []
-        # Auftrag 48-P5: "movielink" -> "movie"; 57b: "movie" -> "shots"
-        if shots is not None:
-            # shots (SHOTS) has the highest priority
-            paths = list(shots.get("segments", []))
-            sf = shots.get("save_folder", sf) or sf
-            sn = shots.get("save_name", sn) or sn
-            if "loop" in shots:
-                loop = bool(shots["loop"])
+        # Auftrag 48-P5: "movielink" -> "movie"; 57b: "movie" -> "shots"; 116a: "shots" -> "sync"
+        if sync is not None:
+            # sync (SYNC) has the highest priority
+            paths = list(sync.get("segments", []))
+            sf = sync.get("save_folder", sf) or sf
+            sn = sync.get("save_name", sn) or sn
+            if "loop" in sync:
+                loop = bool(sync["loop"])
             # Auftrag 41A: per-scene frames from the film dict
-            scene_frames_list = list(shots.get("scene_frames", []) or [])
+            scene_frames_list = list(sync.get("scene_frames", []) or [])
         if not paths:
-            # Auftrag 48B: "(none)"/"" = no file (shots connected)
+            # Auftrag 48B: "(none)"/"" = no file (sync connected)
             # 2026-11-04: check video_path BEFORE file - otherwise a set video_path with
             # file="(none)" (the default) was ignored ("no source connected").
             _file = (file or "").strip()
             _vp = (video_path or "").strip().strip('"')
             if not _vp and _file in ("", "(none)"):
-                raise ValueError("InfiniteMovieAssemble: no source connected (shots, video_path, or file)")
+                raise ValueError("InfiniteMovieAssemble: no source connected (sync, video_path, or file)")
             paths = [_vp or folder_paths.get_annotated_filepath(_file)]
         for p in paths:
             if not os.path.exists(p):

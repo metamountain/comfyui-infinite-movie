@@ -500,7 +500,7 @@ app.registerExtension({
     });
     btn.serialize = false;
     btn.tooltip = "Open a native folder picker on the ComfyUI machine and store the path in output_folder. " +
-      "Assemble writes the finished film to <output_folder>/<save_name>.mp4. Empty = next to the shots.";
+      "Even Motion writes the finished film to <output_folder>/<save_name>.mp4. Empty = next to the shots.";
   },
 });
 
@@ -676,7 +676,7 @@ window.__im_countCrossings = countCrossings;
 
 // 57e: auto layout places the engine chains (Engine Start → model chain →
 // 57c: one button instead of two – "🔗 AUTO LAYOUT" (user 2026-11-02).
-// Click = (a) check prompt chain, (b) connect shots→Assemble, (c) connect settings, (d) layout.
+// Click = (a) check prompt chain, (b) connect sync→Assemble, (c) connect settings, (d) layout.
 // Looked up by name (not a flag), so it is created only ONCE after configure/reload/copy.
 // 92 (user 2026-11-09): image count on the director. More = reclaim muted images (silenced by the counter),
 // then new Load Image as a copy of the last image („image N – replace“); reconcileChain creates the Auto Prompts,
@@ -1035,21 +1035,21 @@ function addLayoutButton(node) {
   const w = node.addWidget("button", "🔗 AUTO LAYOUT", null, () => {
     // (a) check the prompt chain
     reconcileChain(node);
-    // (b) connect shots → Assemble.shots, if Assemble is there and the input is free
+    // (b) connect sync → Assemble.sync, if Assemble is there and the input is free
     const assemble = node.graph?._nodes?.find((n) => n.comfyClass === "InfiniteMovieAssemble");
     if (assemble) {
-      // By TYPE: the output name is the display name ("shots ▶ Assemble"), not "shots".
-      const shotsOutIdx = (node.outputs || []).findIndex((o) => o.type === "SHOTS");
-      const shotsInIdx = (assemble.inputs || []).findIndex((i) => i.type === "SHOTS" || i.name === "shots");
+      // By TYPE: the output name is the display name ("sync ▶ Cut"), not "sync".
+      const shotsOutIdx = (node.outputs || []).findIndex((o) => o.type === "SYNC");
+      const shotsInIdx = (assemble.inputs || []).findIndex((i) => i.type === "SYNC" || i.name === "sync");
       if (shotsOutIdx >= 0 && shotsInIdx >= 0 && assemble.inputs[shotsInIdx].link == null) {
         node.connect(shotsOutIdx, assemble, shotsInIdx);
       }
     } else {
-      console.warn("[InfiniteMovie] AUTO LAYOUT: kein Assemble-Node gefunden.");
-      fcReviewToast("AUTO LAYOUT: kein Assemble-Node gefunden", "#d93025");
+      console.warn("[InfiniteMovie] AUTO LAYOUT: kein Even Motion-Node gefunden.");
+      fcReviewToast("AUTO LAYOUT: kein Even Motion-Node gefunden", "#d93025");
     }
-    // (c) 57e 14e: the shots pipe wins – redundant STRING links Director→Assemble
-    // (segment_paths/save_folder/save_name) are removed once shots is connected.
+    // (c) 57e 14e: the sync pipe wins – redundant STRING links Director→Assemble
+    // (segment_paths/save_folder/save_name) are removed once sync is connected.
     if (assemble) {
       const g = node.graph;
       // 73: segments/save_folder/save_name are no longer Assemble inputs ->
@@ -1090,7 +1090,7 @@ function addLayoutButton(node) {
     value: null,
     serialize: false,
     callback: cb,
-    tooltip: "Check & arrange: prompt count, wiring, positions. Connects shots→Assemble and Settings.",
+    tooltip: "Check & arrange: prompt count, wiring, positions. Connects sync→Even Motion and Settings.",
     computeSize: (width) => [width, H],
     draw(ctx, n, width, y) {
       const m = 15, h = H - 8, x = m, bw = width - 2 * m, yy = y + 4;
@@ -1755,49 +1755,8 @@ app.registerExtension({
   },
 });
 
-// 57b: load migration movie -> shots. 57b2: additionally type migration INFINITE_MOVIE -> SHOTS
-// (user decision: the pipe is called "shots" everywhere – ID, display AND type). Old, shared/
-// downloaded workflows that the migration script (tools/migrate_workflows.py) did
-// not reach still store the pipe input/output under the name "movie" and/or with
-// the old type. Links hang on the slot INDEX, not on the name/type - hence only name AND type
-// are rewritten (incl. link.type of the wired slot), slot index and link IDs stay
-// untouched. Same pattern chain (prevOnConf) as InfiniteMovie.InterleavedPrompts above
-// (Vorbild :717-731).
-const FC_MIGRATE_MOVIE_CLASSES = new Set(["InfiniteMovieRender", "InfiniteMovieAssemble"]);
-function _fcMigrateMovieToShots(node) {
-  let n = 0;
-  const graph = app.graph;
-  const migrateSocket = (s) => {
-    if (!s) return;
-    if (s.name === "movie") { s.name = "shots"; if (s.localized_name === "movie") s.localized_name = "shots"; n++; }
-    // 57b2: Typ INFINITE_MOVIE -> SHOTS.
-    if (s.type === "INFINITE_MOVIE") {
-      s.type = "SHOTS"; n++;
-      // carry along link.type of the wired slot (input: s.link; output: s.links[]).
-      const ids = s.links && s.links.length ? s.links : (s.link != null ? [s.link] : []);
-      for (const lid of ids) {
-        const link = getLink(graph, lid);
-        if (link && link.type === "INFINITE_MOVIE") { link.type = "SHOTS"; n++; }
-      }
-    }
-  };
-  for (const s of node.inputs || []) migrateSocket(s);
-  for (const s of node.outputs || []) migrateSocket(s);
-  if (n) console.log("[InfiniteMovie] migrated movie→shots (name+type)", node.id);
-}
-app.registerExtension({
-  name: "InfiniteMovie.MigrateMovieToShots",
-  beforeRegisterNodeDef(nodeType, nodeData) {
-    if (!FC_MIGRATE_MOVIE_CLASSES.has(nodeData.name)) return;
-    const prevOnConf = nodeType.prototype.onConfigure;
-    nodeType.prototype.onConfigure = function (...args) {
-      const r = prevOnConf?.apply(this, args);
-      try { _fcMigrateMovieToShots(this); }
-      catch (e) { console.error("[InfiniteMovie] migration movie→shots error:", e); }
-      return r;
-    };
-  },
-});
+// 116a (2026-11-13): the 57b/57b2 load migration (movie -> shots, old pipe type name)
+// was removed without replacement (user decision: no users, no backward compatibility).
 
 // Normalize Time: draw the graph of the last run below the widgets (user 2026-10-26:
 // "must be visualized which normalization takes effect"). Uses the analysis of the last run
@@ -2029,9 +1988,9 @@ function imvDraw(node) {
   const sh = shots[st.seg];
   if (st.tab === "Graph") {
     if (st.graph?.naturalWidth) imvFit(ctx, st.graph, 0, 0, W, H);
-    text = st.graph ? "timing per shot: grey = as rendered, coloured = even_motion" : "Run Assemble once to see the graph.";
+    text = st.graph ? "timing per shot: grey = as rendered, coloured = even_motion" : "Run Even Motion once to see the graph.";
   } else if (!v) {
-    text = "Run Assemble once (even_motion on) to see timeline, heatmap and frames.";
+    text = "Run Even Motion once (even_motion on) to see timeline, heatmap and frames.";
   } else if (st.tab === "Timeline") {
     const tl = st.liveTimeline || (v.timeline && { subfolder: v.subfolder, filename: v.timeline });
     const img = tl && imvImg(node, imvUrl(tl.subfolder, tl.filename));
@@ -2143,7 +2102,7 @@ function imvDraw(node) {
       }
       ctx.globalCompositeOperation = "source-over";
     }
-    text = !sh.tracks ? "No particle data – run Assemble again." :
+    text = !sh.tracks ? "No particle data – run Even Motion again." :
       `seg ${sh.seg} · ${st.k + 1}/${n} · source #${f.src} · ${shown} particles · trail ${st.trail} frames${gain > 1.05 ? ` · motion ×${gain.toFixed(1)}` : ""} · bright = fast`;
   } else if (st.tab === "Sheet" && sh) {
     const g = st.grid;
@@ -2237,15 +2196,15 @@ app.registerExtension({
   },
 });
 
-// 57d: the Assemble `loop` widget is hidden as long as `shots` is connected
-// (the value then comes from the pipe; in Python shots["loop"] wins).
+// 57d: the Assemble `loop` widget is hidden as long as `sync` is connected
+// (the value then comes from the pipe; in Python sync["loop"] wins).
 app.registerExtension({
   name: "InfiniteMovie.AssembleLoopHide",
   nodeCreated(node) {
     if (node.comfyClass !== "InfiniteMovieAssemble") return;
-    // 57c: if `shots` is connected, hide file/video_path/fps/loop + the upload button
+    // 57c: if `sync` is connected, hide file/video_path/fps/loop + the upload button
     // (Python ignores them anyway, precedence retime_nodes.py:299). Do NOT delete the values.
-    const HIDDEN_WHEN_SHOTS = ["file", "video_path", "loop"];
+    const HIDDEN_WHEN_SYNC = ["file", "video_path", "loop"];
     // 58 (2026-11-02): do NOT take widgets from node.widgets – widgets_values are positional, and graphToPrompt
     // left out the required inputs file/loop (night debug 58: strength=24 > max 1.0). Only hide,
     // Vorbild ComfyUI-LTXVideo/web/js/guider_parameters_advanced.js:22-45 (hidden + computeSize).
@@ -2264,7 +2223,7 @@ app.registerExtension({
     };
     // 73: copy_to is no longer a widget (input removed) -> no toggle needed.
     const setHidden = (visible) => {
-      for (const name of HIDDEN_WHEN_SHOTS) toggle(node.widgets?.find((x) => x.name === name), visible);
+      for (const name of HIDDEN_WHEN_SYNC) toggle(node.widgets?.find((x) => x.name === name), visible);
       // hide the upload button (DOM widget, belongs to `file`)
       toggle(node.widgets?.find((x) => x._isFileUpload || x.name === "upload"), visible);
       node.setSize([node.size[0], node.computeSize()[1]]);
@@ -2272,7 +2231,7 @@ app.registerExtension({
     };
     // 57c: tooltip for `file` (user 2026-11-01)
     const fileW = node.widgets?.find((x) => x.name === "file");
-    if (fileW) fileW.tooltip = "Only for re-timing an existing video without the Director. Hidden while 'shots' is connected.";
+    if (fileW) fileW.tooltip = "Only for re-timing an existing video without the Director. Hidden while 'sync' is connected.";
     // 2026-11-09: invalid values (shifted widgets_values after a schema change, e.g. interpolate=24,
     // fps='') reset to the default – otherwise validation fails on fields that are hidden and thus
     // not correctable by the user. Valid values stay untouched.
@@ -2297,14 +2256,14 @@ app.registerExtension({
     };
     const update = () => {
       sanitize();
-      const inp = (node.inputs || []).find((i) => i.name === "shots");
+      const inp = (node.inputs || []).find((i) => i.name === "sync");
       setHidden(inp?.link == null);
     };
     setTimeout(update, 100); // after link restore (load) or immediately (new)
     const onConn = node.onConnectionsChange;
     node.onConnectionsChange = function (type, slot, connected, ...rest) {
       const r = onConn?.apply(this, [type, slot, connected, ...rest]);
-      if (this.inputs?.[slot]?.name === "shots") setTimeout(update, 0);
+      if (this.inputs?.[slot]?.name === "sync") setTimeout(update, 0);
       return r;
     };
   },
@@ -2496,8 +2455,8 @@ const FC_PREFERRED_OUT = {
   // VHS_VideoCombine (Encode). Beleg /object_info 2026-10-26.
   VIDEO:  ["SaveVideo", "PreviewVideo", "GetVideoComponents", "VHS_VideoCombine",
             "InfiniteMovieAssemble"],
-  // SHOTS: the "pipe" (task 32) – Render → (Review) → Assemble. 57b2: type SHOTS.
-  SHOTS: ["InfiniteMovieAssemble"],
+  // SYNC: the "pipe" (task 32) – Render → (Cut) → Even Motion. 116a: type SYNC.
+  SYNC: ["InfiniteMovieAssemble"],
   // Every further type an InfiniteMovieRender node outputs gets at least 1 display node.
   MASK:    ["PreviewAny"],
   INT:     ["PreviewAny"],
@@ -2508,7 +2467,7 @@ const FC_PREFERRED_OUT = {
 const FC_PREFERRED_IN = {
   IMAGE: ["LoadImage"],
   VIDEO: ["LoadVideo", "VHS_LoadVideo"],
-  SHOTS: ["InfiniteMovieRender", "InfiniteMovieAssemble"],
+  SYNC: ["InfiniteMovieRender", "InfiniteMovieAssemble"],
 };
 
 function fcPrependUnique(list, preferred) {
@@ -2537,9 +2496,9 @@ app.registerExtension({
     for (const [type, preferred] of Object.entries(FC_PREFERRED_IN)) {
       inn[type] = fcPrependUnique(inn[type], preferred);
     }
-    // SHOTS (Auftrag 32): gut sichtbare Linkfarbe (hellblau). 57b2: Typ SHOTS.
+    // SYNC (Auftrag 32): gut sichtbare Linkfarbe (hellblau). 116a: Typ SYNC.
     if (LiteGraph.slot_colors) {
-      LiteGraph.slot_colors["SHOTS"] = "#4fc3f7";
+      LiteGraph.slot_colors["SYNC"] = "#4fc3f7";
     }
   },
 });
@@ -2601,7 +2560,7 @@ function fcChooseRedoTokens(node) {
 function fcRerenderMarked(node, rerenderFn) {
   const marked = fcChooseRedoTokens(node);
   if (!marked.length) return;
-  // 57c: find the director via `shots` OR `segments`, also through reroute/intermediate nodes
+  // 57c: find the director via `sync` OR `segments`, also through reroute/intermediate nodes
   // (follow the link backwards until comfyClass === "InfiniteMovieRender").
   const g = app.graph;
   const findDirector = (inputName) => {
@@ -2622,9 +2581,9 @@ function fcRerenderMarked(node, rerenderFn) {
     }
     return null;
   };
-  let renderNode = findDirector("shots") || findDirector("segments");
+  let renderNode = findDirector("sync") || findDirector("segments");
   if (!renderNode) {
-    fcReviewToast("kein Director über shots/segments gefunden", "#d93025"); return;
+    fcReviewToast("kein Director über sync/segments gefunden", "#d93025"); return;
   }
   // extend the reseed widget by the marked numbers.
   const reseedIdx = (renderNode.widgets || []).findIndex((w) => w.name === "reseed");
@@ -2793,7 +2752,7 @@ setInterval(() => {
 function fcChooseDirectorOf(node) {
   let n = node, guard = 0;
   while (n && guard++ < 10) {
-    const inp = n.comfyClass === "Reroute" ? n.inputs?.[0] : n.inputs?.find((i) => i.name === "shots");
+    const inp = n.comfyClass === "Reroute" ? n.inputs?.[0] : n.inputs?.find((i) => i.name === "sync");
     if (inp?.link == null) return null;
     n = n.graph?.getNodeById(getLink(n.graph, inp.link)?.origin_id);
     if (n?.comfyClass === "InfiniteMovieRender") return n;
@@ -3105,7 +3064,7 @@ function fcChooseState(node) {
   const entries = fcChooseEntries(node);
   const plan = fcChoosePlan(node);
   const marked = node.properties?.marked || [];
-  if (!plan) return { text: "Connect the Director's shots output to this node.", tone: "warn", btn: null };
+  if (!plan) return { text: "Connect the Director's sync output to this node.", tone: "warn", btn: null };
   if (!plan.n) return { text: "Connect at least 1 image to the Director.", tone: "warn", btn: null };
   // 2026-11-05 (user: „you need immediate feedback on press“): visible from the click until the film is there.
   if (node._fc_asm_t0) {
@@ -3196,7 +3155,7 @@ function fcChooseStatus(node) {
       b.title = "Film is being built – see the status line above.";
     } else if (st.btn === "assemble") {
       b.textContent = "ASSEMBLE ▶"; b.style.background = "#2ea043"; b.style.borderColor = "#2ea043";
-      b.title = "Rebuild the film from the chosen variants (Director + Choose come from cache, only Assemble runs).";
+      b.title = "Rebuild the film from the chosen variants (Director + Cut come from cache, only Even Motion runs).";
     } else if (st.btn === "rerender") {
       const m = fcChooseRedoTokens(node).length;
       b.textContent = `RERENDER ${m} ↻`; b.style.background = "#d93025"; b.style.borderColor = "#d93025";
@@ -3286,7 +3245,7 @@ function fcChooseRender(node) {
       if (node._fc_choose_focus === e.number) head.style.color = "#58a6ff";
       if (!e.placeholder) {
         head.style.cursor = "pointer";
-        head.title = "Show this shot in Assemble's viewer (Sheet / Frames / Particles)";
+        head.title = "Show this shot in Even Motion's viewer (Sheet / Frames / Particles)";
         head.addEventListener("click", (ev) => {
           if (ev.target !== head) return;
           ev.stopPropagation(); fcChooseFocus(e.number); fcAsmFocus(e.number);

@@ -989,7 +989,7 @@ def build_expansion_graph(unique_id: str, preset: str,
     if concat_inside:
         # --- Internal InfiniteMovieShotsOut + InfiniteMovieAssemble (after all segments, via the collector) ---
         # 73: Assemble has no segments/save_folder/save_name/copy_to inputs anymore -
-        # the data comes via the shots pipe (SHOTS). InfiniteMovieShotsOut combines
+        # the data comes via the sync pipe (SYNC). InfiniteMovieShotsOut combines
         # the collector paths (link) with the shots dict (literal) and returns the dict
         # with the real segment paths. The cleanup switches are in settings.
         concat_shots_id = f"{unique_id}_concat_shots"
@@ -1001,11 +1001,11 @@ def build_expansion_graph(unique_id: str, preset: str,
         }
         graph[concat_shots_id] = {
             "class_type": "InfiniteMovieShotsOut",
-            "inputs": {"segment_paths": [collector_id, 0], "shots": concat_shots_dict},
+            "inputs": {"segment_paths": [collector_id, 0], "sync": concat_shots_dict},
         }
         concat_id = f"{unique_id}_concat"
         concat_inputs = {
-            "shots": [concat_shots_id, 0],
+            "sync": [concat_shots_id, 0],
             "even_motion": False,
             "loop": loop,
             "settings": {

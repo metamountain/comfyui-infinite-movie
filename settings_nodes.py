@@ -20,7 +20,7 @@ from comfy_api.latest import io
 
 from . import vram
 
-# Pipe type (model SHOTS, nodes.py): a custom type that carries a plain dict.
+# Pipe type (model SYNC, nodes.py): a custom type that carries a plain dict.
 SETTINGS = io.Custom("SETTINGS")
 # 2026-11-11: Story Mode (LLM) -> Settings > prompt model < LLM (here: llm_nodes imports settings_nodes)
 STORY_MODE = io.Custom("IM_STORY_MODE")

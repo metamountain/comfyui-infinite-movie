@@ -141,8 +141,8 @@ export function fcWorkflowLayout(director, second = false) {
     [G(/images/i), imgRows.flat()],
     [G(/prompt/i), [...byType("InfiniteMovieStyle"), ...prompts]],
     [G(/director/i), [director]],
-    [G(/choose/i), byType("InfiniteMovieChooser")],
-    [G(/assemble/i), [...byType("InfiniteMovieAssemble"), ...byType("InfiniteMovieFilm")], false],
+    [G(/cut|choose/i), byType("InfiniteMovieChooser")],
+    [G(/even motion|assemble/i), [...byType("InfiniteMovieAssemble"), ...byType("InfiniteMovieFilm")], false],
   ];
   // 2026-11-11 (user: "7-8 same width, preview below, square"): Assemble / Upscale on top, the Film player below
   // with a square video (fits portrait and landscape), groups 7 and 8 equally wide.

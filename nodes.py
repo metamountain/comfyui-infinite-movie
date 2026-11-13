@@ -53,12 +53,14 @@ from .settings_nodes import SETTINGS, get_setting, chain_settings, ASPECT_FROM_I
 # (user 2026-10-26: max. 12). Keep in sync with MAX_IMAGES in web/infinite_movie.js.
 MAX_IMAGES = 12
 
-# Auftrag 32: shots pipe - a "pipe" type (like rgthree-Context /
+# Auftrag 32: sync pipe - a "pipe" type (like rgthree-Context /
 # Efficiency-Pipes). Content: dict with segments, save_folder, save_name, fps,
 # loop, width, height, frames_per_segment, seed, render_id.
-# 57b2 (2026-11-01): type renamed (user decision: the pipe is called
-# "shots" everywhere - ID, display AND type; the old type name is in tools/migrate_workflows.py).
-SHOTS = io.Custom("SHOTS")
+# 57b2 (2026-11-01): type renamed (the pipe was called "shots" everywhere -
+# ID, display AND type; the old type name is in tools/migrate_workflows.py).
+# 116a (2026-11-13): renamed again - the pipe is called "sync" everywhere
+# (ID, display AND type); no load migration (user decision, no users yet).
+SYNC = io.Custom("SYNC")
 
 # ---------------------------------------------------------------------------
 # ffmpeg (imageio_ffmpeg binary, see guide 04)
@@ -839,14 +841,14 @@ class InfiniteMovieRender(io.ComfyNode):
             ],
             outputs=[
                 # 71 (user 2026-11-03: "less is more"): exactly 2 outputs -
-                # shots = slot 0 (pipe to Assemble), settings = slot 1 (chain).
+                # sync = slot 0 (pipe to Cut), settings = slot 1 (chain).
                 # film_path / segment_paths / save_folder / save_name / images
-                # removed (no migration). Blocking: shots is a link to the
+                # removed (no migration). Blocking: sync is a link to the
                 # internal node InfiniteMovieShotsOut, which hangs on the collector
                 # (execution.py 599-612: strong link from link values) - the Director
                 # thereby waits for all segments without a visible output.
-                SHOTS.Output("shots",
-                          display_name="shots ▶ Assemble",
+                SYNC.Output("sync",
+                          display_name="sync ▶ Cut",
                           tooltip="Pipe mit allen Shots (Segment-Pfade, Ordner, Name, fps, loop …) von "
                                   "Infinite Movie · Director."),
                 SETTINGS.Output("settings", display_name="settings ▶ chain",
@@ -1087,7 +1089,7 @@ class InfiniteMovieRender(io.ComfyNode):
         # "after" reading (the heavy work happens in the expansion; this is
         # the state right after the graph is built / acquire finished).
         _display_memory(cls, "after")
-        # SHOTS dict (a "pipe")
+        # SYNC dict (a "pipe")
         # 57a: total segment count (intro/outro/loop) + per-segment frame counts.
         # Build the segment paths (the collector output is a link, not a direct value)
         seg_paths_str = "\n".join(
@@ -1123,19 +1125,19 @@ class InfiniteMovieRender(io.ComfyNode):
                 [segment_path(output_dir, i), segment_path_b(output_dir, i)]
                 for i in range(total_segments)
             ]
-        # 71: blocking bridge - the shots output is a link to
+        # 71: blocking bridge - the sync output is a link to
         # InfiniteMovieShotsOut, which hangs on the collector (segment_paths).
         # The Director thereby waits for all segments without needing a visible
         # output (execution.py:599-612).
         shots_id = f"{unique_id}_shots"
         graph[shots_id] = {
             "class_type": "InfiniteMovieShotsOut",
-            "inputs": {"segment_paths": [collector_id, 0], "shots": film_dict},
+            "inputs": {"segment_paths": [collector_id, 0], "sync": film_dict},
         }
         # 57c2: settings chain - pass the incoming dict through, otherwise defaults.
         out_settings = chain_settings(settings)
         return io.NodeOutput(
-            [shots_id, 0],      # 71: shots = slot 0 (link to InfiniteMovieShotsOut)
+            [shots_id, 0],      # 71: sync = slot 0 (link to InfiniteMovieShotsOut)
             out_settings,       # 71: settings = slot 1
             expand=graph,
         )
@@ -1291,7 +1293,7 @@ class InfiniteMovieSegmentPaths(io.ComfyNode):
 class InfiniteMovieShotsOut(io.ComfyNode):
     """71: internal blocking bridge for the Director.
 
-    The Director returns its `shots` output as a link to this node.
+    The Director returns its `sync` output as a link to this node.
     This node hangs on the collector (`segment_paths`, link) and takes the
     shots dict as a literal; it returns the dict with the real
     segment paths (from the collector). The Director thereby waits for
@@ -1311,19 +1313,19 @@ class InfiniteMovieShotsOut(io.ComfyNode):
             inputs=[
                 io.String.Input("segment_paths",
                                 tooltip="All segment paths, one per line (link to the segment collector)."),
-                SHOTS.Input("shots",
+                SYNC.Input("sync",
                             tooltip="The shots dict (literal) from the Director."),
             ],
             outputs=[
-                SHOTS.Output("shots",
+                SYNC.Output("sync",
                              tooltip="The shots dict with the real segment paths."),
             ],
             hidden=[io.Hidden.unique_id, io.Hidden.dynprompt],
         )
 
     @classmethod
-    def execute(cls, segment_paths="", shots=None):
-        d = dict(shots) if isinstance(shots, dict) else {}
+    def execute(cls, segment_paths="", sync=None):
+        d = dict(sync) if isinstance(sync, dict) else {}
         d["segments"] = [ln.strip() for ln in (segment_paths or "").splitlines() if ln.strip()]
         return io.NodeOutput(d)
 
