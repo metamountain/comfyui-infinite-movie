@@ -1035,18 +1035,22 @@ function addLayoutButton(node) {
   const w = node.addWidget("button", "🔗 AUTO LAYOUT", null, () => {
     // (a) check the prompt chain
     reconcileChain(node);
-    // (b) connect sync → Assemble.sync, if Assemble is there and the input is free
+    // (b) sync: Director → Cut → Even Motion, each only if the input is free (116, 2026-11-13).
+    // By TYPE: the output name is the display name ("sync ▶ Cut"), not "sync".
     const assemble = node.graph?._nodes?.find((n) => n.comfyClass === "InfiniteMovieAssemble");
-    if (assemble) {
-      // By TYPE: the output name is the display name ("sync ▶ Cut"), not "sync".
-      const shotsOutIdx = (node.outputs || []).findIndex((o) => o.type === "SYNC");
-      const shotsInIdx = (assemble.inputs || []).findIndex((i) => i.type === "SYNC" || i.name === "sync");
-      if (shotsOutIdx >= 0 && shotsInIdx >= 0 && assemble.inputs[shotsInIdx].link == null) {
-        node.connect(shotsOutIdx, assemble, shotsInIdx);
-      }
+    const cutNode = node.graph?._nodes?.find((n) => n.comfyClass === "InfiniteMovieChooser");
+    const syncLink = (from, to) => {
+      if (!from || !to) return;
+      const oi = (from.outputs || []).findIndex((o) => o.type === "SYNC");
+      const ii = (to.inputs || []).findIndex((i) => i.type === "SYNC" || i.name === "sync");
+      if (oi >= 0 && ii >= 0 && to.inputs[ii].link == null) from.connect(oi, to, ii);
+    };
+    if (cutNode) {
+      syncLink(node, cutNode);
+      syncLink(cutNode, assemble);
     } else {
-      console.warn("[InfiniteMovie] AUTO LAYOUT: kein Even Motion-Node gefunden.");
-      fcReviewToast("AUTO LAYOUT: kein Even Motion-Node gefunden", "#d93025");
+      console.warn("[InfiniteMovie] AUTO LAYOUT: no Cut node found.");
+      fcReviewToast("AUTO LAYOUT: no Cut node found", "#d93025");
     }
     // (c) 57e 14e: the sync pipe wins – redundant STRING links Director→Assemble
     // (segment_paths/save_folder/save_name) are removed once sync is connected.
@@ -1090,7 +1094,7 @@ function addLayoutButton(node) {
     value: null,
     serialize: false,
     callback: cb,
-    tooltip: "Check & arrange: prompt count, wiring, positions. Connects sync→Even Motion and Settings.",
+    tooltip: "Check & arrange: prompt count, wiring, positions. Connects sync and settings: Director → Cut → Even Motion.",
     computeSize: (width) => [width, H],
     draw(ctx, n, width, y) {
       const m = 15, h = H - 8, x = m, bw = width - 2 * m, yy = y + 4;
@@ -1180,6 +1184,9 @@ function wireSettingsChain(director) {
   const llmIn = slotIndex(snode, "llm");
   if (story && llmIn >= 0 && snode.inputs[llmIn].link == null && story.outputs?.length) story.connect(0, snode, llmIn);
   const chainNodes = [snode, ...(style ? [style] : []), ...aps.map((a) => a.node), director];
+  // 116 (2026-11-13): Director → Cut → Even Motion (Cut makes the film, Even Motion is the optional special node behind it)
+  const cut = nodes.find((n) => n.comfyClass === "InfiniteMovieChooser");
+  if (cut) chainNodes.push(cut);
   const assemble = nodes.find((n) => n.comfyClass === "InfiniteMovieAssemble");
   if (assemble) chainNodes.push(assemble);
   for (let i = 0; i < chainNodes.length - 1; i++) {

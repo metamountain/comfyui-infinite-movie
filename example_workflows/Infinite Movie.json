@@ -2,7 +2,7 @@
   "id": "11de75b2-579e-4a82-9e7c-c98a0590e77e",
   "revision": 0,
   "last_node_id": 100,
-  "last_link_id": 2167,
+  "last_link_id": 2175,
   "nodes": [
     {
       "id": 1,
@@ -215,15 +215,15 @@
       "id": 4,
       "type": "InfiniteMovieRender",
       "pos": [
-        3235,
+        3155,
         -78
       ],
       "size": [
         504,
-        450
+        764
       ],
       "flags": {},
-      "order": 36,
+      "order": 35,
       "mode": 0,
       "inputs": [
         {
@@ -381,7 +381,7 @@
           "type": "SYNC",
           "slot_index": 0,
           "links": [
-            2108
+            2174
           ]
         },
         {
@@ -390,7 +390,7 @@
           "type": "SETTINGS",
           "slot_index": 1,
           "links": [
-            68
+            2172
           ]
         }
       ],
@@ -425,7 +425,7 @@
       "id": 5,
       "type": "InfiniteMovieAutoPrompt",
       "pos": [
-        2515,
+        2475,
         322
       ],
       "size": [
@@ -433,7 +433,7 @@
         152
       ],
       "flags": {},
-      "order": 27,
+      "order": 28,
       "mode": 0,
       "inputs": [
         {
@@ -532,7 +532,7 @@
       "id": 6,
       "type": "InfiniteMovieAutoPrompt",
       "pos": [
-        2515,
+        2475,
         706
       ],
       "size": [
@@ -540,7 +540,7 @@
         152
       ],
       "flags": {},
-      "order": 29,
+      "order": 31,
       "mode": 0,
       "inputs": [
         {
@@ -636,184 +636,6 @@
       "bgcolor": "#353"
     },
     {
-      "id": 8,
-      "type": "InfiniteMovieAssemble",
-      "pos": [
-        4967,
-        -78
-      ],
-      "size": [
-        504,
-        914
-      ],
-      "flags": {},
-      "order": 38,
-      "mode": 0,
-      "inputs": [
-        {
-          "localized_name": "sync",
-          "name": "sync",
-          "shape": 7,
-          "type": "SYNC",
-          "link": 2109
-        },
-        {
-          "localized_name": "settings",
-          "name": "settings",
-          "shape": 7,
-          "type": "SETTINGS",
-          "link": 68
-        },
-        {
-          "localized_name": "file",
-          "name": "file",
-          "type": "COMBO",
-          "widget": {
-            "name": "file"
-          },
-          "link": null
-        },
-        {
-          "localized_name": "strength",
-          "name": "strength",
-          "type": "FLOAT",
-          "widget": {
-            "name": "strength"
-          },
-          "link": null
-        },
-        {
-          "localized_name": "keep",
-          "name": "keep",
-          "type": "FLOAT",
-          "widget": {
-            "name": "keep"
-          },
-          "link": null
-        },
-        {
-          "localized_name": "even_motion",
-          "name": "even_motion",
-          "type": "BOOLEAN",
-          "widget": {
-            "name": "even_motion"
-          },
-          "link": null
-        },
-        {
-          "localized_name": "loop",
-          "name": "loop",
-          "type": "BOOLEAN",
-          "widget": {
-            "name": "loop"
-          },
-          "link": null
-        },
-        {
-          "localized_name": "output_size",
-          "name": "output_size",
-          "type": "COMBO",
-          "widget": {
-            "name": "output_size"
-          },
-          "link": null
-        },
-        {
-          "localized_name": "video_path",
-          "name": "video_path",
-          "shape": 7,
-          "type": "STRING",
-          "widget": {
-            "name": "video_path"
-          },
-          "link": null
-        },
-        {
-          "localized_name": "interpolate",
-          "name": "interpolate",
-          "shape": 7,
-          "type": "COMBO",
-          "widget": {
-            "name": "interpolate"
-          },
-          "link": null
-        },
-        {
-          "localized_name": "upload",
-          "name": "upload",
-          "type": "IMAGEUPLOAD",
-          "widget": {
-            "name": "upload"
-          },
-          "link": null
-        },
-        {
-          "localized_name": "retime",
-          "name": "retime",
-          "type": "BOOLEAN",
-          "widget": {
-            "name": "retime"
-          },
-          "link": null
-        }
-      ],
-      "outputs": [
-        {
-          "localized_name": "video_path",
-          "name": "video_path",
-          "type": "STRING",
-          "slot_index": 0,
-          "links": [
-            2110,
-            2162
-          ]
-        },
-        {
-          "localized_name": "last_frame",
-          "name": "last_frame",
-          "type": "IMAGE",
-          "links": null
-        },
-        {
-          "localized_name": "first_frame",
-          "name": "first_frame",
-          "type": "IMAGE",
-          "links": null
-        }
-      ],
-      "properties": {
-        "Node name for S&R": "InfiniteMovieAssemble",
-        "ue_properties": {
-          "widget_ue_connectable": {},
-          "input_ue_unconnectable": {},
-          "version": "7.8"
-        }
-      },
-      "widgets_values": [
-        "(none)",
-        true,
-        true,
-        "",
-        "auto",
-        1.0,
-        "image",
-        ""
-      ],
-      "widgets_values_named": {
-        "file": "(none)",
-        "strength": 0.8,
-        "keep": 1,
-        "even_motion": true,
-        "loop": true,
-        "output_size": "as rendered",
-        "video_path": "",
-        "fps": 24,
-        "interpolate": "RIFE x2",
-        "upload": "image",
-        "im_viz": ""
-      }
-    },
-    {
       "id": 9,
       "type": "InfiniteMovieSettings",
       "pos": [
@@ -825,14 +647,15 @@
         250
       ],
       "flags": {},
-      "order": 3,
+      "order": 24,
       "mode": 0,
       "inputs": [
         {
-          "name": "llm",
           "label": "LLM",
-          "type": "IM_STORY_MODE",
+          "localized_name": "LLM",
+          "name": "llm",
           "shape": 7,
+          "type": "IM_STORY_MODE",
           "link": 2167
         },
         {
@@ -881,6 +704,15 @@
           "link": null
         },
         {
+          "localized_name": "raw",
+          "name": "raw",
+          "type": "BOOLEAN",
+          "widget": {
+            "name": "raw"
+          },
+          "link": null
+        },
+        {
           "localized_name": "audio",
           "name": "audio",
           "type": "BOOLEAN",
@@ -922,6 +754,7 @@
         960,
         "",
         "infinite_movie",
+        false,
         false
       ],
       "widgets_values_named": {
@@ -930,6 +763,7 @@
         "long_side": 960,
         "output_folder": "",
         "film_name": "infinite_movie",
+        "raw": false,
         "audio": false
       }
     },
@@ -945,7 +779,7 @@
         940
       ],
       "flags": {},
-      "order": 4,
+      "order": 3,
       "mode": 0,
       "inputs": [],
       "outputs": [],
@@ -958,10 +792,10 @@
         }
       },
       "widgets_values": [
-        "# Infinite Movie\n\nTurns a few stills into one seamless, looping film. The MiniMax H3 engine renders one shot per transition between two images; *Assemble* evens out the motion and joins the shots into the final film.\n\nNode pack: https://github.com/metamountain/comfyui-infinite-movie (by metamountain). Feedback and issues welcome.\n\n## How to read this workflow\nLeft: this README. Top: **1 · Engine** (MiniMax H3). Below it ONE row, read left to right – each area has its help note on top:\n2. **Settings** – LLM (one dropdown), size, output folder, film name.\n3. **Images** – load your stills (add more: they grow downwards).\n4. **Prompts** – *Prompt Style* (what the LLM is told, max words, camera) on top, then one *Auto Prompt* per transition.\n5. **Director** – seconds per shot, loop, variants. Click **AUTO LAYOUT** after changes.\n6. **Choose** – with variants: pick A or B per shot.\n7. **Assemble + Film** – joins the shots, shows the finished film, *Open folder*.\n\nThe settings are passed along one chain: Settings → Prompt Style → Auto Prompts → Director → Assemble.\nBefore a render starts, Run frees the GPU (unloads the LLM); if it cannot, the render is not queued and a message says why.\n\nOther engines: open **Infinite Movie - Engine LTX 2.5** or **Infinite Movie - Engine Wan 2.2**, copy its group (Ctrl+C), paste it here (Ctrl+V) and mute the MiniMax group (Ctrl+M) – only ONE engine group may be active.\n\n## Required tools\n- ffmpeg (encoding/joining films): usually already there via `imageio-ffmpeg` (installed with VideoHelperSuite), otherwise https://www.gyan.dev/ffmpeg/builds/ (Windows) or https://ffmpeg.org/download.html – put `ffmpeg` on PATH.\n- VideoHelperSuite: https://github.com/Kosinkadink/ComfyUI-VideoHelperSuite\n\n## Models – MiniMax H3 (default engine)\n- diffusion_models: [minimax_h3_fl2va_pruned_int8_convrot](https://huggingface.co/Comfy-Org/MiniMax-H3/resolve/main/diffusion_models/minimax_h3_fl2va_pruned_int8_convrot.safetensors)\n- loras: [minimax_h3_fl2v_turbo_8step_v1.1_768p_comfyui_bf16](https://huggingface.co/lightx2v/Minimax-h3-Turbo/resolve/main/minimax_h3_fl2v_turbo_8step_v1.1_768p_comfyui_bf16.safetensors)\n- text_encoders (CLIPLoader type `minimax`): [qwen3vl_32b_minimax_h3_nvfp4_awq](https://huggingface.co/Comfy-Org/MiniMax-H3/resolve/main/text_encoders/qwen3vl_32b_minimax_h3_nvfp4_awq.safetensors)\n- vae: [minimax_h3_video_vae_int8_convrot](https://huggingface.co/Comfy-Org/MiniMax-H3/resolve/main/vae/minimax_h3_video_vae_int8_convrot.safetensors) · [minimax_h3_audio_vae_fp32](https://huggingface.co/Comfy-Org/MiniMax-H3/resolve/main/vae/minimax_h3_audio_vae_fp32.safetensors)\n- Model page: https://huggingface.co/Comfy-Org/MiniMax-H3\n\n## Optional\n- LTX IC-LoRA pixel upscaler + https://github.com/Lightricks/ComfyUI-LTXVideo\n- Low VRAM (12–16 GB, untested by us): community LTX-2.5 GGUF + https://github.com/city96/ComfyUI-GGUF\n\n**Tested on:** RTX 24 GB, 768×960, single shots up to 60 s (1441 frames).\n\n```\n                          /\\                                  /\\\n              /\\         /  \\        /\\                      /  \\        /\\\n       /\\    /  \\   /\\  /    \\      /  \\    /\\      /\\      /    \\      /  \\    /\\\n      /  \\  /    \\_/  \\/      \\    /    \\__/  \\    /  \\/\\  /      \\  /\\/    \\  /  \\\n ____/    \\/                   \\__/            \\__/      \\/        \\/          \\/    \\_______\n                    _                                                _             _\n  _ __ ___    ___  | |_    __ _   _ __ ___    ___    _   _   _ __   | |_    __ _  (_)  _ __\n | '_ ` _ \\  / _ \\ | __|  / _` | | '_ ` _ \\  / _ \\  | | | | | '_ \\  | __|  / _` | | | | '_ \\\n | | | | | ||  __/ | |_  | (_| | | | | | | || (_) | | |_| | | | | | | |_  | (_| | | | | | | |\n |_| |_| |_| \\___|  \\__|  \\__,_| |_| |_| |_| \\___/   \\__,_| |_| |_|  \\__|  \\__,_| |_| |_| |_|\n\n  metamountain · infinite movie\n```\n"
+        "# Infinite Movie\n\nTurns a few stills into one seamless, looping film. The MiniMax H3 engine renders one shot per transition between two images; *Cut* joins the chosen shots into the final film; *Even Motion* (optional) smooths camera moves.\n\nNode pack: https://github.com/metamountain/comfyui-infinite-movie (by metamountain). Feedback and issues welcome.\n\n## How to read this workflow\nLeft: this README. Top: **1 · Engine** (MiniMax H3). Below it ONE row, read left to right – each area has its help note on top:\n2. **Settings** – LLM (one dropdown), size, output folder, film name.\n3. **Images** – load your stills (add more: they grow downwards).\n4. **Prompts** – *Prompt Style* (what the LLM is told, max words, camera) on top, then one *Auto Prompt* per transition.\n5. **Director** – seconds per shot, loop, variants. Click **AUTO LAYOUT** after changes.\n6. **Cut** – check the shots, pick A or B, **FILM ▶** makes the film (with sound).\n7. **Even Motion + Film** – shows the finished film, *Open folder*; Even Motion (off by default) for smooth camera moves.\n\nThe settings are passed along one chain: Settings → Prompt Style → Auto Prompts → Director → Cut → Even Motion.\nBefore a render starts, Run frees the GPU (unloads the LLM); if it cannot, the render is not queued and a message says why.\n\nOther engines: open **Infinite Movie - Engine LTX 2.5** or **Infinite Movie - Engine Wan 2.2**, copy its group (Ctrl+C), paste it here (Ctrl+V) and mute the MiniMax group (Ctrl+M) – only ONE engine group may be active.\n\n## Required tools\n- ffmpeg (encoding/joining films): usually already there via `imageio-ffmpeg` (installed with VideoHelperSuite), otherwise https://www.gyan.dev/ffmpeg/builds/ (Windows) or https://ffmpeg.org/download.html – put `ffmpeg` on PATH.\n- VideoHelperSuite: https://github.com/Kosinkadink/ComfyUI-VideoHelperSuite\n\n## Models – MiniMax H3 (default engine)\n- diffusion_models: [minimax_h3_fl2va_pruned_int8_convrot](https://huggingface.co/Comfy-Org/MiniMax-H3/resolve/main/diffusion_models/minimax_h3_fl2va_pruned_int8_convrot.safetensors)\n- loras: [minimax_h3_fl2v_turbo_8step_v1.1_768p_comfyui_bf16](https://huggingface.co/lightx2v/Minimax-h3-Turbo/resolve/main/minimax_h3_fl2v_turbo_8step_v1.1_768p_comfyui_bf16.safetensors)\n- text_encoders (CLIPLoader type `minimax`): [qwen3vl_32b_minimax_h3_nvfp4_awq](https://huggingface.co/Comfy-Org/MiniMax-H3/resolve/main/text_encoders/qwen3vl_32b_minimax_h3_nvfp4_awq.safetensors)\n- vae: [minimax_h3_video_vae_int8_convrot](https://huggingface.co/Comfy-Org/MiniMax-H3/resolve/main/vae/minimax_h3_video_vae_int8_convrot.safetensors) · [minimax_h3_audio_vae_fp32](https://huggingface.co/Comfy-Org/MiniMax-H3/resolve/main/vae/minimax_h3_audio_vae_fp32.safetensors)\n- Model page: https://huggingface.co/Comfy-Org/MiniMax-H3\n\n## Optional\n- LTX IC-LoRA pixel upscaler + https://github.com/Lightricks/ComfyUI-LTXVideo\n- Low VRAM (12–16 GB, untested by us): community LTX-2.5 GGUF + https://github.com/city96/ComfyUI-GGUF\n\n**Tested on:** RTX 24 GB, 768×960, single shots up to 60 s (1441 frames).\n\n```\n                          /\\                                  /\\\n              /\\         /  \\        /\\                      /  \\        /\\\n       /\\    /  \\   /\\  /    \\      /  \\    /\\      /\\      /    \\      /  \\    /\\\n      /  \\  /    \\_/  \\/      \\    /    \\__/  \\    /  \\/\\  /      \\  /\\/    \\  /  \\\n ____/    \\/                   \\__/            \\__/      \\/        \\/          \\/    \\_______\n                    _                                                _             _\n  _ __ ___    ___  | |_    __ _   _ __ ___    ___    _   _   _ __   | |_    __ _  (_)  _ __\n | '_ ` _ \\  / _ \\ | __|  / _` | | '_ ` _ \\  / _ \\  | | | | | '_ \\  | __|  / _` | | | | '_ \\\n | | | | | ||  __/ | |_  | (_| | | | | | | || (_) | | |_| | | | | | | |_  | (_| | | | | | | |\n |_| |_| |_| \\___|  \\__|  \\__,_| |_| |_| |_| \\___/   \\__,_| |_| |_|  \\__|  \\__,_| |_| |_| |_|\n\n  metamountain · infinite movie\n```\n"
       ],
       "widgets_values_named": {
-        "text": "# Infinite Movie\n\nTurns a few stills into one seamless, looping film. The MiniMax H3 engine renders one shot per transition between two images; *Assemble* evens out the motion and joins the shots into the final film.\n\nNode pack: https://github.com/metamountain/comfyui-infinite-movie (by metamountain). Feedback and issues welcome.\n\n## How to read this workflow\nLeft: this README. Top: **1 · Engine** (MiniMax H3). Below it ONE row, read left to right – each area has its help note on top:\n2. **Settings** – LLM (one dropdown), size, output folder, film name.\n3. **Images** – load your stills (add more: they grow downwards).\n4. **Prompts** – *Prompt Style* (what the LLM is told, max words, camera) on top, then one *Auto Prompt* per transition.\n5. **Director** – seconds per shot, loop, variants. Click **AUTO LAYOUT** after changes.\n6. **Choose** – with variants: pick A or B per shot.\n7. **Assemble + Film** – joins the shots, shows the finished film, *Open folder*.\n\nThe settings are passed along one chain: Settings → Prompt Style → Auto Prompts → Director → Assemble.\nBefore a render starts, Run frees the GPU (unloads the LLM); if it cannot, the render is not queued and a message says why.\n\nOther engines: open **Infinite Movie - Engine LTX 2.5** or **Infinite Movie - Engine Wan 2.2**, copy its group (Ctrl+C), paste it here (Ctrl+V) and mute the MiniMax group (Ctrl+M) – only ONE engine group may be active.\n\n## Required tools\n- ffmpeg (encoding/joining films): usually already there via `imageio-ffmpeg` (installed with VideoHelperSuite), otherwise https://www.gyan.dev/ffmpeg/builds/ (Windows) or https://ffmpeg.org/download.html – put `ffmpeg` on PATH.\n- VideoHelperSuite: https://github.com/Kosinkadink/ComfyUI-VideoHelperSuite\n\n## Models – MiniMax H3 (default engine)\n- diffusion_models: [minimax_h3_fl2va_pruned_int8_convrot](https://huggingface.co/Comfy-Org/MiniMax-H3/resolve/main/diffusion_models/minimax_h3_fl2va_pruned_int8_convrot.safetensors)\n- loras: [minimax_h3_fl2v_turbo_8step_v1.1_768p_comfyui_bf16](https://huggingface.co/lightx2v/Minimax-h3-Turbo/resolve/main/minimax_h3_fl2v_turbo_8step_v1.1_768p_comfyui_bf16.safetensors)\n- text_encoders (CLIPLoader type `minimax`): [qwen3vl_32b_minimax_h3_nvfp4_awq](https://huggingface.co/Comfy-Org/MiniMax-H3/resolve/main/text_encoders/qwen3vl_32b_minimax_h3_nvfp4_awq.safetensors)\n- vae: [minimax_h3_video_vae_int8_convrot](https://huggingface.co/Comfy-Org/MiniMax-H3/resolve/main/vae/minimax_h3_video_vae_int8_convrot.safetensors) · [minimax_h3_audio_vae_fp32](https://huggingface.co/Comfy-Org/MiniMax-H3/resolve/main/vae/minimax_h3_audio_vae_fp32.safetensors)\n- Model page: https://huggingface.co/Comfy-Org/MiniMax-H3\n\n## Optional\n- LTX IC-LoRA pixel upscaler + https://github.com/Lightricks/ComfyUI-LTXVideo\n- Low VRAM (12–16 GB, untested by us): community LTX-2.5 GGUF + https://github.com/city96/ComfyUI-GGUF\n\n**Tested on:** RTX 24 GB, 768×960, single shots up to 60 s (1441 frames).\n\n```\n                          /\\                                  /\\\n              /\\         /  \\        /\\                      /  \\        /\\\n       /\\    /  \\   /\\  /    \\      /  \\    /\\      /\\      /    \\      /  \\    /\\\n      /  \\  /    \\_/  \\/      \\    /    \\__/  \\    /  \\/\\  /      \\  /\\/    \\  /  \\\n ____/    \\/                   \\__/            \\__/      \\/        \\/          \\/    \\_______\n                    _                                                _             _\n  _ __ ___    ___  | |_    __ _   _ __ ___    ___    _   _   _ __   | |_    __ _  (_)  _ __\n | '_ ` _ \\  / _ \\ | __|  / _` | | '_ ` _ \\  / _ \\  | | | | | '_ \\  | __|  / _` | | | | '_ \\\n | | | | | ||  __/ | |_  | (_| | | | | | | || (_) | | |_| | | | | | | |_  | (_| | | | | | | |\n |_| |_| |_| \\___|  \\__|  \\__,_| |_| |_| |_| \\___/   \\__,_| |_| |_|  \\__|  \\__,_| |_| |_| |_|\n\n  metamountain · infinite movie\n```\n"
+        "text": "# Infinite Movie\n\nTurns a few stills into one seamless, looping film. The MiniMax H3 engine renders one shot per transition between two images; *Cut* joins the chosen shots into the final film; *Even Motion* (optional) smooths camera moves.\n\nNode pack: https://github.com/metamountain/comfyui-infinite-movie (by metamountain). Feedback and issues welcome.\n\n## How to read this workflow\nLeft: this README. Top: **1 · Engine** (MiniMax H3). Below it ONE row, read left to right – each area has its help note on top:\n2. **Settings** – LLM (one dropdown), size, output folder, film name.\n3. **Images** – load your stills (add more: they grow downwards).\n4. **Prompts** – *Prompt Style* (what the LLM is told, max words, camera) on top, then one *Auto Prompt* per transition.\n5. **Director** – seconds per shot, loop, variants. Click **AUTO LAYOUT** after changes.\n6. **Cut** – check the shots, pick A or B, **FILM ▶** makes the film (with sound).\n7. **Even Motion + Film** – shows the finished film, *Open folder*; Even Motion (off by default) for smooth camera moves.\n\nThe settings are passed along one chain: Settings → Prompt Style → Auto Prompts → Director → Cut → Even Motion.\nBefore a render starts, Run frees the GPU (unloads the LLM); if it cannot, the render is not queued and a message says why.\n\nOther engines: open **Infinite Movie - Engine LTX 2.5** or **Infinite Movie - Engine Wan 2.2**, copy its group (Ctrl+C), paste it here (Ctrl+V) and mute the MiniMax group (Ctrl+M) – only ONE engine group may be active.\n\n## Required tools\n- ffmpeg (encoding/joining films): usually already there via `imageio-ffmpeg` (installed with VideoHelperSuite), otherwise https://www.gyan.dev/ffmpeg/builds/ (Windows) or https://ffmpeg.org/download.html – put `ffmpeg` on PATH.\n- VideoHelperSuite: https://github.com/Kosinkadink/ComfyUI-VideoHelperSuite\n\n## Models – MiniMax H3 (default engine)\n- diffusion_models: [minimax_h3_fl2va_pruned_int8_convrot](https://huggingface.co/Comfy-Org/MiniMax-H3/resolve/main/diffusion_models/minimax_h3_fl2va_pruned_int8_convrot.safetensors)\n- loras: [minimax_h3_fl2v_turbo_8step_v1.1_768p_comfyui_bf16](https://huggingface.co/lightx2v/Minimax-h3-Turbo/resolve/main/minimax_h3_fl2v_turbo_8step_v1.1_768p_comfyui_bf16.safetensors)\n- text_encoders (CLIPLoader type `minimax`): [qwen3vl_32b_minimax_h3_nvfp4_awq](https://huggingface.co/Comfy-Org/MiniMax-H3/resolve/main/text_encoders/qwen3vl_32b_minimax_h3_nvfp4_awq.safetensors)\n- vae: [minimax_h3_video_vae_int8_convrot](https://huggingface.co/Comfy-Org/MiniMax-H3/resolve/main/vae/minimax_h3_video_vae_int8_convrot.safetensors) · [minimax_h3_audio_vae_fp32](https://huggingface.co/Comfy-Org/MiniMax-H3/resolve/main/vae/minimax_h3_audio_vae_fp32.safetensors)\n- Model page: https://huggingface.co/Comfy-Org/MiniMax-H3\n\n## Optional\n- LTX IC-LoRA pixel upscaler + https://github.com/Lightricks/ComfyUI-LTXVideo\n- Low VRAM (12–16 GB, untested by us): community LTX-2.5 GGUF + https://github.com/city96/ComfyUI-GGUF\n\n**Tested on:** RTX 24 GB, 768×960, single shots up to 60 s (1441 frames).\n\n```\n                          /\\                                  /\\\n              /\\         /  \\        /\\                      /  \\        /\\\n       /\\    /  \\   /\\  /    \\      /  \\    /\\      /\\      /    \\      /  \\    /\\\n      /  \\  /    \\_/  \\/      \\    /    \\__/  \\    /  \\/\\  /      \\  /\\/    \\  /  \\\n ____/    \\/                   \\__/            \\__/      \\/        \\/          \\/    \\_______\n                    _                                                _             _\n  _ __ ___    ___  | |_    __ _   _ __ ___    ___    _   _   _ __   | |_    __ _  (_)  _ __\n | '_ ` _ \\  / _ \\ | __|  / _` | | '_ ` _ \\  / _ \\  | | | | | '_ \\  | __|  / _` | | | | '_ \\\n | | | | | ||  __/ | |_  | (_| | | | | | | || (_) | | |_| | | | | | | |_  | (_| | | | | | | |\n |_| |_| |_| \\___|  \\__|  \\__,_| |_| |_| |_| \\___/   \\__,_| |_| |_|  \\__|  \\__,_| |_| |_| |_|\n\n  metamountain · infinite movie\n```\n"
       },
       "color": "#322",
       "bgcolor": "#533"
@@ -970,7 +804,7 @@
       "id": 52,
       "type": "InfiniteMovieAutoPrompt",
       "pos": [
-        2515,
+        2475,
         1090
       ],
       "size": [
@@ -978,7 +812,7 @@
         152
       ],
       "flags": {},
-      "order": 31,
+      "order": 33,
       "mode": 0,
       "inputs": [
         {
@@ -1066,73 +900,12 @@
         ""
       ],
       "widgets_values_named": {
-        "prompt": "The rain cools and turns to sleet, then to soft snowflakes that settle on the rock-shaped house and dust the grass white while pale mist rises from the forest. The snow keeps falling gently.",
+        "prompt": "The rain cools and turns to sleet, then to soft snowflakes that settle on the rock-shaped house and dust the grass white while pale mist rises from the forest.",
         "keywords": "",
         "regen": ""
       },
       "color": "#232",
       "bgcolor": "#353"
-    },
-    {
-      "id": 53,
-      "type": "InfiniteMovieChooser",
-      "pos": [
-        3819,
-        -78
-      ],
-      "size": [
-        992,
-        472
-      ],
-      "flags": {},
-      "order": 37,
-      "mode": 0,
-      "inputs": [
-        {
-          "localized_name": "sync",
-          "name": "sync",
-          "type": "SYNC",
-          "link": 2108
-        },
-        {
-          "localized_name": "choices",
-          "name": "choices",
-          "type": "STRING",
-          "widget": {
-            "name": "choices"
-          },
-          "link": null
-        }
-      ],
-      "outputs": [
-        {
-          "localized_name": "sync",
-          "name": "sync",
-          "type": "SYNC",
-          "slot_index": 0,
-          "links": [
-            2109
-          ]
-        }
-      ],
-      "properties": {
-        "Node name for S&R": "InfiniteMovieChooser",
-        "marked": [],
-        "ue_properties": {
-          "widget_ue_connectable": {},
-          "input_ue_unconnectable": {},
-          "version": "7.8"
-        },
-        "rejected": {}
-      },
-      "widgets_values": [
-        "",
-        ""
-      ],
-      "widgets_values_named": {
-        "choices": "",
-        "fc_choose": ""
-      }
     },
     {
       "id": 60,
@@ -1142,11 +915,11 @@
         -418
       ],
       "size": [
-        420,
+        380,
         270
       ],
       "flags": {},
-      "order": 5,
+      "order": 4,
       "mode": 0,
       "inputs": [],
       "outputs": [],
@@ -1171,15 +944,15 @@
       "id": 61,
       "type": "MarkdownNote",
       "pos": [
-        2515,
+        2475,
         -418
       ],
       "size": [
-        640,
+        600,
         270
       ],
       "flags": {},
-      "order": 6,
+      "order": 5,
       "mode": 0,
       "inputs": [],
       "outputs": [],
@@ -1208,11 +981,11 @@
         -418
       ],
       "size": [
-        420,
+        560,
         270
       ],
       "flags": {},
-      "order": 7,
+      "order": 6,
       "mode": 0,
       "inputs": [],
       "outputs": [],
@@ -1225,10 +998,10 @@
         }
       },
       "widgets_values": [
-        "## 2 · Settings\nOne node for the whole workflow.\n- `prompt_model`: local vision model that writes the prompts (Qwen3-VL in `models/text_encoders`); `off` = write them yourself.\n- `aspect` + `long_side`: picture size (both sides rounded to 32; 4:5 + 960 = 768×960).\n- `output_folder` (**📂 Choose folder**) and `film_name`: where the film goes and what it is called.\n- `audio`: sound from the engine (off = faster, silent film).\n- **📦 Check models**: lists missing model files with their size and downloads them.\n- Output `settings ▶ chain` → Prompt Style."
+        "## 2 · Settings\nOne node for the whole workflow.\n- `prompt_model`: local vision model that writes the prompts (Qwen3-VL in `models/text_encoders`); `off` = write them yourself.\n- `aspect` + `long_side`: picture size (both sides rounded to 32; 4:5 + 960 = 768×960).\n- `output_folder` (**📂 Choose folder**, default `Infinite Movie` inside ComfyUI's output folder) and `film_name`: where the film goes and what it is called. Inside the folder: `cache_movies/<film_name>/` = the rendered shots (render cache, safe to delete), `raw/` = the chosen shots when `raw` is on.\n- `raw`: also save the chosen shots one by one (`<film_name>_shot01.mp4` …, with sound) – for cutting them yourself.\n- `audio`: sound from the engine (off = faster, silent film).\n- **📦 Check models**: lists missing model files with their size and downloads them.\n- Output `settings ▶ chain` → Prompt Style."
       ],
       "widgets_values_named": {
-        "text": "## 2 · Settings\nOne node for the whole workflow.\n- `prompt_model`: local vision model that writes the prompts (Qwen3-VL in `models/text_encoders`); `off` = write them yourself.\n- `aspect` + `long_side`: picture size (both sides rounded to 32; 4:5 + 960 = 768×960).\n- `output_folder` (**📂 Choose folder**) and `film_name`: where the film goes and what it is called.\n- `audio`: sound from the engine (off = faster, silent film).\n- **📦 Check models**: lists missing model files with their size and downloads them.\n- Output `settings ▶ chain` → Prompt Style."
+        "text": "## 2 · Settings\nOne node for the whole workflow.\n- `prompt_model`: local vision model that writes the prompts (Qwen3-VL in `models/text_encoders`); `off` = write them yourself.\n- `aspect` + `long_side`: picture size (both sides rounded to 32; 4:5 + 960 = 768×960).\n- `output_folder` (**📂 Choose folder**, default `Infinite Movie` inside ComfyUI's output folder) and `film_name`: where the film goes and what it is called. Inside the folder: `cache_movies/<film_name>/` = the rendered shots (render cache, safe to delete), `raw/` = the chosen shots when `raw` is on.\n- `raw`: also save the chosen shots one by one (`<film_name>_shot01.mp4` …, with sound) – for cutting them yourself.\n- `audio`: sound from the engine (off = faster, silent film).\n- **📦 Check models**: lists missing model files with their size and downloads them.\n- Output `settings ▶ chain` → Prompt Style."
       },
       "color": "#322",
       "bgcolor": "#533"
@@ -1237,15 +1010,15 @@
       "id": 63,
       "type": "MarkdownNote",
       "pos": [
-        3267,
+        3155,
         -418
       ],
       "size": [
-        440,
+        504,
         270
       ],
       "flags": {},
-      "order": 8,
+      "order": 7,
       "mode": 0,
       "inputs": [],
       "outputs": [],
@@ -1258,10 +1031,10 @@
         }
       },
       "widgets_values": [
-        "## 5 · Director\nTurns images + prompts into shots.\n- `images`: number of images (adds or removes Load Image + Auto Prompt, then lays out; removed ones come back when raised).\n- **Image list** (top = first): drag an image up or down – it gets a blue frame, a blue line between the images shows where it lands. ✕ removes it. Transitions with a new image pair get an empty prompt → 🔄 regenerate.\n- `seconds` per shot, `loop` (last image back to the first), `variants` (2 = render A and B, pick in Choose), `seed`.\n- **🔗 AUTO LAYOUT**: tidies all groups.\n- Output `shots ▶ Assemble` → Choose."
+        "## 5 · Director\nTurns images + prompts into shots.\n- `images`: number of images (adds or removes Load Image + Auto Prompt, then lays out; removed ones come back when raised).\n- **Image list** (top = first): drag an image up or down – it gets a blue frame, a blue line between the images shows where it lands. ✕ removes it. Transitions with a new image pair get an empty prompt → 🔄 regenerate.\n- `seconds` per shot, `loop` (last image back to the first), `variants` (2 = render A and B, pick in Cut), `seed`.\n- **🔗 AUTO LAYOUT**: tidies all groups and wires Director → Cut → Even Motion.\n- Output `sync ▶ Cut` → Cut (all shot data travels over this link)."
       ],
       "widgets_values_named": {
-        "text": "## 5 · Director\nTurns images + prompts into shots.\n- `images`: number of images (adds or mutes Load Image + Auto Prompt, then lays out).\n- `seconds` per shot, `loop` (last image back to the first), `variants` (2 = render A and B, pick in Choose), `seed`.\n- **🔗 AUTO LAYOUT**: tidies all groups.\n- Output `shots ▶ Assemble` → Choose."
+        "text": "## 5 · Director\nTurns images + prompts into shots.\n- `images`: number of images (adds or removes Load Image + Auto Prompt, then lays out; removed ones come back when raised).\n- **Image list** (top = first): drag an image up or down – it gets a blue frame, a blue line between the images shows where it lands. ✕ removes it. Transitions with a new image pair get an empty prompt → 🔄 regenerate.\n- `seconds` per shot, `loop` (last image back to the first), `variants` (2 = render A and B, pick in Cut), `seed`.\n- **🔗 AUTO LAYOUT**: tidies all groups and wires Director → Cut → Even Motion.\n- Output `sync ▶ Cut` → Cut (all shot data travels over this link)."
       },
       "color": "#322",
       "bgcolor": "#533"
@@ -1270,19 +1043,19 @@
       "id": 64,
       "type": "MarkdownNote",
       "pos": [
-        3819,
+        3739,
         -418
       ],
       "size": [
-        1068,
+        1056,
         270
       ],
       "flags": {},
-      "order": 9,
+      "order": 8,
       "mode": 0,
       "inputs": [],
       "outputs": [],
-      "title": "Help: 6 · Choose",
+      "title": "Help: 6 · Cut",
       "properties": {
         "ue_properties": {
           "widget_ue_connectable": {},
@@ -1291,10 +1064,10 @@
         }
       },
       "widgets_values": [
-        "## 6 · Choose\nCheck the shots before the film is built.\n- Hover plays a shot; click picks it (A/B with `variants` = 2). **✓ KEEP / ✗ REDO** per shot; red *⚠ HARD CUT / SEAM* marks bad joins.\n- **✎ prompt** / **⏱ seconds** change one shot and mark it REDO.\n- Big button: **ASSEMBLE ▶** builds the film, **RERENDER n ↻** renders only the marked shots.\n- Output `shots` → Assemble."
+        "## 6 · Cut\nHere the film is decided and made.\n- Hover plays a shot; click picks it (A/B with `variants` = 2). **✓ KEEP / ✗ REDO** per shot; red *⚠ HARD CUT / SEAM* marks bad joins.\n- **▶ play** under a shot shows it big with sound below; **▶ film** plays the finished film.\n- **✎ prompt** / **⏱ seconds** change one shot and mark it REDO.\n- Big button: **FILM ▶** joins the chosen shots into the film (with sound when Settings › `audio` is on) and runs everything behind Cut; **RERENDER n ↻** renders only the marked shots.\n- Analysis of each shot: Heatmap · Frames · Particles · Sheet.\n- Outputs `video_path` (the film) → Film / Upscale, `last_frame`, `first_frame`, `sync` and `settings ▶ chain` → Even Motion."
       ],
       "widgets_values_named": {
-        "text": "## 6 · Choose\nCheck the shots before the film is built.\n- Hover plays a shot; click picks it (A/B with `variants` = 2). **✓ KEEP / ✗ REDO** per shot; red *⚠ HARD CUT / SEAM* marks bad joins.\n- **✎ prompt** / **⏱ seconds** change one shot and mark it REDO.\n- Big button: **ASSEMBLE ▶** builds the film, **RERENDER n ↻** renders only the marked shots.\n- Output `shots` → Assemble."
+        "text": "## 6 · Cut\nHere the film is decided and made.\n- Hover plays a shot; click picks it (A/B with `variants` = 2). **✓ KEEP / ✗ REDO** per shot; red *⚠ HARD CUT / SEAM* marks bad joins.\n- **▶ play** under a shot shows it big with sound below; **▶ film** plays the finished film.\n- **✎ prompt** / **⏱ seconds** change one shot and mark it REDO.\n- Big button: **FILM ▶** joins the chosen shots into the film (with sound when Settings › `audio` is on) and runs everything behind Cut; **RERENDER n ↻** renders only the marked shots.\n- Analysis of each shot: Heatmap · Frames · Particles · Sheet.\n- Outputs `video_path` (the film) → Film / Upscale, `last_frame`, `first_frame`, `sync` and `settings ▶ chain` → Even Motion."
       },
       "color": "#322",
       "bgcolor": "#533"
@@ -1303,19 +1076,19 @@
       "id": 65,
       "type": "MarkdownNote",
       "pos": [
-        5209,
+        4875,
         -418
       ],
       "size": [
-        440,
+        660,
         270
       ],
       "flags": {},
-      "order": 10,
+      "order": 9,
       "mode": 0,
       "inputs": [],
       "outputs": [],
-      "title": "Help: 7 · Assemble + Film",
+      "title": "Help: 7 · Even Motion + Film",
       "properties": {
         "ue_properties": {
           "widget_ue_connectable": {},
@@ -1324,10 +1097,10 @@
         }
       },
       "widgets_values": [
-        "## 7 · Assemble + Film\n- **Assemble**: joins the shots. `even_motion` evens out the motion (`strength`, `keep`), `interpolate` RIFE x2, `output_size`. Viewer: Graph · Timeline · Heatmap · Frames · Particles · Sheet. Sound only with `even_motion` off.\n- **Film**: plays the finished film, shows where it was saved, **📂 Open folder**."
+        "## 7 · Even Motion + Film\n- **Film**: plays the film from Cut, shows where it was saved, **📂 Open folder**.\n- **Even Motion** (optional, off by default – select it, **Ctrl+M** turns it on): for smooth camera moves (architecture, fly-throughs). Re-picks the frames of every shot so each carries about the same change; `time_extend` (1–4×) makes the film longer and slower at the same fps from RIFE in-between frames. Writes `<film_name>_even.mp4` (silent). To watch or upscale it, connect its `video_path` to Film / Upscale instead of Cut's.\n- Viewer: Graph · Timeline (grey = as rendered, coloured = evened out)."
       ],
       "widgets_values_named": {
-        "text": "## 7 · Assemble + Film\n- **Assemble**: joins the shots. `even_motion` evens out the motion (`strength`, `keep`), `interpolate` RIFE x2, `output_size`. Viewer: Graph · Timeline · Heatmap · Frames · Particles · Sheet. Sound only with `even_motion` off.\n- **Film**: plays the finished film, shows where it was saved, **📂 Open folder**."
+        "text": "## 7 · Even Motion + Film\n- **Film**: plays the film from Cut, shows where it was saved, **📂 Open folder**.\n- **Even Motion** (optional, off by default – select it, **Ctrl+M** turns it on): for smooth camera moves (architecture, fly-throughs). Re-picks the frames of every shot so each carries about the same change; `time_extend` (1–4×) makes the film longer and slower at the same fps from RIFE in-between frames. Writes `<film_name>_even.mp4` (silent). To watch or upscale it, connect its `video_path` to Film / Upscale instead of Cut's.\n- Viewer: Graph · Timeline (grey = as rendered, coloured = evened out)."
       },
       "color": "#322",
       "bgcolor": "#533"
@@ -1336,15 +1109,15 @@
       "id": 68,
       "type": "InfiniteMovieFilm",
       "pos": [
-        5491,
-        -78
+        4875,
+        920
       ],
       "size": [
-        400,
-        622
+        660,
+        792
       ],
       "flags": {},
-      "order": 39,
+      "order": 37,
       "mode": 0,
       "inputs": [
         {
@@ -1352,7 +1125,7 @@
           "name": "video_path",
           "shape": 7,
           "type": "STRING",
-          "link": 2110
+          "link": 2170
         }
       ],
       "outputs": [],
@@ -1376,7 +1149,7 @@
       "id": 69,
       "type": "InfiniteMovieStyle",
       "pos": [
-        2515,
+        2475,
         -78
       ],
       "size": [
@@ -1384,7 +1157,7 @@
         330
       ],
       "flags": {},
-      "order": 22,
+      "order": 26,
       "mode": 0,
       "inputs": [
         {
@@ -1467,7 +1240,7 @@
         314
       ],
       "flags": {},
-      "order": 11,
+      "order": 10,
       "mode": 0,
       "inputs": [
         {
@@ -1528,7 +1301,7 @@
       "id": 71,
       "type": "InfiniteMovieAutoPrompt",
       "pos": [
-        2515,
+        2475,
         1474
       ],
       "size": [
@@ -1624,7 +1397,7 @@
         ""
       ],
       "widgets_values_named": {
-        "prompt": "The snow melts away under warming light, the grass turns green and golden again and the mist lifts from the trees until the rock-shaped house stands in bright summer daylight. Leaves and grass keep swaying in a light breeze.",
+        "prompt": "The snow melts away under warming light, the grass turns spring again and the mist lifts from the trees until the rock-shaped house stands in daylight. Leaves and grass keep swaying in a light breeze.",
         "keywords": "",
         "regen": ""
       },
@@ -1635,7 +1408,7 @@
       "id": 73,
       "type": "UNETLoader",
       "pos": [
-        5971,
+        5615,
         -78
       ],
       "size": [
@@ -1643,7 +1416,7 @@
         82
       ],
       "flags": {},
-      "order": 12,
+      "order": 11,
       "mode": 2,
       "inputs": [
         {
@@ -1675,6 +1448,7 @@
           ]
         }
       ],
+      "title": "RelayVSR x4",
       "properties": {
         "Node name for S&R": "UNETLoader",
         "ue_properties": {
@@ -1695,18 +1469,17 @@
         "default"
       ],
       "widgets_values_named": {
-        "unet_name": "ltx-2.5-22b-distilled-transformer-comfy-int8-convrot.safetensors",
+        "unet_name": "relayvsr_x4_int8_convrot.safetensors",
         "weight_dtype": "default"
       },
       "color": "#223",
-      "bgcolor": "#335",
-      "title": "RelayVSR x4"
+      "bgcolor": "#335"
     },
     {
       "id": 74,
       "type": "VAELoader",
       "pos": [
-        5971,
+        5615,
         102
       ],
       "size": [
@@ -1714,7 +1487,7 @@
         58
       ],
       "flags": {},
-      "order": 13,
+      "order": 12,
       "mode": 2,
       "inputs": [
         {
@@ -1737,6 +1510,7 @@
           ]
         }
       ],
+      "title": "RelayVSR Flash decoder x4",
       "properties": {
         "Node name for S&R": "VAELoader",
         "ue_properties": {
@@ -1756,25 +1530,24 @@
         "relayvsr_flash_vae_x4_fp32.safetensors"
       ],
       "widgets_values_named": {
-        "vae_name": "ltx-2.5-video-vae-bf16.safetensors"
+        "vae_name": "relayvsr_flash_vae_x4_fp32.safetensors"
       },
       "color": "#223",
-      "bgcolor": "#335",
-      "title": "RelayVSR Flash decoder x4"
+      "bgcolor": "#335"
     },
     {
       "id": 83,
       "type": "InfiniteMovieFilm",
       "pos": [
-        6661,
-        -78
+        5615,
+        920
       ],
       "size": [
-        400,
-        622
+        660,
+        792
       ],
       "flags": {},
-      "order": 45,
+      "order": 40,
       "mode": 2,
       "inputs": [
         {
@@ -1806,15 +1579,15 @@
       "id": 84,
       "type": "MarkdownNote",
       "pos": [
-        5971,
+        5615,
         -418
       ],
       "size": [
-        440,
+        660,
         270
       ],
       "flags": {},
-      "order": 15,
+      "order": 13,
       "mode": 2,
       "inputs": [],
       "outputs": [],
@@ -1827,10 +1600,10 @@
         }
       },
       "widgets_values": [
-        "## 8 · Upscale (optional)\n- Off by default. **Select the group, Ctrl+M** turns it on.\n- Then **ASSEMBLE** also renders an upscaled film with **RelayVSR x4**, scaled down to 1920 (calm and sharp), with the film's sound.\n- **ram_gb** is the divider: the film is upscaled in segments that fit this much RAM – any length works. Lower it if RAM runs out.\n- x2 is faster (relayvsr_x2_… + flash_vae_x2). Alternative: LTX Refine in `example_workflows/Upscaler/`.\n- The second **Film** node shows the upscaled version."
+        "## 8 · Upscale (optional)\n- Off by default. **Select the group, Ctrl+M** turns it on.\n- Then **FILM ▶** also renders an upscaled film with **RelayVSR x4**, scaled down to 1920 (calm and sharp), with the film's sound.\n- **ram_gb** is the divider: the film is upscaled in segments that fit this much RAM – any length works. Lower it if RAM runs out.\n- x2 is faster (relayvsr_x2_… + flash_vae_x2). Alternative: LTX Refine in `example_workflows/Upscaler/`.\n- The second **Film** node shows the upscaled version."
       ],
       "widgets_values_named": {
-        "text": "## 8 · Upscale (optional)\n- Off by default. **Select the group, Ctrl+M** turns it on.\n- Then **ASSEMBLE** also renders an upscaled film: model upscale (Upscale Crop Universal) + **LTX Refine** 1:1 (prompt `photographic, 4k`), with the film's sound.\n- The second **Film** node shows the upscaled version."
+        "text": "## 8 · Upscale (optional)\n- Off by default. **Select the group, Ctrl+M** turns it on.\n- Then **FILM ▶** also renders an upscaled film with **RelayVSR x4**, scaled down to 1920 (calm and sharp), with the film's sound.\n- **ram_gb** is the divider: the film is upscaled in segments that fit this much RAM – any length works. Lower it if RAM runs out.\n- x2 is faster (relayvsr_x2_… + flash_vae_x2). Alternative: LTX Refine in `example_workflows/Upscaler/`.\n- The second **Film** node shows the upscaled version."
       },
       "color": "#322",
       "bgcolor": "#533"
@@ -1847,7 +1620,7 @@
         82
       ],
       "flags": {},
-      "order": 16,
+      "order": 14,
       "mode": 0,
       "inputs": [
         {
@@ -1917,7 +1690,7 @@
         82
       ],
       "flags": {},
-      "order": 25,
+      "order": 22,
       "mode": 0,
       "inputs": [
         {
@@ -1994,7 +1767,7 @@
         106
       ],
       "flags": {},
-      "order": 17,
+      "order": 15,
       "mode": 0,
       "inputs": [
         {
@@ -2076,7 +1849,7 @@
         58
       ],
       "flags": {},
-      "order": 18,
+      "order": 16,
       "mode": 0,
       "inputs": [
         {
@@ -2136,7 +1909,7 @@
         58
       ],
       "flags": {},
-      "order": 19,
+      "order": 17,
       "mode": 0,
       "inputs": [
         {
@@ -2195,7 +1968,7 @@
         166
       ],
       "flags": {},
-      "order": 20,
+      "order": 18,
       "mode": 0,
       "inputs": [],
       "outputs": [
@@ -2279,7 +2052,7 @@
         220
       ],
       "flags": {},
-      "order": 26,
+      "order": 23,
       "mode": 0,
       "inputs": [
         {
@@ -2404,7 +2177,7 @@
         46
       ],
       "flags": {},
-      "order": 32,
+      "order": 29,
       "mode": 0,
       "inputs": [
         {
@@ -2451,7 +2224,7 @@
         46
       ],
       "flags": {},
-      "order": 33,
+      "order": 30,
       "mode": 0,
       "inputs": [
         {
@@ -2498,7 +2271,7 @@
         122
       ],
       "flags": {},
-      "order": 35,
+      "order": 32,
       "mode": 0,
       "inputs": [
         {
@@ -2572,7 +2345,7 @@
       "id": 95,
       "type": "MarkdownNote",
       "pos": [
-        2155,
+        2085,
         -1808
       ],
       "size": [
@@ -2580,7 +2353,7 @@
         380
       ],
       "flags": {},
-      "order": 21,
+      "order": 19,
       "mode": 0,
       "inputs": [],
       "outputs": [],
@@ -2597,7 +2370,7 @@
         "## 1 · Engine (video model)\nThe engine renders one shot (start image → end image) per call from the Director. It is a normal, visible group:\n**Engine Start** (from Director: images, prompt, seed, size, length) → *your model chain* → **Engine Result** (to Director: frames + sound).\n\n| Engine | fps | Frames | Sound |\n|---|---|---|---|\n| **MiniMax H3** (this group, default) | 24 | 17k+5 | yes |\n| LTX 2.5 | 24 | 8n+1 | yes |\n| Wan 2.2 | 16 | 4n+1 | no |\n\n**Switch engine:**\n1. Templates (left bar) › *comfyui-infinite-movie* › open `Infinite Movie - Engine LTX 2.5` or `… Wan 2.2`.\n2. Click its group title, **Ctrl+C**, come back here, **Ctrl+V**.\n3. Mute this MiniMax group: click its title, **Ctrl+M**. Only **one** engine group may be active.\n4. **🔗 AUTO LAYOUT** on the Director – it finds the active Engine Result by itself.\n\n**Own engine (any video model):** easiest is to copy an engine group and swap the model nodes. From scratch:\n1. Double-click the canvas, add **Engine Start · Infinite Movie** and **Engine Result · Infinite Movie**.\n2. Engine Start → your model: `start_image` / `end_image` → the image-to-video (first/last frame) node, `prompt` → text encoder, `seed` → sampler, `width` / `height` / `length` → the video/latent size.\n3. Your decoded frames (IMAGE) → Engine Result › `images` (or a VIDEO → `video`), sound → `audio`.\n4. Engine Result: `fps` = your model's fps, `length_grid` (advanced) = its frame step (Wan 4, LTX 8, H3 17).\n5. Put it in a group, mute the other engine group (Ctrl+M), **🔗 AUTO LAYOUT**.\nNo hidden presets – what you see is what renders.\n\n**This group (MiniMax H3):** first/last frame, int8, 8-step turbo LoRA v1.1 (768p). KSampler 8 steps, cfg 1, `res_multistep`, `simple`; negative = ConditioningZeroOut. Without the LoRA: bypass it, 20–25 steps. Sound is kept only when Settings › `audio` is on.\n"
       ],
       "widgets_values_named": {
-        "text": "## 1 · Engine: MiniMax H3\nRenders one shot (start image → end image) per call from the Director. MiniMax H3 first/last-frame, int8, **8-step turbo LoRA v1.1** (768p), video + sound.\n- **Engine Start · Infinite Movie** (from Director): `start_image`, `end_image`, `prompt`, `seed`, `width`, `height`, `length`.\n- **UNETLoader + Turbo LoRA 8 steps**: H3 model + LoRA (strength 1). Without the LoRA: bypass it, 20–25 steps.\n- **CLIPLoader** (type `minimax`): Qwen3-VL 32B text encoder. **VAELoader** ×2: video + audio VAE.\n- **MiniMax H3 Image To Video**: first/last frame, prompt, size and length from Engine Start (last frame optional).\n- **KSampler**: 8 steps, cfg 1, res_multistep, simple; seed from Engine Start. Negative = empty (ConditioningZeroOut), ignored at cfg 1.\n- **Engine Result · Infinite Movie** (to Director): frames + sound, 24 fps, `length_grid` 17 (H3 snaps to 17k+5 frames).\n- Sound is only kept when Settings › `audio` is on.\n- Other engines: `Infinite Movie - Engine LTX 2.5` / `Infinite Movie - Engine Wan 2.2`. Only ONE engine group may be active; mute the other (select group, Ctrl+M)."
+        "text": "## 1 · Engine (video model)\nThe engine renders one shot (start image → end image) per call from the Director. It is a normal, visible group:\n**Engine Start** (from Director: images, prompt, seed, size, length) → *your model chain* → **Engine Result** (to Director: frames + sound).\n\n| Engine | fps | Frames | Sound |\n|---|---|---|---|\n| **MiniMax H3** (this group, default) | 24 | 17k+5 | yes |\n| LTX 2.5 | 24 | 8n+1 | yes |\n| Wan 2.2 | 16 | 4n+1 | no |\n\n**Switch engine:**\n1. Templates (left bar) › *comfyui-infinite-movie* › open `Infinite Movie - Engine LTX 2.5` or `… Wan 2.2`.\n2. Click its group title, **Ctrl+C**, come back here, **Ctrl+V**.\n3. Mute this MiniMax group: click its title, **Ctrl+M**. Only **one** engine group may be active.\n4. **🔗 AUTO LAYOUT** on the Director – it finds the active Engine Result by itself.\n\n**Own engine (any video model):** easiest is to copy an engine group and swap the model nodes. From scratch:\n1. Double-click the canvas, add **Engine Start · Infinite Movie** and **Engine Result · Infinite Movie**.\n2. Engine Start → your model: `start_image` / `end_image` → the image-to-video (first/last frame) node, `prompt` → text encoder, `seed` → sampler, `width` / `height` / `length` → the video/latent size.\n3. Your decoded frames (IMAGE) → Engine Result › `images` (or a VIDEO → `video`), sound → `audio`.\n4. Engine Result: `fps` = your model's fps, `length_grid` (advanced) = its frame step (Wan 4, LTX 8, H3 17).\n5. Put it in a group, mute the other engine group (Ctrl+M), **🔗 AUTO LAYOUT**.\nNo hidden presets – what you see is what renders.\n\n**This group (MiniMax H3):** first/last frame, int8, 8-step turbo LoRA v1.1 (768p). KSampler 8 steps, cfg 1, `res_multistep`, `simple`; negative = ConditioningZeroOut. Without the LoRA: bypass it, 20–25 steps. Sound is kept only when Settings › `audio` is on.\n"
       },
       "color": "#322",
       "bgcolor": "#533"
@@ -2614,7 +2387,7 @@
         26
       ],
       "flags": {},
-      "order": 28,
+      "order": 25,
       "mode": 0,
       "inputs": [
         {
@@ -2658,7 +2431,7 @@
         262
       ],
       "flags": {},
-      "order": 30,
+      "order": 27,
       "mode": 0,
       "inputs": [
         {
@@ -2784,7 +2557,7 @@
       "id": 98,
       "type": "InfiniteMovieRelayVSRUpscale",
       "pos": [
-        6291,
+        5935,
         -78
       ],
       "size": [
@@ -2792,7 +2565,7 @@
         420
       ],
       "flags": {},
-      "order": 40,
+      "order": 38,
       "mode": 2,
       "inputs": [
         {
@@ -2822,6 +2595,78 @@
           "link": null
         },
         {
+          "localized_name": "ram_gb",
+          "name": "ram_gb",
+          "type": "FLOAT",
+          "widget": {
+            "name": "ram_gb"
+          },
+          "link": null
+        },
+        {
+          "localized_name": "longest_side",
+          "name": "longest_side",
+          "type": "INT",
+          "widget": {
+            "name": "longest_side"
+          },
+          "link": null
+        },
+        {
+          "localized_name": "detail",
+          "name": "detail",
+          "type": "FLOAT",
+          "widget": {
+            "name": "detail"
+          },
+          "link": null
+        },
+        {
+          "localized_name": "loop",
+          "name": "loop",
+          "type": "BOOLEAN",
+          "widget": {
+            "name": "loop"
+          },
+          "link": null
+        },
+        {
+          "localized_name": "overlap",
+          "name": "overlap",
+          "type": "INT",
+          "widget": {
+            "name": "overlap"
+          },
+          "link": null
+        },
+        {
+          "localized_name": "seed",
+          "name": "seed",
+          "type": "INT",
+          "widget": {
+            "name": "seed"
+          },
+          "link": null
+        },
+        {
+          "localized_name": "crf",
+          "name": "crf",
+          "type": "INT",
+          "widget": {
+            "name": "crf"
+          },
+          "link": null
+        },
+        {
+          "localized_name": "filename_prefix",
+          "name": "filename_prefix",
+          "type": "STRING",
+          "widget": {
+            "name": "filename_prefix"
+          },
+          "link": null
+        },
+        {
           "localized_name": "fps",
           "name": "fps",
           "shape": 7,
@@ -2839,7 +2684,7 @@
           "widget": {
             "name": "video_path"
           },
-          "link": 2162
+          "link": 2171
         }
       ],
       "outputs": [
@@ -2853,7 +2698,15 @@
         }
       ],
       "properties": {
-        "Node name for S&R": "InfiniteMovieRelayVSRUpscale"
+        "Node name for S&R": "InfiniteMovieRelayVSRUpscale",
+        "ue_properties": {
+          "widget_ue_connectable": {
+            "fps": true,
+            "video_path": true
+          },
+          "version": "7.8",
+          "input_ue_unconnectable": {}
+        }
       },
       "widgets_values": [
         16,
@@ -2867,24 +2720,38 @@
         "infinite_movie/upscale",
         0,
         ""
-      ]
+      ],
+      "widgets_values_named": {
+        "ram_gb": 16,
+        "longest_side": 1920,
+        "detail": 1,
+        "loop": true,
+        "overlap": 8,
+        "seed": 0,
+        "control_after_generate": "fixed",
+        "crf": 16,
+        "filename_prefix": "infinite_movie/upscale",
+        "fps": 0,
+        "video_path": ""
+      }
     },
     {
       "id": 99,
       "type": "InfiniteMovieStoryMode",
       "pos": [
         1375,
-        232
+        242
       ],
       "size": [
         560,
         960
       ],
       "flags": {},
-      "order": 1,
+      "order": 20,
       "mode": 4,
       "inputs": [
         {
+          "localized_name": "provider",
           "name": "provider",
           "type": "COMBO",
           "widget": {
@@ -2893,6 +2760,7 @@
           "link": null
         },
         {
+          "localized_name": "endpoint",
           "name": "endpoint",
           "type": "STRING",
           "widget": {
@@ -2901,6 +2769,7 @@
           "link": null
         },
         {
+          "localized_name": "model",
           "name": "model",
           "type": "STRING",
           "widget": {
@@ -2909,6 +2778,7 @@
           "link": null
         },
         {
+          "localized_name": "api_key_env",
           "name": "api_key_env",
           "type": "STRING",
           "widget": {
@@ -2917,6 +2787,7 @@
           "link": null
         },
         {
+          "localized_name": "story",
           "name": "story",
           "type": "STRING",
           "widget": {
@@ -2925,6 +2796,7 @@
           "link": null
         },
         {
+          "localized_name": "storyboard_instruction",
           "name": "storyboard_instruction",
           "type": "STRING",
           "widget": {
@@ -2933,6 +2805,7 @@
           "link": null
         },
         {
+          "localized_name": "instruction",
           "name": "instruction",
           "type": "STRING",
           "widget": {
@@ -2941,6 +2814,7 @@
           "link": null
         },
         {
+          "localized_name": "thinking",
           "name": "thinking",
           "type": "COMBO",
           "widget": {
@@ -2949,6 +2823,7 @@
           "link": null
         },
         {
+          "localized_name": "temperature",
           "name": "temperature",
           "type": "FLOAT",
           "widget": {
@@ -2957,6 +2832,7 @@
           "link": null
         },
         {
+          "localized_name": "timeout",
           "name": "timeout",
           "type": "INT",
           "widget": {
@@ -2965,6 +2841,7 @@
           "link": null
         },
         {
+          "localized_name": "free_vram",
           "name": "free_vram",
           "type": "BOOLEAN",
           "widget": {
@@ -2975,9 +2852,9 @@
       ],
       "outputs": [
         {
-          "name": "llm",
-          "localized_name": "llm",
           "label": "LLM",
+          "localized_name": "LLM",
+          "name": "LLM",
           "type": "IM_STORY_MODE",
           "links": [
             2167
@@ -2985,7 +2862,24 @@
         }
       ],
       "properties": {
-        "Node name for S&R": "InfiniteMovieStoryMode"
+        "Node name for S&R": "InfiniteMovieStoryMode",
+        "ue_properties": {
+          "widget_ue_connectable": {
+            "provider": true,
+            "endpoint": true,
+            "model": true,
+            "api_key_env": true,
+            "story": true,
+            "storyboard_instruction": true,
+            "instruction": true,
+            "thinking": true,
+            "temperature": true,
+            "timeout": true,
+            "free_vram": true
+          },
+          "version": "7.8",
+          "input_ue_unconnectable": {}
+        }
       },
       "widgets_values": [
         "local server (llama.cpp, vLLM)",
@@ -2998,32 +2892,284 @@
         "off",
         0.7,
         180,
-        true
-      ]
+        true,
+        ""
+      ],
+      "widgets_values_named": {
+        "provider": "local server (llama.cpp, vLLM)",
+        "endpoint": "http://127.0.0.1:8080/v1",
+        "model": "qwen27-q4kxl-135k",
+        "api_key_env": "",
+        "story": "",
+        "storyboard_instruction": "You plan a short film made of video shots. You get all key images in film order; shot k runs from image k to image k+1{loop}. Write a coherent story arc across all shots: a clear progression, variety, and a meaningful build-up, matching what the images show. Each shot field is ONE sentence saying what HAPPENS during that shot - the change from its start image to its end image - not what one image shows. Answer ONLY with this JSON:\n{schema}\nPositive words only, never mention images or frames.",
+        "instruction": "You write the prompt for one short video shot: image 1 is its first frame, image 2 its last frame. Describe in present tense what visibly happens and changes from the first to the last frame - motion, light, weather, materials, atmosphere - so a video model can animate it smoothly. Exactly ONE sentence, max {words} words, that starts with the first frame and arrives at the last frame. Describe only what is there and what happens, in positive words (never 'no', 'not', 'none', 'without'). Never mention images, frames or the camera.",
+        "thinking": "off",
+        "temperature": 0.7,
+        "timeout": 180,
+        "free_vram": true,
+        "im_plan": ""
+      }
     },
     {
       "id": 100,
       "type": "MarkdownNote",
       "pos": [
         1375,
-        1262
+        1272
       ],
       "size": [
         560,
         440
       ],
       "flags": {},
-      "order": 0,
+      "order": 21,
       "mode": 0,
       "inputs": [],
       "outputs": [],
       "title": "Story Mode (LLM) · how it works",
-      "properties": {},
+      "properties": {
+        "ue_properties": {
+          "widget_ue_connectable": {},
+          "version": "7.8",
+          "input_ue_unconnectable": {}
+        }
+      },
       "widgets_values": [
         "## Story Mode (LLM) · how it works\n**▶ Switch it on:** this node comes **off** (purple = bypassed). Click it and press **Ctrl+B** – it turns grey like the others. Then do the **Setup** below. Ctrl+B again = off (the small `prompt_model` writes).\n\n**Idea:** the small `prompt_model` sees only the two images of one shot. Story Mode lets a bigger vision LLM on a server read **all** images first and plan the film – an arc plus one beat per shot. Every Auto Prompt then writes its shot from its two images **and** its beat, so the shots tell one story. `story` = your red thread, it goes into every system prompt.\n\n**Connection:** `LLM` (output, right) → Settings › `LLM` (input, top). Plugged in, `prompt_model` is greyed out – the LLM writes instead. Nothing else to wire; Prompt Style stays behind Settings as before.\n\n**Simple prompts:** unplug the `LLM` cable (or bypass this node, Ctrl+B) – the small `prompt_model` writes again, no server needed. Plug it back in for a story film.\n\n**Setup:** pick a `provider` (fills `endpoint`, `model`, `api_key_env`), press **🔌 Check connection** – green = ready. Then **🔄 Regenerate prompt** on the Auto Prompts – the plan appears in **④ Plan result** at the bottom of this node.\n- local server / Ollama / LM Studio: start the server with a **vision** model; `model` empty = the loaded one.\n- OpenAI / Gemini / OpenRouter: `api_key_env` = *name* of the environment variable with your key (the key is never saved in the workflow).\n- The two instructions are editable; **↺ Restore default prompts** brings them back. Errors show in the ComfyUI console.\n"
       ],
+      "widgets_values_named": {
+        "text": "## Story Mode (LLM) · how it works\n**▶ Switch it on:** this node comes **off** (purple = bypassed). Click it and press **Ctrl+B** – it turns grey like the others. Then do the **Setup** below. Ctrl+B again = off (the small `prompt_model` writes).\n\n**Idea:** the small `prompt_model` sees only the two images of one shot. Story Mode lets a bigger vision LLM on a server read **all** images first and plan the film – an arc plus one beat per shot. Every Auto Prompt then writes its shot from its two images **and** its beat, so the shots tell one story. `story` = your red thread, it goes into every system prompt.\n\n**Connection:** `LLM` (output, right) → Settings › `LLM` (input, top). Plugged in, `prompt_model` is greyed out – the LLM writes instead. Nothing else to wire; Prompt Style stays behind Settings as before.\n\n**Simple prompts:** unplug the `LLM` cable (or bypass this node, Ctrl+B) – the small `prompt_model` writes again, no server needed. Plug it back in for a story film.\n\n**Setup:** pick a `provider` (fills `endpoint`, `model`, `api_key_env`), press **🔌 Check connection** – green = ready. Then **🔄 Regenerate prompt** on the Auto Prompts – the plan appears in **④ Plan result** at the bottom of this node.\n- local server / Ollama / LM Studio: start the server with a **vision** model; `model` empty = the loaded one.\n- OpenAI / Gemini / OpenRouter: `api_key_env` = *name* of the environment variable with your key (the key is never saved in the workflow).\n- The two instructions are editable; **↺ Restore default prompts** brings them back. Errors show in the ComfyUI console.\n"
+      },
       "color": "#322",
       "bgcolor": "#533"
+    },
+    {
+      "id": 53,
+      "type": "InfiniteMovieChooser",
+      "pos": [
+        3739,
+        -78
+      ],
+      "size": [
+        1056,
+        1068
+      ],
+      "flags": {},
+      "order": 36,
+      "mode": 0,
+      "inputs": [
+        {
+          "localized_name": "sync",
+          "name": "sync",
+          "type": "SYNC",
+          "link": 2174
+        },
+        {
+          "localized_name": "settings",
+          "name": "settings",
+          "shape": 7,
+          "type": "SETTINGS",
+          "link": 2172
+        },
+        {
+          "localized_name": "choices",
+          "name": "choices",
+          "type": "STRING",
+          "widget": {
+            "name": "choices"
+          },
+          "link": null
+        }
+      ],
+      "outputs": [
+        {
+          "localized_name": "video_path",
+          "name": "video_path",
+          "type": "STRING",
+          "links": [
+            2170,
+            2171
+          ]
+        },
+        {
+          "localized_name": "last_frame",
+          "name": "last_frame",
+          "type": "IMAGE",
+          "links": null
+        },
+        {
+          "localized_name": "first_frame",
+          "name": "first_frame",
+          "type": "IMAGE",
+          "links": null
+        },
+        {
+          "localized_name": "sync",
+          "name": "sync",
+          "type": "SYNC",
+          "links": [
+            2175
+          ]
+        },
+        {
+          "localized_name": "settings ▶ chain",
+          "name": "settings ▶ chain",
+          "type": "SETTINGS",
+          "links": [
+            2173
+          ]
+        }
+      ],
+      "properties": {
+        "ue_properties": {
+          "widget_ue_connectable": {},
+          "input_ue_unconnectable": {}
+        },
+        "Node name for S&R": "InfiniteMovieChooser",
+        "marked": [],
+        "rejected": {}
+      },
+      "widgets_values": [
+        "",
+        ""
+      ],
+      "widgets_values_named": {
+        "choices": "",
+        "fc_choose": ""
+      }
+    },
+    {
+      "id": 8,
+      "type": "InfiniteMovieAssemble",
+      "pos": [
+        4875,
+        -78
+      ],
+      "size": [
+        660,
+        722
+      ],
+      "flags": {},
+      "order": 39,
+      "mode": 2,
+      "inputs": [
+        {
+          "localized_name": "sync",
+          "name": "sync",
+          "shape": 7,
+          "type": "SYNC",
+          "link": 2175
+        },
+        {
+          "localized_name": "settings",
+          "name": "settings",
+          "shape": 7,
+          "type": "SETTINGS",
+          "link": 2173
+        },
+        {
+          "localized_name": "file",
+          "name": "file",
+          "type": "COMBO",
+          "widget": {
+            "name": "file"
+          },
+          "link": null
+        },
+        {
+          "localized_name": "loop",
+          "name": "loop",
+          "type": "BOOLEAN",
+          "widget": {
+            "name": "loop"
+          },
+          "link": null
+        },
+        {
+          "localized_name": "video_path",
+          "name": "video_path",
+          "shape": 7,
+          "type": "STRING",
+          "widget": {
+            "name": "video_path"
+          },
+          "link": null
+        },
+        {
+          "localized_name": "interpolate",
+          "name": "interpolate",
+          "shape": 7,
+          "type": "COMBO",
+          "widget": {
+            "name": "interpolate"
+          },
+          "link": null
+        },
+        {
+          "localized_name": "time_extend",
+          "name": "time_extend",
+          "shape": 7,
+          "type": "FLOAT",
+          "widget": {
+            "name": "time_extend"
+          },
+          "link": null
+        },
+        {
+          "localized_name": "upload",
+          "name": "upload",
+          "type": "IMAGEUPLOAD",
+          "widget": {
+            "name": "upload"
+          },
+          "link": null
+        }
+      ],
+      "outputs": [
+        {
+          "localized_name": "video_path",
+          "name": "video_path",
+          "type": "STRING",
+          "links": null
+        },
+        {
+          "localized_name": "last_frame",
+          "name": "last_frame",
+          "type": "IMAGE",
+          "links": null
+        },
+        {
+          "localized_name": "first_frame",
+          "name": "first_frame",
+          "type": "IMAGE",
+          "links": null
+        }
+      ],
+      "properties": {
+        "ue_properties": {
+          "widget_ue_connectable": {},
+          "input_ue_unconnectable": {}
+        },
+        "Node name for S&R": "InfiniteMovieAssemble"
+      },
+      "widgets_values": [
+        "(none)",
+        true,
+        "",
+        "auto",
+        1,
+        "image",
+        ""
+      ],
+      "widgets_values_named": {
+        "file": "(none)",
+        "loop": true,
+        "video_path": "",
+        "interpolate": "auto",
+        "time_extend": 1,
+        "upload": "image",
+        "im_viz": ""
+      }
     }
   ],
   "links": [
@@ -3082,22 +3228,6 @@
       52,
       0,
       "SETTINGS"
-    ],
-    [
-      2108,
-      4,
-      0,
-      53,
-      0,
-      "SYNC"
-    ],
-    [
-      2110,
-      8,
-      0,
-      68,
-      0,
-      "STRING"
     ],
     [
       2111,
@@ -3308,6 +3438,46 @@
       "VAE"
     ],
     [
+      2160,
+      73,
+      0,
+      98,
+      0,
+      "MODEL"
+    ],
+    [
+      2161,
+      74,
+      0,
+      98,
+      1,
+      "VAE"
+    ],
+    [
+      2163,
+      98,
+      0,
+      83,
+      0,
+      "STRING"
+    ],
+    [
+      2166,
+      9,
+      0,
+      69,
+      0,
+      "SETTINGS"
+    ],
+    [
+      2167,
+      99,
+      0,
+      9,
+      0,
+      "IM_STORY_MODE"
+    ],
+    [
       2116,
       71,
       1,
@@ -3380,68 +3550,52 @@
       "STRING"
     ],
     [
-      2109,
+      2170,
       53,
       0,
+      68,
+      0,
+      "STRING"
+    ],
+    [
+      2171,
+      53,
+      0,
+      98,
+      13,
+      "STRING"
+    ],
+    [
+      2172,
+      4,
+      1,
+      53,
+      1,
+      "SETTINGS"
+    ],
+    [
+      2173,
+      53,
+      4,
       8,
+      1,
+      "SETTINGS"
+    ],
+    [
+      2174,
+      4,
+      0,
+      53,
       0,
       "SYNC"
     ],
     [
-      68,
-      4,
-      1,
-      8,
-      1,
-      "SETTINGS"
-    ],
-    [
-      2160,
-      73,
-      0,
-      98,
-      0,
-      "MODEL"
-    ],
-    [
-      2161,
-      74,
-      0,
-      98,
-      1,
-      "VAE"
-    ],
-    [
-      2162,
+      2175,
+      53,
+      3,
       8,
       0,
-      98,
-      5,
-      "STRING"
-    ],
-    [
-      2163,
-      98,
-      0,
-      83,
-      0,
-      "STRING"
-    ],
-    [
-      2166,
-      9,
-      0,
-      69,
-      0,
-      "SETTINGS"
-    ],
-    [
-      2167,
-      99,
-      0,
-      9,
-      0,
-      "IM_STORY_MODE"
+      "SYNC"
     ]
   ],
   "groups": [
@@ -3451,7 +3605,7 @@
       "bounding": [
         1355,
         -1902,
-        1880,
+        2020,
         1350
       ],
       "color": "#5a4a8a",
@@ -3475,8 +3629,8 @@
       "bounding": [
         1995,
         -512,
-        460,
-        2158
+        420,
+        2244
       ],
       "color": "#3a6ea5",
       "flags": {}
@@ -3485,10 +3639,10 @@
       "id": 55,
       "title": "4 · Prompts",
       "bounding": [
-        2495,
+        2455,
         -512,
-        680,
-        2158
+        640,
+        2244
       ],
       "color": "#5a8f3a",
       "flags": {}
@@ -3500,7 +3654,7 @@
         1355,
         -512,
         600,
-        2234
+        2244
       ],
       "color": "#8a6d3a",
       "flags": {}
@@ -3509,10 +3663,10 @@
       "id": 57,
       "title": "5 · Director",
       "bounding": [
-        3215,
+        3135,
         -512,
         544,
-        2158
+        2244
       ],
       "color": "#6a4a8a",
       "flags": {}
@@ -3521,10 +3675,10 @@
       "id": 58,
       "title": "6 · Cut",
       "bounding": [
-        3799,
+        3719,
         -512,
-        1108,
-        2158
+        1096,
+        2244
       ],
       "color": "#3a8a7a",
       "flags": {}
@@ -3533,10 +3687,10 @@
       "id": 59,
       "title": "7 · Even Motion + Film",
       "bounding": [
-        4947,
+        4855,
         -512,
-        964,
-        2158
+        700,
+        2244
       ],
       "color": "#3f789e",
       "flags": {}
@@ -3545,10 +3699,10 @@
       "id": 61,
       "title": "8 · Upscale (optional – Ctrl+M to turn on)",
       "bounding": [
-        5951,
+        5595,
         -512,
-        1130,
-        2158
+        700,
+        2244
       ],
       "color": "#88A",
       "flags": {}
@@ -3558,10 +3712,10 @@
   "extra": {
     "ue_links": [],
     "ds": {
-      "scale": 0.7320500000000003,
+      "scale": 0.8052550000000009,
       "offset": [
-        48.68929717915387,
-        170.0266375247588
+        -2956.484263497785,
+        872.7334085174899
       ]
     },
     "links_added_by_ue": []
