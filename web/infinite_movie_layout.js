@@ -165,7 +165,9 @@ export function fcWorkflowLayout(director, second = false) {
     [G(/images/i), imgRows.flat()],
     [G(/prompt/i), [...byType("InfiniteMovieStyle"), ...prompts]],
     [G(/director/i), [director]],
-    [G(/cut|choose/i), [...cut, ...cutFilms], false],
+    // user 2026-11-13 ("widen 6, double it - the bottom edge of the 4 images is the bottom edge"): Cut and its preview
+    // side by side, so group 6 is no taller than the image column
+    [G(/cut|choose/i), [...cut, ...cutFilms], true],
     [G(/even motion|assemble/i), [...asm, ...asmFilms], false],
   ];
   const used = new Set([...engineHelp, upHelp, gifHelp, ...storyHelp].filter(Boolean));
@@ -224,10 +226,28 @@ export function fcWorkflowLayout(director, second = false) {
     const h = HEAD + helpH(help) + imgRows.reduce((s, r) => s + rowH(r), 0) + NGAP * (imgRows.length - 1) + PAD;
     return [w, h];
   });
-  // user 2026-11-13: "5 as wide as 4" - Director and Prompts groups share one width (the wider one)
-  const w45 = Math.max(sizes[2][0], sizes[3][0]);
-  sizes[2][0] = sizes[3][0] = w45;
-  director.size = [w45 - 2 * PAD, director.size[1]];   // the Director node fills its group
+  // user 2026-11-13 ("groups modular, 2 or 3 widths, no more"; "5 as wide as 4"): one module width U = a Cut column
+  // (Cut node + margins). 2 Settings, 4 Prompts, 5 Director, 7, 8, 9 are U wide, 6 Cut (Cut + preview side by side)
+  // is 2U + GAP, only 3 Images keeps its own narrow width. The nodes of a U column are stretched to fill it.
+  const U = Math.max(inner678 + 2 * PAD, sizes[0][0], sizes[2][0], sizes[3][0]);
+  for (const k of [0, 2, 3]) {
+    sizes[k][0] = U;
+    for (const n of row[k][1]) if (!isHelp(n)) n.size = [U - 2 * PAD, n.size[1]];
+  }
+  sizes[4][0] = Math.max(sizes[4][0], 2 * U + GAP);
+  // user 2026-11-13 ("2 3 4 the same"): 3 Images is U wide too; a row with a single node (Load Image) fills it
+  if (imgRows.length) {
+    sizes[1][0] = Math.max(sizes[1][0], U);
+    for (const r of imgRows) if (r.length === 1) r[0].size = [U - 2 * PAD, r[0].size[1]];
+  }
+  // user 2026-11-13 ("1 wider"): the engine on top spans groups 2-5 (4U + 3 GAP), help centered again
+  for (const [k, e] of engines.entries()) {
+    if (engines.length !== 1) break;
+    const w = Math.max(e.size[0], 4 * U + 3 * GAP);
+    e.size = [w, e.size[1]];
+    const help = engineHelp[k];
+    if (help) help.pos = [e.pos[0] + (w - help.size[0]) / 2, help.pos[1]];
+  }
   row.forEach((_, k) => { const h = rowHelp[k]; if (h) h.size = [sizes[k][0] - 2 * PAD, HH]; });
   let x = X0;
   row.forEach(([grp, ns, side], k) => {
@@ -268,6 +288,20 @@ export function fcWorkflowLayout(director, second = false) {
       if (shift) for (const n of [...imgRows.flat(), ...linkedPrompts]) n.pos = [n.pos[0], n.pos[1] + shift];
     }
   }
+  // user 2026-11-13 ("the bottom edge of the 4 images is the bottom edge"): if the Settings column (Story Mode with its
+  // big text fields) reaches lower than images + prompts, Story Mode gets shorter (min 400) instead of the row taller.
+  const story = byType("InfiniteMovieStoryMode")[0];
+  if (story && imgRows.length && row[0][0]) {
+    const b12 = Math.max(...[...imgRows.flat(), ...prompts].map((n) => n.pos[1] + n.size[1]));
+    const b0 = Math.max(...row[0][1].map((n) => n.pos[1] + n.size[1]));
+    if (b0 > b12) {
+      story.size = [story.size[0], Math.max(400, story.size[1] - (b0 - b12))];
+      sizes[0] = [sizes[0][0], colSize(row[0][1], row[0][2], rowHelp[0])[1]];
+      placeCol(row[0][1], row[0][2], rowHelp[0], row[0][0].pos[0], Y, sizes[0][0]);
+    }
+  }
+  // 6: the preview sits at the right edge of the double-width group
+  if (row[4][0]) for (const f of cutFilms) f.pos = [row[4][0].pos[0] + sizes[4][0] - PAD - f.size[0], f.pos[1]];
   // Group height from the real content (prompts can reach below the last image)
   const bottom = Math.max(...row.flatMap(([, ns]) => ns.map((n) => n.pos[1] + n.size[1])));
   // Upscale content (block + Film players below) also counts, so 8 has exactly the height of the row (user: "7-8 the

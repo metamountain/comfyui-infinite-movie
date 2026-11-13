@@ -5,7 +5,7 @@ import { fcChooseRender } from "./im_cut.js";
 import { fmtTime, renderEstimate } from "./im_progress.js";
 import { IMV_NODE_W, imvDraw, imvStop } from "./im_viewer.js";
 import { fcChooseDirectorOf } from "./im_cut_edit.js";
-const FC_CHOOSE_COL = 256;           // fixed square tile per shot (image contain); node gets wider, never images smaller
+const FC_CHOOSE_COL = 160;           // fixed square tile per shot (image contain). 2026-11-13 (user: "Cut is the problem, optimise for 4"): 256 -> 160, Cut 672 px wide with 4 shots; more shots make it wider
 export const FC_CHOOSE_GAP = 4;
 const FC_CHOOSE_PAD = 20;            // DOM widget margin left+right in the node
 export const FC_CHOOSE_HEAD_H = 20, FC_CHOOSE_STAT_H = 24, FC_CHOOSE_BTNROW_H = 34;
