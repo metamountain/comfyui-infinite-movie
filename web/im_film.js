@@ -201,6 +201,16 @@ app.registerExtension({
       }
       fcFilmRender(this);
     };
+    // 2026-11-13: a saved/created value outside the list ("" after a node swap) fails validation
+    // ("The value  for Video Preview's file is not available") -> back to "(none)" on load.
+    const origConfigure = nodeType.prototype.onConfigure;
+    nodeType.prototype.onConfigure = function (...args) {
+      const r = origConfigure?.apply(this, args);
+      const w = this.widgets?.find((x) => x.name === "file");
+      const vals = w?.options?.values;
+      if (w && Array.isArray(vals) && vals.length && !vals.includes(w.value)) w.value = vals.includes("(none)") ? "(none)" : vals[0];
+      return r;
+    };
   },
 });
 
