@@ -1,7 +1,7 @@
 import { app } from "../../scripts/app.js";
 import { api } from "../../scripts/api.js";
 import { fcReviewToast, imFilmDoneNotice } from "./im_common.js";
-import { fcChooseFocus, fcChooseStatus } from "./im_cut_edit.js";
+import { fcChooseFocus, fcChooseStatus } from "./im_cut_state.js";
 // Normalize Time: draw the graph of the last run below the widgets (user 2026-10-26:
 // "must be visualized which normalization takes effect"). Uses the analysis of the last run
 // (POST /infinite_movie/normalize_graph, retime_nodes.py) - no render, no encode.
