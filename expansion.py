@@ -2,7 +2,7 @@
 
 Builds the per-segment sub-graphs from the verified API templates
 (wan22_flf2v_lightning / ltx25_flf2v) and wires in the InfiniteMovieRender-specific
-output nodes (InfiniteMovieSegmentSave, InfiniteMovieAssemble, InfiniteMovieVRAMAcquire, InfiniteMovieVRAMRelease).
+output nodes (InfiniteMovieSegmentSave, InfiniteMovieSegmentPaths collector).
 
 Key mechanics (verified against core source, v0.42):
 - The expand graph is a plain dict (same format as GraphBuilder.finalize()).
@@ -804,8 +804,6 @@ def build_expansion_graph(unique_id: str, preset: str,
                           output_dir: str,
                           film_name: str,
                           acquire_kwargs: dict,
-                          release_kwargs: dict,
-                          concat_inside: bool = False,
                           seed_bumps: dict | None = None,
                           model_inputs: dict | None = None,
                           template: dict | None = None,
@@ -828,12 +826,6 @@ def build_expansion_graph(unique_id: str, preset: str,
         output_dir: directory for segment files (also the film save_folder).
         film_name: name of the final film (without extension, the save_name).
         acquire_kwargs: GPU check kwargs (min_free_mb, timeout_s).
-        release_kwargs: kwargs for the cleanup switches on the (internal)
-            InfiniteMovieAssemble (free_vram, free_ram).
-        concat_inside: True = build an internal InfiniteMovieAssemble (with the cleanup
-            switches) after the collector. False = no internal InfiniteMovieAssemble and
-            no InfiniteMovieVRAMRelease; the user attaches a visible InfiniteMovieAssemble node and
-            connects InfiniteMovieRender's shots output to it.
         seed_bumps: {segment number (1-based): bump count} from InfiniteMovieRender.reseed;
             each bump adds 1000 to that segment's seed, the others keep theirs.
 
@@ -841,9 +833,8 @@ def build_expansion_graph(unique_id: str, preset: str,
     Autogrow input per segment to the corresponding InfiniteMovieSegmentSave output, so
     it depends on every segment. InfiniteMovieRender's segment_paths output links to the
     collector, which blocks the parent until all segments finish
-    (execution.py:600-613 strong links). The expansion NEVER appends a
-    InfiniteMovieVRAMRelease node; the cleanup switches live on the InfiniteMovieAssemble (internal or
-    visible).
+    (execution.py:600-613 strong links). Film assembly is not part of the expansion:
+    the visible Cut / Even Motion nodes read the segments from the sync pipe.
 
     Returns:
         The expansion graph dict (same format as GraphBuilder.finalize()).
@@ -985,38 +976,5 @@ def build_expansion_graph(unique_id: str, preset: str,
         collector_inputs[f"segments.segment{j}"] = [sid, 0]  # Autogrow flat: name.prefixN
     graph[collector_id] = {"class_type": "InfiniteMovieSegmentPaths",
                            "inputs": collector_inputs}
-
-    if concat_inside:
-        # --- Internal InfiniteMovieShotsOut + InfiniteMovieAssemble (after all segments, via the collector) ---
-        # 73: Assemble has no segments/save_folder/save_name/copy_to inputs anymore -
-        # the data comes via the sync pipe (SYNC). InfiniteMovieShotsOut combines
-        # the collector paths (link) with the shots dict (literal) and returns the dict
-        # with the real segment paths. The cleanup switches are in settings.
-        concat_shots_id = f"{unique_id}_concat_shots"
-        concat_shots_dict = {
-            "save_folder": output_dir,
-            "save_name": film_name,
-            "fps": cfg.get("fps", 24.0),
-            "loop": loop,
-        }
-        graph[concat_shots_id] = {
-            "class_type": "InfiniteMovieShotsOut",
-            "inputs": {"segment_paths": [collector_id, 0], "sync": concat_shots_dict},
-        }
-        concat_id = f"{unique_id}_concat"
-        concat_inputs = {
-            "sync": [concat_shots_id, 0],
-            "even_motion": False,
-            "loop": loop,
-            "settings": {
-                "free_vram": release_kwargs.get("free_vram", True),
-                "free_ram": release_kwargs.get("free_ram", False),
-            },
-        }
-        graph[concat_id] = {"class_type": "InfiniteMovieAssemble", "inputs": concat_inputs}
-
-    # concat_inside=False: no internal Assemble, no InfiniteMovieVRAMRelease. The user
-    # attaches a visible Assemble node and connects InfiniteMovieRender's
-    # segment_paths / save_folder / save_name outputs to it.
 
     return graph

@@ -2,15 +2,11 @@
 
 Nodes:
 - InfiniteMovieRender: the main node. Takes a sequence of images + per-transition
-  prompts, expands into per-segment FLF2V sub-graphs, and returns the final
-  film path + segment paths.
+  prompts, expands into per-segment FLF2V sub-graphs, and returns the sync pipe
+  (segments + settings) for Cut.
 - InfiniteMovieSegmentSave: writes one segment's frames to an mp4 file (ffmpeg).
-- InfiniteMovieAssemble: concatenates segment mp4s into one film, removing duplicate
-  seam frames.
-- InfiniteMovieFramePairSwitch: standalone helper that selects one (first, last, prompt)
-  transition from a sequence of images.
-- InfiniteMovieVRAMAcquire: waits until the GPU is free for ComfyUI rendering.
-- InfiniteMovieVRAMRelease: frees GPU memory and (optionally) wakes the local LLM.
+- InfiniteMovieSegmentPaths / InfiniteMovieShotsOut: internal collector + blocking
+  bridge to the sync output.
 
 All names are English (package, classes, node_id, display_name, inputs,
 outputs, category, log).
@@ -591,9 +587,7 @@ class InfiniteMovieRender(io.ComfyNode):
                 loop=loop,
                 output_dir=output_dir,
                 film_name=name,
-                concat_inside=False,
                 acquire_kwargs=acquire_kwargs,
-                release_kwargs={},
                 seed_bumps=_parse_reseed(reseed),
                 model_inputs=model_inputs,
                 template=template,

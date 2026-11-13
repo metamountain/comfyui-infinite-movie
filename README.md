@@ -132,8 +132,8 @@ Lower Director › `images`: the last images and their Auto Prompts are removed;
 ## Sound
 
 Settings › `audio` is **off** by default (faster, no audio model is loaded). Turn it on for engines with sound
-(MiniMax H3, LTX). Assemble keeps the sound **only with `even_motion` off** – evening out changes the timing, so the film
-stays silent then. Prompts can describe sound, e.g. `sound: howling wind`.
+(MiniMax H3, LTX). Cut's film keeps the sound; Even Motion's `_even` film is always silent, because evening out changes
+the timing. Prompts can describe sound, e.g. `sound: howling wind`.
 
 ## Nodes
 
@@ -146,7 +146,7 @@ stays silent then. Prompts can describe sound, e.g. `sound: howling wind`.
 | **Director** | 1–8 images + one prompt per transition → renders all shots. `images` sets the count: more adds Load Image nodes (copy of the last image) with Auto Prompts, fewer removes the last ones (remembered). The image list below it reorders (drag) and removes (✕) images. `seconds` per shot (snapped to the engine's frame grid), `loop`, `variants` (`2` = render A and B per shot). Rendered shots are kept: a shot is rendered again only when its seed changes (`reseed` or the base `seed`) – an edited prompt or image alone does not re-render it. Outputs `sync ▶ Cut`, `settings ▶ chain`. Shows progress and remaining time. |
 | **Engine Start / Engine Result** | Left and right edge of an engine group (see [Engines](#engines)). |
 | **Cut** | One tile per shot (A above B with variants). Hover plays, click picks; **✓ KEEP / ✗ REDO** per shot. Each tile shows a check in plain words: green *✓ smooth*, yellow *△ slight flicker*, red *⚠ HARD CUT / HARD SEAM*. **✎ prompt** and **⏱ seconds** change one shot and mark it REDO. Big button: **RENDER VIDEO ▶** (build the film from your picks) or **RERENDER n ↻** (only the marked shots). 3×3 contact sheet of the shot under the mouse. Outputs `video_path`, `last_frame`, `first_frame`, `sync`, `settings ▶ chain`. **▶ film** plays the built film in the preview field. |
-| **Even Motion** | Joins the shots into the film. `even_motion` re-picks frames so each carries about the same change. `time_extend` (1–4×) makes the film longer and slower at the same fps from RIFE in-between frames (silent then). `interpolate` auto = RIFE x2, x4 with time_extend. Runs only on **FILM**. The film mp4 contains the prompt and the workflow. Viewer (3×3 Load-Image tiles, all tabs the same size): **Graph**, **Timeline**, **Heatmap**, **Frames** (slider, ▶, onion skin), **Particles** (motion trails), **Sheet** (3×3 … 8×8, click = open frame). Outputs `video_path`, `last_frame`, `first_frame`. |
+| **Even Motion** | Evens out the camera motion of Cut's film: re-picks frames so each carries about the same change and writes `<name>_even.mp4` (silent). `time_extend` (1–4×) makes the film longer and slower at the same fps from RIFE in-between frames (silent then). `interpolate` auto = RIFE x2, x4 with time_extend. Runs only on **FILM**. The film mp4 contains the prompt and the workflow. Viewer (3×3 Load-Image tiles, all tabs the same size): **Graph**, **Timeline**, **Heatmap**, **Frames** (slider, ▶, onion skin), **Particles** (motion trails), **Sheet** (3×3 … 8×8, click = open frame). Outputs `video_path`, `last_frame`, `first_frame`. |
 | **Video Preview** | Plays any video in a square player (video, images + audio like Video Combine, video_path or a file) and passes it on as **video**. Shows where it was saved, **📂 Open folder**, remembers the last three films. Below Cut: switch **Film / Single shot** (Cut's ▶ play shows the shot here). |
 | **Last Frame** | Last frame of a film – e.g. the start image of the next part. Reads frame by frame. |
 | **Movie to GIF** | Any film → GIF or WebP with a live preview, **save** / **save as…**. See [Movie to GIF](#movie-to-gif). |
