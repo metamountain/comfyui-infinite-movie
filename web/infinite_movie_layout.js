@@ -1,14 +1,15 @@
 // Infinite Movie · workflow layout. Called from the "🔗 AUTO LAYOUT" button on the Director
 // (web/infinite_movie.js → window.fcWorkflowLayout).
 //
-// User 2026-11-03 ("engine at the very top", "help always in the middle above the fields", "box at the front separately"):
-//                 ┌ 1 ENGINE (help centered on top, content as a block) ┐
-//                 └─────────────────────────────────────────────────┘
-//   ┌ 0 README ┐  ┌ 2 Settings ┐┌ 3 Images ┐┌ 4 Prompts ┐┌ 5 Director ┐┌ 6 Choose ┐┌ 7 Assemble + Film ┐┌ 8 Upscale ┐
-//   │          │  │  help      ││  help    ││  help     ││  help      ││  help    ││  help             │  ← ONE row
-//   └──────────┘  │  Nodes     ││  Nodes   ││  Nodes    ││  Nodes     ││  Nodes   ││  Nodes            │
-// Each help note "Help: N · …" sits centered on top INSIDE its group "N · …". Notes without a matching group
-// stay with the README. Anchor: x = README group, y = top edge of the engine.
+// User 2026-11-03 ("engine at the very top", "help always in the middle above the fields", "box at the front separately"),
+// 2026-11-13 ("README outside the groups, without a group, Settings 1, engine 0, README as tall as the groups"):
+//                 ┌ 0 ENGINE (help on the left, nodes in columns) ┐
+//                 └───────────────────────────────────────────────┘
+//    README       ┌ 1 Settings ┐┌ 2 Images ┐┌ 3 Prompts ┐┌ 4 Director ┐┌ 5 Cut ┐┌ 6 Even Motion + Film ┐┌ 7 Upscale ┐┌ 8 GIF ┐
+//   (no group,    │  help      ││  help    ││  help     ││  help      ││  help ││  help                │  ← ONE row
+//    row height)  │  Nodes     ││  Nodes   ││  Nodes    ││  Nodes     ││  Nodes││  Nodes               │
+// Each help note "Help: N · …" sits on top INSIDE its group "N · …". Notes without a matching group stack on the
+// left like the README. Anchor: x = README note, y = top edge of the engine.
 import { app } from "../../scripts/app.js";
 import { IMV_H, IMV_MIN_H, imvDraw } from "./im_viewer.js";
 
@@ -25,8 +26,9 @@ const findGroup = (groups, re) => groups.find((g) => re.test(g.title || ""));
 const isEngineGroup = (g) => /ENGINE/i.test(g.title || "");
 const isNote = (n) => /Note/i.test(n.type || "");
 const isHelp = (n) => /^\s*help/i.test(n.title || "");
-// "Help: 4 · Prompts" / "4 · Prompts" → number 4 and key "prompts"
-const numOf = (t) => { const m = /(\d+)/.exec(t || ""); return m ? +m[1] : null; };
+// "Help: 3 · Prompts" / "3 · Prompts" → number 3 and key "prompts". Only a LEADING group number counts, otherwise
+// "ENGINE: Wan 2.2" would match "Help: 2 · Images".
+const numOf = (t) => { const m = /^\s*(?:help\s*:?\s*)?(\d+)\s*·/i.exec(t || ""); return m ? +m[1] : null; };
 const keyOf = (t) => (t || "").replace(/^\s*help\s*:?/i, "").replace(/[\d·:.\-]+/g, " ").trim().toLowerCase();
 const helpFits = (note, grp) => {
   const a = numOf(note.title), b = numOf(grp.title);
@@ -177,17 +179,19 @@ export function fcWorkflowLayout(director, second = false) {
     if (h) used.add(h);
     return h || null;
   });
-  // README group: README + all notes without their own group, one under another
-  const readme = G(/readme/i);
+  // README + all notes without their own group: no group (user 2026-11-13), one under another on the left.
+  // An old README group is removed.
+  const oldReadme = G(/readme/i);
+  if (oldReadme) g.remove(oldReadme);
   const restNotes = allNotes.filter((n) => !used.has(n))
     .sort((a, b) => (/readme/i.test(b.title || "") ? 1 : 0) - (/readme/i.test(a.title || "") ? 1 : 0));
 
-  // Anchor: x = README group (otherwise the settings/first group of the row), y = top edge of the engine (very top)
-  const anchor = readme || row.find(([grp]) => grp)?.[0];
-  const XR = anchor ? anchor.pos[0] : director.pos[0] - PAD;
-  const TOP = engines.length ? Math.min(...engines.map((e) => e.pos[1])) : (anchor ? anchor.pos[1] : director.pos[1] - T - HEAD);
-  const [rw, rh] = colSize(restNotes, false, null);
-  const X0 = (readme || restNotes.length) ? XR + rw + GAP : XR;
+  // Anchor: x = README note (otherwise the settings/first group of the row), y = top edge of the engine (very top)
+  const firstGrp = row.find(([grp]) => grp)?.[0];
+  const XR = restNotes.length ? restNotes[0].pos[0] : firstGrp ? firstGrp.pos[0] : director.pos[0] - PAD;
+  const TOP = engines.length ? Math.min(...engines.map((e) => e.pos[1])) : (firstGrp ? firstGrp.pos[1] : director.pos[1] - T - HEAD);
+  const rw = restNotes.length ? Math.max(...restNotes.map((n) => n.size[0])) : 0;
+  const X0 = restNotes.length ? XR + rw + GAP : XR;
 
   // 1 Engine at the very top: groups side by side, help centered on top, content as a block below
   let Y = TOP;
@@ -407,14 +411,16 @@ export function fcWorkflowLayout(director, second = false) {
     gifGrp.size = [w, H];
   }
 
-  // 0 README at the front, separate, at the height of the row
-  if (readme || restNotes.length) {
-    placeCol(restNotes, false, null, XR, Y, rw);
-    if (readme) { readme.pos = [XR, Y]; readme.size = [rw, rh]; }
-  }
+  // README at the front without a group: title bar level with the group tops, the last note reaches the group bottom
+  let ry = Y + T;
+  restNotes.forEach((n, k) => {
+    const h = k === restNotes.length - 1 ? Math.max(100, Y + H - ry) : n.size[1];
+    n.pos = [XR, ry]; n.size = [rw, h];
+    ry += h + NGAP + T;
+  });
 
   g.setDirtyCanvas?.(true, true);
-  console.log("[InfiniteMovie] layout: README left / engine top / row 2-7 with help", { XR, X0, TOP, Y, H, second });
+  console.log("[InfiniteMovie] layout: README left / engine 0 top / row 1-8 with help", { XR, X0, TOP, Y, H, second });
   // Second pass: newly created nodes (e.g. auto prompts) only get their real height after the
   // first draw - without re-measuring they overlap.
   if (!second) setTimeout(() => fcWorkflowLayout(director, true), 250);

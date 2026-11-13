@@ -8,7 +8,7 @@
       "id": 1,
       "type": "LoadImage",
       "pos": [
-        2127,
+        2107,
         -437
       ],
       "size": [
@@ -77,7 +77,7 @@
       "id": 2,
       "type": "LoadImage",
       "pos": [
-        2127,
+        2107,
         -53
       ],
       "size": [
@@ -146,7 +146,7 @@
       "id": 3,
       "type": "LoadImage",
       "pos": [
-        2127,
+        2107,
         331
       ],
       "size": [
@@ -215,7 +215,7 @@
       "id": 4,
       "type": "InfiniteMovieRender",
       "pos": [
-        3631,
+        3611,
         -564
       ],
       "size": [
@@ -417,7 +417,7 @@
       "id": 5,
       "type": "InfiniteMovieAutoPrompt",
       "pos": [
-        2879,
+        2859,
         -164
       ],
       "size": [
@@ -524,7 +524,7 @@
       "id": 6,
       "type": "InfiniteMovieAutoPrompt",
       "pos": [
-        2879,
+        2859,
         220
       ],
       "size": [
@@ -631,7 +631,7 @@
       "id": 9,
       "type": "InfiniteMovieSettings",
       "pos": [
-        1375,
+        1355,
         -564
       ],
       "size": [
@@ -764,11 +764,11 @@
       "type": "MarkdownNote",
       "pos": [
         -305,
-        -904
+        -968
       ],
       "size": [
         1600,
-        940
+        2128
       ],
       "flags": {},
       "order": 3,
@@ -784,10 +784,10 @@
         }
       },
       "widgets_values": [
-        "# Infinite Movie\n\nTurns a few stills into one seamless, looping film. The MiniMax H3 engine renders one shot per transition between two images; *Cut* joins the chosen shots into the final film; *Even Motion* (optional) smooths camera moves.\n\nNode pack: https://github.com/metamountain/comfyui-infinite-movie (by metamountain). Feedback and issues welcome.\n\n## How to read this workflow\nLeft: this README. Top: **1 · Engine** (MiniMax H3). Below it ONE row, read left to right – each area has its help note on top:\n2. **Settings** – LLM (one dropdown), size, output folder, film name.\n3. **Images** – load your stills (add more: they grow downwards).\n4. **Prompts** – *Prompt Style* (what the LLM is told, max words, camera) on top, then one *Auto Prompt* per transition.\n5. **Director** – seconds per shot, loop, variants. Click **AUTO LAYOUT** after changes.\n6. **Cut** – check the shots, pick A or B, **RENDER VIDEO ▶** makes the film (with sound).\n7. **Even Motion + Film** – shows the finished film, *Open folder*; Even Motion (off by default) for smooth camera moves.\n\nThe settings are passed along one chain: Settings → Prompt Style → Auto Prompts → Director; from there the `sync` link carries them on to Cut → Even Motion.\nBefore a render starts, Run frees the GPU (unloads the LLM); if it cannot, the render is not queued and a message says why.\n\nOther engines: open **Infinite Movie - Engine LTX 2.5** or **Infinite Movie - Engine Wan 2.2**, copy its group (Ctrl+C), paste it here (Ctrl+V) and mute the MiniMax group (Ctrl+M) – only ONE engine group may be active.\n\n## Required tools\n- ffmpeg (encoding/joining films): usually already there via `imageio-ffmpeg` (installed with VideoHelperSuite), otherwise https://www.gyan.dev/ffmpeg/builds/ (Windows) or https://ffmpeg.org/download.html – put `ffmpeg` on PATH.\n- VideoHelperSuite: https://github.com/Kosinkadink/ComfyUI-VideoHelperSuite\n\n## Models – MiniMax H3 (default engine)\n- diffusion_models: [minimax_h3_fl2va_pruned_int8_convrot](https://huggingface.co/Comfy-Org/MiniMax-H3/resolve/main/diffusion_models/minimax_h3_fl2va_pruned_int8_convrot.safetensors)\n- loras: [minimax_h3_fl2v_turbo_8step_v1.1_768p_comfyui_bf16](https://huggingface.co/lightx2v/Minimax-h3-Turbo/resolve/main/minimax_h3_fl2v_turbo_8step_v1.1_768p_comfyui_bf16.safetensors)\n- text_encoders (CLIPLoader type `minimax`): [qwen3vl_32b_minimax_h3_nvfp4_awq](https://huggingface.co/Comfy-Org/MiniMax-H3/resolve/main/text_encoders/qwen3vl_32b_minimax_h3_nvfp4_awq.safetensors)\n- vae: [minimax_h3_video_vae_int8_convrot](https://huggingface.co/Comfy-Org/MiniMax-H3/resolve/main/vae/minimax_h3_video_vae_int8_convrot.safetensors) · [minimax_h3_audio_vae_fp32](https://huggingface.co/Comfy-Org/MiniMax-H3/resolve/main/vae/minimax_h3_audio_vae_fp32.safetensors)\n- Model page: https://huggingface.co/Comfy-Org/MiniMax-H3\n\n## Optional\n- LTX IC-LoRA pixel upscaler + https://github.com/Lightricks/ComfyUI-LTXVideo\n- Low VRAM (12–16 GB, untested by us): community LTX-2.5 GGUF + https://github.com/city96/ComfyUI-GGUF\n\n**Tested on:** RTX 24 GB, 768×960, single shots up to 60 s (1441 frames).\n\n```\n                          /\\                                  /\\\n              /\\         /  \\        /\\                      /  \\        /\\\n       /\\    /  \\   /\\  /    \\      /  \\    /\\      /\\      /    \\      /  \\    /\\\n      /  \\  /    \\_/  \\/      \\    /    \\__/  \\    /  \\/\\  /      \\  /\\/    \\  /  \\\n ____/    \\/                   \\__/            \\__/      \\/        \\/          \\/    \\_______\n                    _                                                _             _\n  _ __ ___    ___  | |_    __ _   _ __ ___    ___    _   _   _ __   | |_    __ _  (_)  _ __\n | '_ ` _ \\  / _ \\ | __|  / _` | | '_ ` _ \\  / _ \\  | | | | | '_ \\  | __|  / _` | | | | '_ \\\n | | | | | ||  __/ | |_  | (_| | | | | | | || (_) | | |_| | | | | | | |_  | (_| | | | | | | |\n |_| |_| |_| \\___|  \\__|  \\__,_| |_| |_| |_| \\___/   \\__,_| |_| |_|  \\__|  \\__,_| |_| |_| |_|\n\n  metamountain · infinite movie\n```\n"
+        "# Infinite Movie\n\nTurns a few stills into one seamless, looping film. The MiniMax H3 engine renders one shot per transition between two images; *Cut* joins the chosen shots into the final film; *Even Motion* (optional) smooths camera moves.\n\nNode pack: https://github.com/metamountain/comfyui-infinite-movie (by metamountain). Feedback and issues welcome.\n\n## How to read this workflow\nLeft: this README (no group). Top: **0 · Engine** (MiniMax H3). Below it ONE row, read left to right – each area has its help note on top:\n- **1 · Settings** – LLM (one dropdown), size, output folder, film name.\n- **2 · Images** – load your stills (add more: they grow downwards).\n- **3 · Prompts** – *Prompt Style* (what the LLM is told, max words, camera) on top, then one *Auto Prompt* per transition.\n- **4 · Director** – seconds per shot, loop, variants. Click **AUTO LAYOUT** after changes.\n- **5 · Cut** – check the shots, pick A or B, **RENDER VIDEO ▶** makes the film (with sound).\n- **6 · Even Motion + Film** – shows the finished film, *Open folder*; Even Motion (off by default) for smooth camera moves.\n- **7 · Upscale** (optional, Ctrl+M) – sharper, larger film with RelayVSR x4.\n- **8 · Movie to GIF** (optional, Ctrl+M) – a GIF / WebP / MP4 loop of the film.\n\nThe settings are passed along one chain: Settings → Prompt Style → Auto Prompts → Director; from there the `sync` link carries them on to Cut → Even Motion.\nBefore a render starts, Run frees the GPU (unloads the LLM); if it cannot, the render is not queued and a message says why.\n\nOther engines: open **Infinite Movie - Engine LTX 2.5** or **Infinite Movie - Engine Wan 2.2**, copy its group (Ctrl+C), paste it here (Ctrl+V) and mute the MiniMax group (Ctrl+M) – only ONE engine group may be active.\n\n## Required tools\n- ffmpeg (encoding/joining films): usually already there via `imageio-ffmpeg` (installed with VideoHelperSuite), otherwise https://www.gyan.dev/ffmpeg/builds/ (Windows) or https://ffmpeg.org/download.html – put `ffmpeg` on PATH.\n- VideoHelperSuite: https://github.com/Kosinkadink/ComfyUI-VideoHelperSuite\n\n## Models – MiniMax H3 (default engine)\n- diffusion_models: [minimax_h3_fl2va_pruned_int8_convrot](https://huggingface.co/Comfy-Org/MiniMax-H3/resolve/main/diffusion_models/minimax_h3_fl2va_pruned_int8_convrot.safetensors)\n- loras: [minimax_h3_fl2v_turbo_8step_v1.1_768p_comfyui_bf16](https://huggingface.co/lightx2v/Minimax-h3-Turbo/resolve/main/minimax_h3_fl2v_turbo_8step_v1.1_768p_comfyui_bf16.safetensors)\n- text_encoders (CLIPLoader type `minimax`): [qwen3vl_32b_minimax_h3_nvfp4_awq](https://huggingface.co/Comfy-Org/MiniMax-H3/resolve/main/text_encoders/qwen3vl_32b_minimax_h3_nvfp4_awq.safetensors)\n- vae: [minimax_h3_video_vae_int8_convrot](https://huggingface.co/Comfy-Org/MiniMax-H3/resolve/main/vae/minimax_h3_video_vae_int8_convrot.safetensors) · [minimax_h3_audio_vae_fp32](https://huggingface.co/Comfy-Org/MiniMax-H3/resolve/main/vae/minimax_h3_audio_vae_fp32.safetensors)\n- Model page: https://huggingface.co/Comfy-Org/MiniMax-H3\n\n## Optional\n- LTX IC-LoRA pixel upscaler + https://github.com/Lightricks/ComfyUI-LTXVideo\n- Low VRAM (12–16 GB, untested by us): community LTX-2.5 GGUF + https://github.com/city96/ComfyUI-GGUF\n\n**Tested on:** RTX 24 GB, 768×960, single shots up to 60 s (1441 frames).\n\n```\n                          /\\                                  /\\\n              /\\         /  \\        /\\                      /  \\        /\\\n       /\\    /  \\   /\\  /    \\      /  \\    /\\      /\\      /    \\      /  \\    /\\\n      /  \\  /    \\_/  \\/      \\    /    \\__/  \\    /  \\/\\  /      \\  /\\/    \\  /  \\\n ____/    \\/                   \\__/            \\__/      \\/        \\/          \\/    \\_______\n                    _                                                _             _\n  _ __ ___    ___  | |_    __ _   _ __ ___    ___    _   _   _ __   | |_    __ _  (_)  _ __\n | '_ ` _ \\  / _ \\ | __|  / _` | | '_ ` _ \\  / _ \\  | | | | | '_ \\  | __|  / _` | | | | '_ \\\n | | | | | ||  __/ | |_  | (_| | | | | | | || (_) | | |_| | | | | | | |_  | (_| | | | | | | |\n |_| |_| |_| \\___|  \\__|  \\__,_| |_| |_| |_| \\___/   \\__,_| |_| |_|  \\__|  \\__,_| |_| |_| |_|\n\n  metamountain · infinite movie\n```\n"
       ],
       "widgets_values_named": {
-        "text": "# Infinite Movie\n\nTurns a few stills into one seamless, looping film. The MiniMax H3 engine renders one shot per transition between two images; *Cut* joins the chosen shots into the final film; *Even Motion* (optional) smooths camera moves.\n\nNode pack: https://github.com/metamountain/comfyui-infinite-movie (by metamountain). Feedback and issues welcome.\n\n## How to read this workflow\nLeft: this README. Top: **1 · Engine** (MiniMax H3). Below it ONE row, read left to right – each area has its help note on top:\n2. **Settings** – LLM (one dropdown), size, output folder, film name.\n3. **Images** – load your stills (add more: they grow downwards).\n4. **Prompts** – *Prompt Style* (what the LLM is told, max words, camera) on top, then one *Auto Prompt* per transition.\n5. **Director** – seconds per shot, loop, variants. Click **AUTO LAYOUT** after changes.\n6. **Cut** – check the shots, pick A or B, **RENDER VIDEO ▶** makes the film (with sound).\n7. **Even Motion + Film** – shows the finished film, *Open folder*; Even Motion (off by default) for smooth camera moves.\n\nThe settings are passed along one chain: Settings → Prompt Style → Auto Prompts → Director; from there the `sync` link carries them on to Cut → Even Motion.\nBefore a render starts, Run frees the GPU (unloads the LLM); if it cannot, the render is not queued and a message says why.\n\nOther engines: open **Infinite Movie - Engine LTX 2.5** or **Infinite Movie - Engine Wan 2.2**, copy its group (Ctrl+C), paste it here (Ctrl+V) and mute the MiniMax group (Ctrl+M) – only ONE engine group may be active.\n\n## Required tools\n- ffmpeg (encoding/joining films): usually already there via `imageio-ffmpeg` (installed with VideoHelperSuite), otherwise https://www.gyan.dev/ffmpeg/builds/ (Windows) or https://ffmpeg.org/download.html – put `ffmpeg` on PATH.\n- VideoHelperSuite: https://github.com/Kosinkadink/ComfyUI-VideoHelperSuite\n\n## Models – MiniMax H3 (default engine)\n- diffusion_models: [minimax_h3_fl2va_pruned_int8_convrot](https://huggingface.co/Comfy-Org/MiniMax-H3/resolve/main/diffusion_models/minimax_h3_fl2va_pruned_int8_convrot.safetensors)\n- loras: [minimax_h3_fl2v_turbo_8step_v1.1_768p_comfyui_bf16](https://huggingface.co/lightx2v/Minimax-h3-Turbo/resolve/main/minimax_h3_fl2v_turbo_8step_v1.1_768p_comfyui_bf16.safetensors)\n- text_encoders (CLIPLoader type `minimax`): [qwen3vl_32b_minimax_h3_nvfp4_awq](https://huggingface.co/Comfy-Org/MiniMax-H3/resolve/main/text_encoders/qwen3vl_32b_minimax_h3_nvfp4_awq.safetensors)\n- vae: [minimax_h3_video_vae_int8_convrot](https://huggingface.co/Comfy-Org/MiniMax-H3/resolve/main/vae/minimax_h3_video_vae_int8_convrot.safetensors) · [minimax_h3_audio_vae_fp32](https://huggingface.co/Comfy-Org/MiniMax-H3/resolve/main/vae/minimax_h3_audio_vae_fp32.safetensors)\n- Model page: https://huggingface.co/Comfy-Org/MiniMax-H3\n\n## Optional\n- LTX IC-LoRA pixel upscaler + https://github.com/Lightricks/ComfyUI-LTXVideo\n- Low VRAM (12–16 GB, untested by us): community LTX-2.5 GGUF + https://github.com/city96/ComfyUI-GGUF\n\n**Tested on:** RTX 24 GB, 768×960, single shots up to 60 s (1441 frames).\n\n```\n                          /\\                                  /\\\n              /\\         /  \\        /\\                      /  \\        /\\\n       /\\    /  \\   /\\  /    \\      /  \\    /\\      /\\      /    \\      /  \\    /\\\n      /  \\  /    \\_/  \\/      \\    /    \\__/  \\    /  \\/\\  /      \\  /\\/    \\  /  \\\n ____/    \\/                   \\__/            \\__/      \\/        \\/          \\/    \\_______\n                    _                                                _             _\n  _ __ ___    ___  | |_    __ _   _ __ ___    ___    _   _   _ __   | |_    __ _  (_)  _ __\n | '_ ` _ \\  / _ \\ | __|  / _` | | '_ ` _ \\  / _ \\  | | | | | '_ \\  | __|  / _` | | | | '_ \\\n | | | | | ||  __/ | |_  | (_| | | | | | | || (_) | | |_| | | | | | | |_  | (_| | | | | | | |\n |_| |_| |_| \\___|  \\__|  \\__,_| |_| |_| |_| \\___/   \\__,_| |_| |_|  \\__|  \\__,_| |_| |_| |_|\n\n  metamountain · infinite movie\n```\n"
+        "text": "# Infinite Movie\n\nTurns a few stills into one seamless, looping film. The MiniMax H3 engine renders one shot per transition between two images; *Cut* joins the chosen shots into the final film; *Even Motion* (optional) smooths camera moves.\n\nNode pack: https://github.com/metamountain/comfyui-infinite-movie (by metamountain). Feedback and issues welcome.\n\n## How to read this workflow\nLeft: this README (no group). Top: **0 · Engine** (MiniMax H3). Below it ONE row, read left to right – each area has its help note on top:\n- **1 · Settings** – LLM (one dropdown), size, output folder, film name.\n- **2 · Images** – load your stills (add more: they grow downwards).\n- **3 · Prompts** – *Prompt Style* (what the LLM is told, max words, camera) on top, then one *Auto Prompt* per transition.\n- **4 · Director** – seconds per shot, loop, variants. Click **AUTO LAYOUT** after changes.\n- **5 · Cut** – check the shots, pick A or B, **RENDER VIDEO ▶** makes the film (with sound).\n- **6 · Even Motion + Film** – shows the finished film, *Open folder*; Even Motion (off by default) for smooth camera moves.\n- **7 · Upscale** (optional, Ctrl+M) – sharper, larger film with RelayVSR x4.\n- **8 · Movie to GIF** (optional, Ctrl+M) – a GIF / WebP / MP4 loop of the film.\n\nThe settings are passed along one chain: Settings → Prompt Style → Auto Prompts → Director; from there the `sync` link carries them on to Cut → Even Motion.\nBefore a render starts, Run frees the GPU (unloads the LLM); if it cannot, the render is not queued and a message says why.\n\nOther engines: open **Infinite Movie - Engine LTX 2.5** or **Infinite Movie - Engine Wan 2.2**, copy its group (Ctrl+C), paste it here (Ctrl+V) and mute the MiniMax group (Ctrl+M) – only ONE engine group may be active.\n\n## Required tools\n- ffmpeg (encoding/joining films): usually already there via `imageio-ffmpeg` (installed with VideoHelperSuite), otherwise https://www.gyan.dev/ffmpeg/builds/ (Windows) or https://ffmpeg.org/download.html – put `ffmpeg` on PATH.\n- VideoHelperSuite: https://github.com/Kosinkadink/ComfyUI-VideoHelperSuite\n\n## Models – MiniMax H3 (default engine)\n- diffusion_models: [minimax_h3_fl2va_pruned_int8_convrot](https://huggingface.co/Comfy-Org/MiniMax-H3/resolve/main/diffusion_models/minimax_h3_fl2va_pruned_int8_convrot.safetensors)\n- loras: [minimax_h3_fl2v_turbo_8step_v1.1_768p_comfyui_bf16](https://huggingface.co/lightx2v/Minimax-h3-Turbo/resolve/main/minimax_h3_fl2v_turbo_8step_v1.1_768p_comfyui_bf16.safetensors)\n- text_encoders (CLIPLoader type `minimax`): [qwen3vl_32b_minimax_h3_nvfp4_awq](https://huggingface.co/Comfy-Org/MiniMax-H3/resolve/main/text_encoders/qwen3vl_32b_minimax_h3_nvfp4_awq.safetensors)\n- vae: [minimax_h3_video_vae_int8_convrot](https://huggingface.co/Comfy-Org/MiniMax-H3/resolve/main/vae/minimax_h3_video_vae_int8_convrot.safetensors) · [minimax_h3_audio_vae_fp32](https://huggingface.co/Comfy-Org/MiniMax-H3/resolve/main/vae/minimax_h3_audio_vae_fp32.safetensors)\n- Model page: https://huggingface.co/Comfy-Org/MiniMax-H3\n\n## Optional\n- LTX IC-LoRA pixel upscaler + https://github.com/Lightricks/ComfyUI-LTXVideo\n- Low VRAM (12–16 GB, untested by us): community LTX-2.5 GGUF + https://github.com/city96/ComfyUI-GGUF\n\n**Tested on:** RTX 24 GB, 768×960, single shots up to 60 s (1441 frames).\n\n```\n                          /\\                                  /\\\n              /\\         /  \\        /\\                      /  \\        /\\\n       /\\    /  \\   /\\  /    \\      /  \\    /\\      /\\      /    \\      /  \\    /\\\n      /  \\  /    \\_/  \\/      \\    /    \\__/  \\    /  \\/\\  /      \\  /\\/    \\  /  \\\n ____/    \\/                   \\__/            \\__/      \\/        \\/          \\/    \\_______\n                    _                                                _             _\n  _ __ ___    ___  | |_    __ _   _ __ ___    ___    _   _   _ __   | |_    __ _  (_)  _ __\n | '_ ` _ \\  / _ \\ | __|  / _` | | '_ ` _ \\  / _ \\  | | | | | '_ \\  | __|  / _` | | | | '_ \\\n | | | | | ||  __/ | |_  | (_| | | | | | | || (_) | | |_| | | | | | | |_  | (_| | | | | | | |\n |_| |_| |_| \\___|  \\__|  \\__,_| |_| |_| |_| \\___/   \\__,_| |_| |_|  \\__|  \\__,_| |_| |_| |_|\n\n  metamountain · infinite movie\n```\n"
       },
       "color": "#322",
       "bgcolor": "#533"
@@ -796,7 +796,7 @@
       "id": 52,
       "type": "InfiniteMovieAutoPrompt",
       "pos": [
-        2879,
+        2859,
         604
       ],
       "size": [
@@ -903,7 +903,7 @@
       "id": 60,
       "type": "MarkdownNote",
       "pos": [
-        2127,
+        2107,
         -904
       ],
       "size": [
@@ -915,7 +915,7 @@
       "mode": 0,
       "inputs": [],
       "outputs": [],
-      "title": "Help: 3 · Images",
+      "title": "Help: 2 · Images",
       "properties": {
         "ue_properties": {
           "widget_ue_connectable": {},
@@ -924,10 +924,10 @@
         }
       },
       "widgets_values": [
-        "## 3 · Images\nYour stills, top to bottom = order in the film.\n- **Load Image** → Director `image 1`, `image 2`, …\n- More or fewer images: set Director › `images` – new Load Images (copy of the last image) and their Auto Prompts are added and laid out automatically. Then replace the copies with your pictures.\n- Leave an image out: select it, Ctrl+M (mute)."
+        "## 2 · Images\nYour stills, top to bottom = order in the film.\n- **Load Image** → Director `image 1`, `image 2`, …\n- More or fewer images: set Director › `images` – new Load Images (copy of the last image) and their Auto Prompts are added and laid out automatically. Then replace the copies with your pictures.\n- Leave an image out: select it, Ctrl+M (mute)."
       ],
       "widgets_values_named": {
-        "text": "## 3 · Images\nYour stills, top to bottom = order in the film.\n- **Load Image** → Director `image 1`, `image 2`, …\n- More or fewer images: set Director › `images` – new Load Images (copy of the last image) and their Auto Prompts are added and laid out automatically. Then replace the copies with your pictures.\n- Leave an image out: select it, Ctrl+M (mute)."
+        "text": "## 2 · Images\nYour stills, top to bottom = order in the film.\n- **Load Image** → Director `image 1`, `image 2`, …\n- More or fewer images: set Director › `images` – new Load Images (copy of the last image) and their Auto Prompts are added and laid out automatically. Then replace the copies with your pictures.\n- Leave an image out: select it, Ctrl+M (mute)."
       },
       "color": "#322",
       "bgcolor": "#533"
@@ -936,7 +936,7 @@
       "id": 61,
       "type": "MarkdownNote",
       "pos": [
-        2879,
+        2859,
         -904
       ],
       "size": [
@@ -948,7 +948,7 @@
       "mode": 0,
       "inputs": [],
       "outputs": [],
-      "title": "Help: 4 · Prompts",
+      "title": "Help: 3 · Prompts",
       "properties": {
         "ue_properties": {
           "widget_ue_connectable": {},
@@ -957,10 +957,10 @@
         }
       },
       "widgets_values": [
-        "## 4 · Prompts\n- **Prompt Style** (top): what the prompt model is told, `max_words`, `camera`. Applies to all Auto Prompts.\n- **Auto Prompt** (one per transition, sits between its two images): type a few words into `keywords`, press **🔄 Regenerate prompt** – the model looks at both images and writes `prompt`. Edit it freely; Run never rewrites it.\n- Output `prompt` → Director; `settings ▶ chain` → next node."
+        "## 3 · Prompts\n- **Prompt Style** (top): what the prompt model is told, `max_words`, `camera`. Applies to all Auto Prompts.\n- **Auto Prompt** (one per transition, sits between its two images): type a few words into `keywords`, press **🔄 Regenerate prompt** – the model looks at both images and writes `prompt`. Edit it freely; Run never rewrites it.\n- Output `prompt` → Director; `settings ▶ chain` → next node."
       ],
       "widgets_values_named": {
-        "text": "## 4 · Prompts\n- **Prompt Style** (top): what the prompt model is told, `max_words`, `camera`. Applies to all Auto Prompts.\n- **Auto Prompt** (one per transition, sits between its two images): type a few words into `keywords`, press **🔄 Regenerate prompt** – the model looks at both images and writes `prompt`. Edit it freely; Run never rewrites it.\n- Output `prompt` → Director; `settings ▶ chain` → next node."
+        "text": "## 3 · Prompts\n- **Prompt Style** (top): what the prompt model is told, `max_words`, `camera`. Applies to all Auto Prompts.\n- **Auto Prompt** (one per transition, sits between its two images): type a few words into `keywords`, press **🔄 Regenerate prompt** – the model looks at both images and writes `prompt`. Edit it freely; Run never rewrites it.\n- Output `prompt` → Director; `settings ▶ chain` → next node."
       },
       "color": "#322",
       "bgcolor": "#533"
@@ -969,7 +969,7 @@
       "id": 62,
       "type": "MarkdownNote",
       "pos": [
-        1375,
+        1355,
         -904
       ],
       "size": [
@@ -981,7 +981,7 @@
       "mode": 0,
       "inputs": [],
       "outputs": [],
-      "title": "Help: 2 · Settings",
+      "title": "Help: 1 · Settings",
       "properties": {
         "ue_properties": {
           "widget_ue_connectable": {},
@@ -990,10 +990,10 @@
         }
       },
       "widgets_values": [
-        "## 2 · Settings\nOne node for the whole workflow.\n- `prompt_model`: local vision model that writes the prompts (Qwen3-VL in `models/text_encoders`); `off` = write them yourself.\n- `aspect` + `long_side`: picture size (both sides rounded to 32; 4:5 + 960 = 768×960).\n- `output_folder` (**📂 Choose folder**, default `Infinite Movie` inside ComfyUI's output folder) and `film_name`: where the film goes and what it is called. Inside the folder: `cache_movies/<film_name>/` = the rendered shots (render cache, safe to delete), `raw/` = the chosen shots when `raw` is on.\n- `raw`: also save the chosen shots one by one (`<film_name>_shot01.mp4` …, with sound) – for cutting them yourself.\n- `audio`: sound from the engine (off = faster, silent film).\n- **📦 Check models**: lists missing model files with their size and downloads them.\n- Output `settings ▶ chain` → Prompt Style."
+        "## 1 · Settings\nOne node for the whole workflow.\n- `prompt_model`: local vision model that writes the prompts (Qwen3-VL in `models/text_encoders`); `off` = write them yourself.\n- `aspect` + `long_side`: picture size (both sides rounded to 32; 4:5 + 960 = 768×960).\n- `output_folder` (**📂 Choose folder**, default `infinite_movie` inside ComfyUI's output folder) and `film_name`: where the film goes and what it is called. Inside the folder: `cache_movies/<film_name>/` = the rendered shots (render cache, safe to delete), `raw/` = the chosen shots when `raw` is on.\n- `raw`: also save the chosen shots one by one (`<film_name>_shot01.mp4` …, with sound) – for cutting them yourself.\n- `audio`: sound from the engine (off = faster, silent film).\n- **📦 Check models**: lists missing model files with their size and downloads them.\n- Output `settings ▶ chain` → Prompt Style."
       ],
       "widgets_values_named": {
-        "text": "## 2 · Settings\nOne node for the whole workflow.\n- `prompt_model`: local vision model that writes the prompts (Qwen3-VL in `models/text_encoders`); `off` = write them yourself.\n- `aspect` + `long_side`: picture size (both sides rounded to 32; 4:5 + 960 = 768×960).\n- `output_folder` (**📂 Choose folder**, default `Infinite Movie` inside ComfyUI's output folder) and `film_name`: where the film goes and what it is called. Inside the folder: `cache_movies/<film_name>/` = the rendered shots (render cache, safe to delete), `raw/` = the chosen shots when `raw` is on.\n- `raw`: also save the chosen shots one by one (`<film_name>_shot01.mp4` …, with sound) – for cutting them yourself.\n- `audio`: sound from the engine (off = faster, silent film).\n- **📦 Check models**: lists missing model files with their size and downloads them.\n- Output `settings ▶ chain` → Prompt Style."
+        "text": "## 1 · Settings\nOne node for the whole workflow.\n- `prompt_model`: local vision model that writes the prompts (Qwen3-VL in `models/text_encoders`); `off` = write them yourself.\n- `aspect` + `long_side`: picture size (both sides rounded to 32; 4:5 + 960 = 768×960).\n- `output_folder` (**📂 Choose folder**, default `infinite_movie` inside ComfyUI's output folder) and `film_name`: where the film goes and what it is called. Inside the folder: `cache_movies/<film_name>/` = the rendered shots (render cache, safe to delete), `raw/` = the chosen shots when `raw` is on.\n- `raw`: also save the chosen shots one by one (`<film_name>_shot01.mp4` …, with sound) – for cutting them yourself.\n- `audio`: sound from the engine (off = faster, silent film).\n- **📦 Check models**: lists missing model files with their size and downloads them.\n- Output `settings ▶ chain` → Prompt Style."
       },
       "color": "#322",
       "bgcolor": "#533"
@@ -1002,7 +1002,7 @@
       "id": 63,
       "type": "MarkdownNote",
       "pos": [
-        3631,
+        3611,
         -904
       ],
       "size": [
@@ -1014,7 +1014,7 @@
       "mode": 0,
       "inputs": [],
       "outputs": [],
-      "title": "Help: 5 · Director",
+      "title": "Help: 4 · Director",
       "properties": {
         "ue_properties": {
           "widget_ue_connectable": {},
@@ -1023,10 +1023,10 @@
         }
       },
       "widgets_values": [
-        "## 5 · Director\nTurns images + prompts into shots.\n- `images`: number of images (adds or removes Load Image + Auto Prompt, then lays out; removed ones come back when raised).\n- **Image list** (top = first): drag an image up or down – it gets a blue frame, a blue line between the images shows where it lands. ✕ removes it. Transitions with a new image pair get an empty prompt → 🔄 regenerate.\n- `seconds` per shot, `loop` (last image back to the first), `variants` (2 = render A and B, pick in Cut), `seed`.\n- **🔗 AUTO LAYOUT**: tidies all groups and wires Director → Cut → Even Motion.\n- Output `sync ▶ Cut` → Cut: all shot data **and the settings** travel over this one link."
+        "## 4 · Director\nTurns images + prompts into shots.\n- `images`: number of images (adds or removes Load Image + Auto Prompt, then lays out; removed ones come back when raised).\n- **Image list** (top = first): drag an image up or down – it gets a blue frame, a blue line between the images shows where it lands. ✕ removes it. Transitions with a new image pair get an empty prompt → 🔄 regenerate.\n- `seconds` per shot, `loop` (last image back to the first), `variants` (2 = render A and B, pick in Cut), `seed`.\n- **🔗 AUTO LAYOUT**: tidies all groups and wires Director → Cut → Even Motion.\n- Output `sync ▶ Cut` → Cut: all shot data **and the settings** travel over this one link."
       ],
       "widgets_values_named": {
-        "text": "## 5 · Director\nTurns images + prompts into shots.\n- `images`: number of images (adds or removes Load Image + Auto Prompt, then lays out; removed ones come back when raised).\n- **Image list** (top = first): drag an image up or down – it gets a blue frame, a blue line between the images shows where it lands. ✕ removes it. Transitions with a new image pair get an empty prompt → 🔄 regenerate.\n- `seconds` per shot, `loop` (last image back to the first), `variants` (2 = render A and B, pick in Cut), `seed`.\n- **🔗 AUTO LAYOUT**: tidies all groups and wires Director → Cut → Even Motion.\n- Output `sync ▶ Cut` → Cut: all shot data **and the settings** travel over this one link."
+        "text": "## 4 · Director\nTurns images + prompts into shots.\n- `images`: number of images (adds or removes Load Image + Auto Prompt, then lays out; removed ones come back when raised).\n- **Image list** (top = first): drag an image up or down – it gets a blue frame, a blue line between the images shows where it lands. ✕ removes it. Transitions with a new image pair get an empty prompt → 🔄 regenerate.\n- `seconds` per shot, `loop` (last image back to the first), `variants` (2 = render A and B, pick in Cut), `seed`.\n- **🔗 AUTO LAYOUT**: tidies all groups and wires Director → Cut → Even Motion.\n- Output `sync ▶ Cut` → Cut: all shot data **and the settings** travel over this one link."
       },
       "color": "#322",
       "bgcolor": "#533"
@@ -1035,7 +1035,7 @@
       "id": 64,
       "type": "MarkdownNote",
       "pos": [
-        4383,
+        4363,
         -904
       ],
       "size": [
@@ -1047,7 +1047,7 @@
       "mode": 0,
       "inputs": [],
       "outputs": [],
-      "title": "Help: 6 · Cut",
+      "title": "Help: 5 · Cut",
       "properties": {
         "ue_properties": {
           "widget_ue_connectable": {},
@@ -1056,10 +1056,10 @@
         }
       },
       "widgets_values": [
-        "## 6 · Cut\nHere the film is decided and made.\n- Hover plays a shot; click picks it (A/B with `variants` = 2). **✓ KEEP / ✗ REDO** per shot; red *⚠ HARD CUT / SEAM* marks bad joins.\n- **▶ play** under a shot shows it big with sound below; **▶ film** plays the finished film.\n- **✎ prompt** / **⏱ seconds** change one shot and mark it REDO.\n- Big button: **RENDER VIDEO ▶** joins the chosen shots into the film (with sound when Settings › `audio` is on) and runs everything behind Cut; **RERENDER n ↻** renders only the marked shots.\n- Analysis of each shot: Heatmap · Frames · Particles · Sheet.\n- Outputs `sync` → Even Motion (carries all shot data and the settings), `video_path` (the film) → Film / Upscale, `last_frame`, `first_frame`."
+        "## 5 · Cut\nHere the film is decided and made.\n- Hover plays a shot; click picks it (A/B with `variants` = 2). **✓ KEEP / ✗ REDO** per shot; red *⚠ HARD CUT / SEAM* marks bad joins.\n- **▶ play** under a shot shows it big with sound below; **▶ film** plays the finished film.\n- **✎ prompt** / **⏱ seconds** change one shot and mark it REDO.\n- Big button: **RENDER VIDEO ▶** joins the chosen shots into the film (with sound when Settings › `audio` is on) and runs everything behind Cut; **RERENDER n ↻** renders only the marked shots.\n- Analysis of each shot: Heatmap · Frames · Particles · Sheet.\n- Outputs `sync` → Even Motion (carries all shot data and the settings), `video_path` (the film) → Film / Upscale, `last_frame`, `first_frame`."
       ],
       "widgets_values_named": {
-        "text": "## 6 · Cut\nHere the film is decided and made.\n- Hover plays a shot; click picks it (A/B with `variants` = 2). **✓ KEEP / ✗ REDO** per shot; red *⚠ HARD CUT / SEAM* marks bad joins.\n- **▶ play** under a shot shows it big with sound below; **▶ film** plays the finished film.\n- **✎ prompt** / **⏱ seconds** change one shot and mark it REDO.\n- Big button: **RENDER VIDEO ▶** joins the chosen shots into the film (with sound when Settings › `audio` is on) and runs everything behind Cut; **RERENDER n ↻** renders only the marked shots.\n- Analysis of each shot: Heatmap · Frames · Particles · Sheet.\n- Outputs `sync` → Even Motion (carries all shot data and the settings), `video_path` (the film) → Film / Upscale, `last_frame`, `first_frame`."
+        "text": "## 5 · Cut\nHere the film is decided and made.\n- Hover plays a shot; click picks it (A/B with `variants` = 2). **✓ KEEP / ✗ REDO** per shot; red *⚠ HARD CUT / SEAM* marks bad joins.\n- **▶ play** under a shot shows it big with sound below; **▶ film** plays the finished film.\n- **✎ prompt** / **⏱ seconds** change one shot and mark it REDO.\n- Big button: **RENDER VIDEO ▶** joins the chosen shots into the film (with sound when Settings › `audio` is on) and runs everything behind Cut; **RERENDER n ↻** renders only the marked shots.\n- Analysis of each shot: Heatmap · Frames · Particles · Sheet.\n- Outputs `sync` → Even Motion (carries all shot data and the settings), `video_path` (the film) → Film / Upscale, `last_frame`, `first_frame`."
       },
       "color": "#322",
       "bgcolor": "#533"
@@ -1068,7 +1068,7 @@
       "id": 65,
       "type": "MarkdownNote",
       "pos": [
-        5887,
+        5867,
         -904
       ],
       "size": [
@@ -1080,7 +1080,7 @@
       "mode": 0,
       "inputs": [],
       "outputs": [],
-      "title": "Help: 7 · Even Motion + Film",
+      "title": "Help: 6 · Even Motion + Film",
       "properties": {
         "ue_properties": {
           "widget_ue_connectable": {},
@@ -1089,10 +1089,10 @@
         }
       },
       "widgets_values": [
-        "## 7 · Even Motion + Film\n- **Film**: plays the film from Cut, shows where it was saved, **📂 Open folder**.\n- **Even Motion** (optional, off by default – select it, **Ctrl+M** turns it on): for smooth camera moves (architecture, fly-throughs). Re-picks the frames of every shot so each carries about the same change; `time_extend` (1–4×) makes the film longer and slower at the same fps from RIFE in-between frames. Writes `<film_name>_even.mp4` (silent). To watch or upscale it, connect its `video_path` to Film / Upscale instead of Cut's.\n- Viewer: Graph · Timeline (grey = as rendered, coloured = evened out)."
+        "## 6 · Even Motion + Film\n- **Film**: plays the film from Cut, shows where it was saved, **📂 Open folder**.\n- **Even Motion** (optional, off by default – select it, **Ctrl+M** turns it on): for smooth camera moves (architecture, fly-throughs). Re-picks the frames of every shot so each carries about the same change; `time_extend` (1–4×) makes the film longer and slower at the same fps from RIFE in-between frames. Writes `<film_name>_even.mp4` (silent). To watch or upscale it, connect its `video_path` to Film / Upscale instead of Cut's.\n- Viewer: Graph · Timeline (grey = as rendered, coloured = evened out)."
       ],
       "widgets_values_named": {
-        "text": "## 7 · Even Motion + Film\n- **Film**: plays the film from Cut, shows where it was saved, **📂 Open folder**.\n- **Even Motion** (optional, off by default – select it, **Ctrl+M** turns it on): for smooth camera moves (architecture, fly-throughs). Re-picks the frames of every shot so each carries about the same change; `time_extend` (1–4×) makes the film longer and slower at the same fps from RIFE in-between frames. Writes `<film_name>_even.mp4` (silent). To watch or upscale it, connect its `video_path` to Film / Upscale instead of Cut's.\n- Viewer: Graph · Timeline (grey = as rendered, coloured = evened out)."
+        "text": "## 6 · Even Motion + Film\n- **Film**: plays the film from Cut, shows where it was saved, **📂 Open folder**.\n- **Even Motion** (optional, off by default – select it, **Ctrl+M** turns it on): for smooth camera moves (architecture, fly-throughs). Re-picks the frames of every shot so each carries about the same change; `time_extend` (1–4×) makes the film longer and slower at the same fps from RIFE in-between frames. Writes `<film_name>_even.mp4` (silent). To watch or upscale it, connect its `video_path` to Film / Upscale instead of Cut's.\n- Viewer: Graph · Timeline (grey = as rendered, coloured = evened out)."
       },
       "color": "#322",
       "bgcolor": "#533"
@@ -1101,7 +1101,7 @@
       "id": 69,
       "type": "InfiniteMovieStyle",
       "pos": [
-        2879,
+        2859,
         -564
       ],
       "size": [
@@ -1184,7 +1184,7 @@
       "id": 70,
       "type": "LoadImage",
       "pos": [
-        2127,
+        2107,
         715
       ],
       "size": [
@@ -1253,7 +1253,7 @@
       "id": 71,
       "type": "InfiniteMovieAutoPrompt",
       "pos": [
-        2879,
+        2859,
         988
       ],
       "size": [
@@ -1360,7 +1360,7 @@
       "id": 73,
       "type": "UNETLoader",
       "pos": [
-        6639,
+        6619,
         -564
       ],
       "size": [
@@ -1431,7 +1431,7 @@
       "id": 74,
       "type": "VAELoader",
       "pos": [
-        6639,
+        6619,
         -384
       ],
       "size": [
@@ -1491,7 +1491,7 @@
       "id": 84,
       "type": "MarkdownNote",
       "pos": [
-        6639,
+        6619,
         -904
       ],
       "size": [
@@ -1503,7 +1503,7 @@
       "mode": 2,
       "inputs": [],
       "outputs": [],
-      "title": "Help: 8 · Upscale",
+      "title": "Help: 7 · Upscale",
       "properties": {
         "ue_properties": {
           "widget_ue_connectable": {},
@@ -1512,10 +1512,10 @@
         }
       },
       "widgets_values": [
-        "## 8 · Upscale (optional)\n- Off by default. **Select the group, Ctrl+M** turns it on.\n- Then **RENDER VIDEO ▶** also renders an upscaled film with **RelayVSR x4**, scaled down to 1920 (calm and sharp), with the film's sound.\n- **ram_gb** is the divider: the film is upscaled in segments that fit this much RAM – any length works. Lower it if RAM runs out.\n- x2 is faster (relayvsr_x2_… + flash_vae_x2). Alternative: LTX Refine in `example_workflows/Upscaler/`.\n- The second **Film** node shows the upscaled version."
+        "## 7 · Upscale (optional)\n- Off by default. **Select the group, Ctrl+M** turns it on.\n- Then **RENDER VIDEO ▶** also renders an upscaled film with **RelayVSR x4**, scaled down to 1920 (calm and sharp), with the film's sound.\n- **ram_gb** is the divider: the film is upscaled in segments that fit this much RAM – any length works. Lower it if RAM runs out.\n- x2 is faster (relayvsr_x2_… + flash_vae_x2). Alternative: LTX Refine in `example_workflows/Upscaler/`.\n- The second **Film** node shows the upscaled version."
       ],
       "widgets_values_named": {
-        "text": "## 8 · Upscale (optional)\n- Off by default. **Select the group, Ctrl+M** turns it on.\n- Then **RENDER VIDEO ▶** also renders an upscaled film with **RelayVSR x4**, scaled down to 1920 (calm and sharp), with the film's sound.\n- **ram_gb** is the divider: the film is upscaled in segments that fit this much RAM – any length works. Lower it if RAM runs out.\n- x2 is faster (relayvsr_x2_… + flash_vae_x2). Alternative: LTX Refine in `example_workflows/Upscaler/`.\n- The second **Film** node shows the upscaled version."
+        "text": "## 7 · Upscale (optional)\n- Off by default. **Select the group, Ctrl+M** turns it on.\n- Then **RENDER VIDEO ▶** also renders an upscaled film with **RelayVSR x4**, scaled down to 1920 (calm and sharp), with the film's sound.\n- **ram_gb** is the divider: the film is upscaled in segments that fit this much RAM – any length works. Lower it if RAM runs out.\n- x2 is faster (relayvsr_x2_… + flash_vae_x2). Alternative: LTX Refine in `example_workflows/Upscaler/`.\n- The second **Film** node shows the upscaled version."
       },
       "color": "#322",
       "bgcolor": "#533"
@@ -1524,7 +1524,7 @@
       "id": 85,
       "type": "UNETLoader",
       "pos": [
-        1955,
+        1935,
         -1808
       ],
       "size": [
@@ -1594,7 +1594,7 @@
       "id": 86,
       "type": "LoraLoaderModelOnly",
       "pos": [
-        2298.167578125,
+        2278.167578125,
         -1518
       ],
       "size": [
@@ -1671,7 +1671,7 @@
       "id": 87,
       "type": "CLIPLoader",
       "pos": [
-        1955,
+        1935,
         -1656
       ],
       "size": [
@@ -1753,7 +1753,7 @@
       "id": 88,
       "type": "VAELoader",
       "pos": [
-        1955,
+        1935,
         -1480
       ],
       "size": [
@@ -1813,7 +1813,7 @@
       "id": 89,
       "type": "VAELoader",
       "pos": [
-        1955,
+        1935,
         -1352
       ],
       "size": [
@@ -1872,7 +1872,7 @@
       "id": 90,
       "type": "InfiniteMovieEngineIn",
       "pos": [
-        1955,
+        1935,
         -1224
       ],
       "size": [
@@ -1956,7 +1956,7 @@
       "id": 91,
       "type": "MiniMaxH3ImageToVideo",
       "pos": [
-        2298.167578125,
+        2278.167578125,
         -1808
       ],
       "size": [
@@ -2081,7 +2081,7 @@
       "id": 92,
       "type": "VAEDecode",
       "pos": [
-        3162.30234375,
+        3142.30234375,
         -1808
       ],
       "size": [
@@ -2128,7 +2128,7 @@
       "id": 93,
       "type": "VAEDecodeAudio",
       "pos": [
-        3162.30234375,
+        3142.30234375,
         -1692
       ],
       "size": [
@@ -2175,7 +2175,7 @@
       "id": 94,
       "type": "InfiniteMovieEngineOut",
       "pos": [
-        3412.30234375,
+        3392.30234375,
         -1808
       ],
       "size": [
@@ -2257,7 +2257,7 @@
       "id": 95,
       "type": "MarkdownNote",
       "pos": [
-        1375,
+        1355,
         -1808
       ],
       "size": [
@@ -2269,7 +2269,7 @@
       "mode": 0,
       "inputs": [],
       "outputs": [],
-      "title": "Help: 1 · Engine: MiniMax H3",
+      "title": "Help: 0 · Engine: MiniMax H3",
       "properties": {
         "Node name for S&R": "MarkdownNote",
         "ue_properties": {
@@ -2279,10 +2279,10 @@
         }
       },
       "widgets_values": [
-        "## 1 · Engine (video model)\nThe engine renders one shot (start image → end image) per call from the Director. It is a normal, visible group:\n**Engine Start** (from Director: images, prompt, seed, size, length) → *your model chain* → **Engine Result** (to Director: frames + sound).\n\n| Engine | fps | Frames | Sound |\n|---|---|---|---|\n| **MiniMax H3** (this group, default) | 24 | 17k+5 | yes |\n| LTX 2.5 | 24 | 8n+1 | yes |\n| Wan 2.2 | 16 | 4n+1 | no |\n\n**Switch engine:**\n1. Templates (left bar) › *comfyui-infinite-movie* › open `Infinite Movie - Engine LTX 2.5` or `… Wan 2.2`.\n2. Click its group title, **Ctrl+C**, come back here, **Ctrl+V**.\n3. Mute this MiniMax group: click its title, **Ctrl+M**. Only **one** engine group may be active.\n4. **🔗 AUTO LAYOUT** on the Director – it finds the active Engine Result by itself.\n\n**Own engine (any video model):** easiest is to copy an engine group and swap the model nodes. From scratch:\n1. Double-click the canvas, add **Engine Start · Infinite Movie** and **Engine Result · Infinite Movie**.\n2. Engine Start → your model: `start_image` / `end_image` → the image-to-video (first/last frame) node, `prompt` → text encoder, `seed` → sampler, `width` / `height` / `length` → the video/latent size.\n3. Your decoded frames (IMAGE) → Engine Result › `images` (or a VIDEO → `video`), sound → `audio`.\n4. Engine Result: `fps` = your model's fps, `length_grid` (advanced) = its frame step (Wan 4, LTX 8, H3 17).\n5. Put it in a group, mute the other engine group (Ctrl+M), **🔗 AUTO LAYOUT**.\nNo hidden presets – what you see is what renders.\n\n**This group (MiniMax H3):** first/last frame, int8, 8-step turbo LoRA v1.1 (768p). KSampler 8 steps, cfg 1, `res_multistep`, `simple`; negative = ConditioningZeroOut. Without the LoRA: bypass it, 20–25 steps. Sound is kept only when Settings › `audio` is on.\n"
+        "## 0 · Engine (video model)\nThe engine renders one shot (start image → end image) per call from the Director. It is a normal, visible group:\n**Engine Start** (from Director: images, prompt, seed, size, length) → *your model chain* → **Engine Result** (to Director: frames + sound).\n\n| Engine | fps | Frames | Sound |\n|---|---|---|---|\n| **MiniMax H3** (this group, default) | 24 | 17k+5 | yes |\n| LTX 2.5 | 24 | 8n+1 | yes |\n| Wan 2.2 | 16 | 4n+1 | no |\n\n**Switch engine:**\n1. Templates (left bar) › *comfyui-infinite-movie* › open `Infinite Movie - Engine LTX 2.5` or `… Wan 2.2`.\n2. Click its group title, **Ctrl+C**, come back here, **Ctrl+V**.\n3. Mute this MiniMax group: click its title, **Ctrl+M**. Only **one** engine group may be active.\n- **3 · 🔗 AUTO LAYOUT** on the Director – it finds the active Engine Result by itself.\n\n**Own engine (any video model):** easiest is to copy an engine group and swap the model nodes. From scratch:\n1. Double-click the canvas, add **Engine Start · Infinite Movie** and **Engine Result · Infinite Movie**.\n2. Engine Start → your model: `start_image` / `end_image` → the image-to-video (first/last frame) node, `prompt` → text encoder, `seed` → sampler, `width` / `height` / `length` → the video/latent size.\n3. Your decoded frames (IMAGE) → Engine Result › `images` (or a VIDEO → `video`), sound → `audio`.\n4. Engine Result: `fps` = your model's fps, `length_grid` (advanced) = its frame step (Wan 4, LTX 8, H3 17).\n5. Put it in a group, mute the other engine group (Ctrl+M), **🔗 AUTO LAYOUT**.\nNo hidden presets – what you see is what renders.\n\n**This group (MiniMax H3):** first/last frame, int8, 8-step turbo LoRA v1.1 (768p). KSampler 8 steps, cfg 1, `res_multistep`, `simple`; negative = ConditioningZeroOut. Without the LoRA: bypass it, 20–25 steps. Sound is kept only when Settings › `audio` is on.\n"
       ],
       "widgets_values_named": {
-        "text": "## 1 · Engine (video model)\nThe engine renders one shot (start image → end image) per call from the Director. It is a normal, visible group:\n**Engine Start** (from Director: images, prompt, seed, size, length) → *your model chain* → **Engine Result** (to Director: frames + sound).\n\n| Engine | fps | Frames | Sound |\n|---|---|---|---|\n| **MiniMax H3** (this group, default) | 24 | 17k+5 | yes |\n| LTX 2.5 | 24 | 8n+1 | yes |\n| Wan 2.2 | 16 | 4n+1 | no |\n\n**Switch engine:**\n1. Templates (left bar) › *comfyui-infinite-movie* › open `Infinite Movie - Engine LTX 2.5` or `… Wan 2.2`.\n2. Click its group title, **Ctrl+C**, come back here, **Ctrl+V**.\n3. Mute this MiniMax group: click its title, **Ctrl+M**. Only **one** engine group may be active.\n4. **🔗 AUTO LAYOUT** on the Director – it finds the active Engine Result by itself.\n\n**Own engine (any video model):** easiest is to copy an engine group and swap the model nodes. From scratch:\n1. Double-click the canvas, add **Engine Start · Infinite Movie** and **Engine Result · Infinite Movie**.\n2. Engine Start → your model: `start_image` / `end_image` → the image-to-video (first/last frame) node, `prompt` → text encoder, `seed` → sampler, `width` / `height` / `length` → the video/latent size.\n3. Your decoded frames (IMAGE) → Engine Result › `images` (or a VIDEO → `video`), sound → `audio`.\n4. Engine Result: `fps` = your model's fps, `length_grid` (advanced) = its frame step (Wan 4, LTX 8, H3 17).\n5. Put it in a group, mute the other engine group (Ctrl+M), **🔗 AUTO LAYOUT**.\nNo hidden presets – what you see is what renders.\n\n**This group (MiniMax H3):** first/last frame, int8, 8-step turbo LoRA v1.1 (768p). KSampler 8 steps, cfg 1, `res_multistep`, `simple`; negative = ConditioningZeroOut. Without the LoRA: bypass it, 20–25 steps. Sound is kept only when Settings › `audio` is on.\n"
+        "text": "## 0 · Engine (video model)\nThe engine renders one shot (start image → end image) per call from the Director. It is a normal, visible group:\n**Engine Start** (from Director: images, prompt, seed, size, length) → *your model chain* → **Engine Result** (to Director: frames + sound).\n\n| Engine | fps | Frames | Sound |\n|---|---|---|---|\n| **MiniMax H3** (this group, default) | 24 | 17k+5 | yes |\n| LTX 2.5 | 24 | 8n+1 | yes |\n| Wan 2.2 | 16 | 4n+1 | no |\n\n**Switch engine:**\n1. Templates (left bar) › *comfyui-infinite-movie* › open `Infinite Movie - Engine LTX 2.5` or `… Wan 2.2`.\n2. Click its group title, **Ctrl+C**, come back here, **Ctrl+V**.\n3. Mute this MiniMax group: click its title, **Ctrl+M**. Only **one** engine group may be active.\n- **3 · 🔗 AUTO LAYOUT** on the Director – it finds the active Engine Result by itself.\n\n**Own engine (any video model):** easiest is to copy an engine group and swap the model nodes. From scratch:\n1. Double-click the canvas, add **Engine Start · Infinite Movie** and **Engine Result · Infinite Movie**.\n2. Engine Start → your model: `start_image` / `end_image` → the image-to-video (first/last frame) node, `prompt` → text encoder, `seed` → sampler, `width` / `height` / `length` → the video/latent size.\n3. Your decoded frames (IMAGE) → Engine Result › `images` (or a VIDEO → `video`), sound → `audio`.\n4. Engine Result: `fps` = your model's fps, `length_grid` (advanced) = its frame step (Wan 4, LTX 8, H3 17).\n5. Put it in a group, mute the other engine group (Ctrl+M), **🔗 AUTO LAYOUT**.\nNo hidden presets – what you see is what renders.\n\n**This group (MiniMax H3):** first/last frame, int8, 8-step turbo LoRA v1.1 (768p). KSampler 8 steps, cfg 1, `res_multistep`, `simple`; negative = ConditioningZeroOut. Without the LoRA: bypass it, 20–25 steps. Sound is kept only when Settings › `audio` is on.\n"
       },
       "color": "#322",
       "bgcolor": "#533"
@@ -2291,7 +2291,7 @@
       "id": 96,
       "type": "ConditioningZeroOut",
       "pos": [
-        2648.167578125,
+        2628.167578125,
         -1808
       ],
       "size": [
@@ -2335,7 +2335,7 @@
       "id": 97,
       "type": "KSampler",
       "pos": [
-        2872.30234375,
+        2852.30234375,
         -1808
       ],
       "size": [
@@ -2469,7 +2469,7 @@
       "id": 98,
       "type": "InfiniteMovieRelayVSRUpscale",
       "pos": [
-        6959,
+        6939,
         -564
       ],
       "size": [
@@ -2651,7 +2651,7 @@
       "id": 99,
       "type": "InfiniteMovieStoryMode",
       "pos": [
-        1375,
+        1355,
         -244
       ],
       "size": [
@@ -2826,7 +2826,7 @@
       "id": 100,
       "type": "MarkdownNote",
       "pos": [
-        1375,
+        1355,
         700
       ],
       "size": [
@@ -2859,7 +2859,7 @@
       "id": 53,
       "type": "InfiniteMovieChooser",
       "pos": [
-        4383,
+        4363,
         -564
       ],
       "size": [
@@ -2944,7 +2944,7 @@
       "id": 8,
       "type": "InfiniteMovieAssemble",
       "pos": [
-        5887,
+        5867,
         -564
       ],
       "size": [
@@ -3071,7 +3071,7 @@
       "id": 101,
       "type": "InfiniteMovieGif",
       "pos": [
-        7391,
+        7371,
         -564
       ],
       "size": [
@@ -3345,7 +3345,7 @@
       "id": 102,
       "type": "MarkdownNote",
       "pos": [
-        7391,
+        7371,
         -904
       ],
       "size": [
@@ -3357,7 +3357,7 @@
       "mode": 0,
       "inputs": [],
       "outputs": [],
-      "title": "Help: 9 · Movie to GIF",
+      "title": "Help: 8 · Movie to GIF",
       "properties": {
         "ue_properties": {
           "widget_ue_connectable": {},
@@ -3366,10 +3366,10 @@
         }
       },
       "widgets_values": [
-        "## 9 · Movie to GIF (optional)\n- Off by default. **Select the node, Ctrl+M** turns it on; then **RENDER VIDEO ▶** also makes a GIF (or WebP / MP4 loop) of the film.\n- Input: the film from Cut (`video_path`). Any video works: `video`, `images`, `video_path` or a file from the list.\n- `format`, `long_side` (480 = small and sharp), `crop` (square, 4:5 …).\n- Time, at the bottom above the preview: `start` / `end` cut a part, `direction` (forward, backward, ping-pong), **`speed`** changes the length (2 = twice as fast, 0.5 = slow motion), **`fps`** changes only the smoothness and the size (0 = the film's own rate).\n- The preview line shows length, speed, fps and the expected file size before you save.\n- **save** / **save as**; `auto_save (batch)` saves every run into `output_folder` (`filename` with # = counter)."
+        "## 8 · Movie to GIF (optional)\n- Off by default. **Select the node, Ctrl+M** turns it on; then **RENDER VIDEO ▶** also makes a GIF (or WebP / MP4 loop) of the film.\n- Input: the film from Cut (`video_path`). Any video works: `video`, `images`, `video_path` or a file from the list.\n- `format`, `long_side` (480 = small and sharp), `crop` (square, 4:5 …).\n- Time, at the bottom above the preview: `start` / `end` cut a part, `direction` (forward, backward, ping-pong), **`speed`** changes the length (2 = twice as fast, 0.5 = slow motion), **`fps`** changes only the smoothness and the size (0 = the film's own rate).\n- The preview line shows length, speed, fps and the expected file size before you save.\n- **save** / **save as**; `auto_save (batch)` saves every run into `output_folder` (`filename` with # = counter)."
       ],
       "widgets_values_named": {
-        "text": "## 9 · Movie to GIF (optional)\n- Off by default. **Select the node, Ctrl+M** turns it on; then **RENDER VIDEO ▶** also makes a GIF (or WebP / MP4 loop) of the film.\n- Input: the film from Cut (`video_path`). Any video works: `video`, `images`, `video_path` or a file from the list.\n- `format`, `long_side` (480 = small and sharp), `crop` (square, 4:5 …).\n- Time, at the bottom above the preview: `start` / `end` cut a part, `direction` (forward, backward, ping-pong), **`speed`** changes the length (2 = twice as fast, 0.5 = slow motion), **`fps`** changes only the smoothness and the size (0 = the film's own rate).\n- The preview line shows length, speed, fps and the expected file size before you save.\n- **save** / **save as**; `auto_save (batch)` saves every run into `output_folder` (`filename` with # = counter)."
+        "text": "## 8 · Movie to GIF (optional)\n- Off by default. **Select the node, Ctrl+M** turns it on; then **RENDER VIDEO ▶** also makes a GIF (or WebP / MP4 loop) of the film.\n- Input: the film from Cut (`video_path`). Any video works: `video`, `images`, `video_path` or a file from the list.\n- `format`, `long_side` (480 = small and sharp), `crop` (square, 4:5 …).\n- Time, at the bottom above the preview: `start` / `end` cut a part, `direction` (forward, backward, ping-pong), **`speed`** changes the length (2 = twice as fast, 0.5 = slow motion), **`fps`** changes only the smoothness and the size (0 = the film's own rate).\n- The preview line shows length, speed, fps and the expected file size before you save.\n- **save** / **save as**; `auto_save (batch)` saves every run into `output_folder` (`filename` with # = counter)."
       },
       "color": "#322",
       "bgcolor": "#533"
@@ -3378,7 +3378,7 @@
       "id": 103,
       "type": "InfiniteMovieFilm",
       "pos": [
-        5135,
+        5115,
         352
       ],
       "size": [
@@ -3470,7 +3470,7 @@
       "id": 104,
       "type": "InfiniteMovieFilm",
       "pos": [
-        6639,
+        6619,
         352
       ],
       "size": [
@@ -3562,7 +3562,7 @@
       "id": 105,
       "type": "InfiniteMovieFilm",
       "pos": [
-        5887,
+        5867,
         352
       ],
       "size": [
@@ -4081,9 +4081,9 @@
   "groups": [
     {
       "id": 62,
-      "title": "1 · Engine: MiniMax H3",
+      "title": "0 · Engine: MiniMax H3",
       "bounding": [
-        1355,
+        1335,
         -1902,
         2968,
         864
@@ -4092,22 +4092,10 @@
       "flags": {}
     },
     {
-      "id": 60,
-      "title": "0 · README",
-      "bounding": [
-        -325,
-        -998,
-        1640,
-        1054
-      ],
-      "color": "#444444",
-      "flags": {}
-    },
-    {
       "id": 54,
-      "title": "3 · Images",
+      "title": "2 · Images",
       "bounding": [
-        2107,
+        2087,
         -998,
         712,
         2158
@@ -4117,9 +4105,9 @@
     },
     {
       "id": 55,
-      "title": "4 · Prompts",
+      "title": "3 · Prompts",
       "bounding": [
-        2859,
+        2839,
         -998,
         712,
         2158
@@ -4129,9 +4117,9 @@
     },
     {
       "id": 56,
-      "title": "2 · Settings",
+      "title": "1 · Settings",
       "bounding": [
-        1355,
+        1335,
         -998,
         712,
         2158
@@ -4141,9 +4129,9 @@
     },
     {
       "id": 57,
-      "title": "5 · Director",
+      "title": "4 · Director",
       "bounding": [
-        3611,
+        3591,
         -998,
         712,
         2158
@@ -4153,9 +4141,9 @@
     },
     {
       "id": 58,
-      "title": "6 · Cut",
+      "title": "5 · Cut",
       "bounding": [
-        4363,
+        4343,
         -998,
         1464,
         2158
@@ -4165,9 +4153,9 @@
     },
     {
       "id": 59,
-      "title": "7 · Even Motion + Film",
+      "title": "6 · Even Motion + Film",
       "bounding": [
-        5867,
+        5847,
         -998,
         712,
         2158
@@ -4177,9 +4165,9 @@
     },
     {
       "id": 61,
-      "title": "8 · Upscale (optional – Ctrl+M to turn on)",
+      "title": "7 · Upscale (optional – Ctrl+M to turn on)",
       "bounding": [
-        6619,
+        6599,
         -998,
         712,
         2158
@@ -4189,9 +4177,9 @@
     },
     {
       "id": 63,
-      "title": "9 · Movie to GIF",
+      "title": "8 · Movie to GIF",
       "bounding": [
-        7371,
+        7351,
         -998,
         712,
         2158
@@ -4205,10 +4193,10 @@
   "extra": {
     "ue_links": [],
     "ds": {
-      "scale": 0.4324954128440367,
+      "scale": 0.475744954128441,
       "offset": [
-        -2352.34483051207,
-        1043.7113402061855
+        414.6368560180265,
+        1873.107554568031
       ]
     },
     "links_added_by_ue": [],

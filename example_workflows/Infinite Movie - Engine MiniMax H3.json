@@ -565,14 +565,14 @@
         "Node name for S&R": "MarkdownNote"
       },
       "widgets_values": [
-        "## 1 · Engine: MiniMax H3\nRenders one shot (start image → end image) per call from the Director. MiniMax H3 first/last-frame, int8, **8-step turbo LoRA v1.1** (768p), video + sound.\n- **Engine Start · Infinite Movie** (from Director): `start_image`, `end_image`, `prompt`, `seed`, `width`, `height`, `length`.\n- **UNETLoader + Turbo LoRA 8 steps**: H3 model + LoRA (strength 1). Without the LoRA: bypass it, 20–25 steps.\n- **CLIPLoader** (type `minimax`): Qwen3-VL 32B text encoder. **VAELoader** ×2: video + audio VAE.\n- **MiniMax H3 Image To Video**: first/last frame, prompt, size and length from Engine Start (last frame optional).\n- **KSampler**: 8 steps, cfg 1, res_multistep, simple; seed from Engine Start. Negative = empty (ConditioningZeroOut), ignored at cfg 1.\n- **Engine Result · Infinite Movie** (to Director): frames + sound, 24 fps, `length_grid` 17 (H3 snaps to 17k+5 frames).\n- Sound is only kept when Settings › `audio` is on.\n- Other engines: `Infinite Movie - Engine LTX 2.5` / `Infinite Movie - Engine Wan 2.2`. Only ONE engine group may be active; mute the other (select group, Ctrl+M)."
+        "## 0 · Engine: MiniMax H3\nRenders one shot (start image → end image) per call from the Director. MiniMax H3 first/last-frame, int8, **8-step turbo LoRA v1.1** (768p), video + sound.\n- **Engine Start · Infinite Movie** (from Director): `start_image`, `end_image`, `prompt`, `seed`, `width`, `height`, `length`.\n- **UNETLoader + Turbo LoRA 8 steps**: H3 model + LoRA (strength 1). Without the LoRA: bypass it, 20–25 steps.\n- **CLIPLoader** (type `minimax`): Qwen3-VL 32B text encoder. **VAELoader** ×2: video + audio VAE.\n- **MiniMax H3 Image To Video**: first/last frame, prompt, size and length from Engine Start (last frame optional).\n- **KSampler**: 8 steps, cfg 1, res_multistep, simple; seed from Engine Start. Negative = empty (ConditioningZeroOut), ignored at cfg 1.\n- **Engine Result · Infinite Movie** (to Director): frames + sound, 24 fps, `length_grid` 17 (H3 snaps to 17k+5 frames).\n- Sound is only kept when Settings › `audio` is on.\n- Other engines: `Infinite Movie - Engine LTX 2.5` / `Infinite Movie - Engine Wan 2.2`. Only ONE engine group may be active; mute the other (select group, Ctrl+M)."
       ],
       "widgets_values_named": {
         "text": "## 1 · Engine: MiniMax H3\nRenders one shot (start image → end image) per call from the Director. MiniMax H3 first/last-frame, int8, **8-step turbo LoRA v1.1** (768p), video + sound.\n- **Engine Start · Infinite Movie** (from Director): `start_image`, `end_image`, `prompt`, `seed`, `width`, `height`, `length`.\n- **UNETLoader + Turbo LoRA 8 steps**: H3 model + LoRA (strength 1). Without the LoRA: bypass it, 20–25 steps.\n- **CLIPLoader** (type `minimax`): Qwen3-VL 32B text encoder. **VAELoader** ×2: video + audio VAE.\n- **MiniMax H3 Image To Video**: first/last frame, prompt, size and length from Engine Start (last frame optional).\n- **KSampler**: 8 steps, cfg 1, res_multistep, simple; seed from Engine Start. Negative = empty (ConditioningZeroOut), ignored at cfg 1.\n- **Engine Result · Infinite Movie** (to Director): frames + sound, 24 fps, `length_grid` 17 (H3 snaps to 17k+5 frames).\n- Sound is only kept when Settings › `audio` is on.\n- Other engines: `Infinite Movie - Engine LTX 2.5` / `Infinite Movie - Engine Wan 2.2`. Only ONE engine group may be active; mute the other (select group, Ctrl+M)."
       },
       "color": "#322",
       "bgcolor": "#533",
-      "title": "Help: 1 · Engine: MiniMax H3"
+      "title": "Help: 0 · Engine: MiniMax H3"
     },
     {
       "id": 12,
@@ -861,7 +861,7 @@
   "groups": [
     {
       "id": 62,
-      "title": "1 · Engine: MiniMax H3",
+      "title": "0 · Engine: MiniMax H3",
       "bounding": [
         0,
         0,

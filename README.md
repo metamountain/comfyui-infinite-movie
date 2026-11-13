@@ -34,18 +34,19 @@ A local vision model writes the prompts for you if you like. Built for a single 
 
 ## The workflow at a glance
 
-The engine sits at the top, below it one row read from left to right. Every area has a help note at its top.
+The README sits on the left, the engine at the top, below it one row read from left to right. Every area has a help note at its top.
 
 | Area | What you do there |
 |---|---|
-| **1 · Engine** | The video model (MiniMax H3). Normally nothing to change. |
-| **2 · Settings** | Prompt model, picture size, output folder, film name, sound on/off, **📦 Check models**. |
-| **3 · Images** | Your stills, top to bottom = order in the film. |
-| **4 · Prompts** | *Prompt Style* (how prompts are written) and one *Auto Prompt* per transition. |
-| **5 · Director** | `images` (how many), the image list (drag to reorder, ✕ to remove), seconds per shot, `loop` (last image back to the first), `variants` (1 or 2 per shot). |
-| **6 · Cut** | Check the shots, pick A/B, **RENDER VIDEO ▶** writes the film (with sound). |
-| **7 · Even Motion + Film** | optional: smooth camera moves, `<name>_even.mp4`. |
-| **8 · Upscale** | Optional (muted): sharper, larger film. Select the group and press Ctrl+M to turn it on. |
+| **0 · Engine** | The video model (MiniMax H3), on top. Normally nothing to change. |
+| **1 · Settings** | Prompt model, picture size, output folder, film name, sound on/off, **📦 Check models**. |
+| **2 · Images** | Your stills, top to bottom = order in the film. |
+| **3 · Prompts** | *Prompt Style* (how prompts are written) and one *Auto Prompt* per transition. |
+| **4 · Director** | `images` (how many), the image list (drag to reorder, ✕ to remove), seconds per shot, `loop` (last image back to the first), `variants` (1 or 2 per shot). |
+| **5 · Cut** | Check the shots, pick A/B, **RENDER VIDEO ▶** writes the film (with sound). |
+| **6 · Even Motion + Film** | optional: smooth camera moves, `<name>_even.mp4`. |
+| **7 · Upscale** | Optional (muted): sharper, larger film. Select the group and press Ctrl+M to turn it on. |
+| **8 · Movie to GIF** | Optional (muted): a GIF / WebP / MP4 loop of the film. Select the node and press Ctrl+M. |
 
 Settings are passed along one chain: Settings → Prompt Style → Auto Prompts → Director → Even Motion.
 
@@ -246,7 +247,7 @@ disk. Below the preview one line tells you what you will get:
 
 ## Upscale
 
-Group **8 · Upscale** (muted, Ctrl+M turns it on) in the main workflow upscales the assembled film with RelayVSR x4:
+Group **7 · Upscale** (muted, Ctrl+M turns it on) in the main workflow upscales the assembled film with RelayVSR x4:
 
 ```
 Assemble › video_path  →  RelayVSR Upscale · Infinite Movie (x4 → 1920, ram_gb 16)  →  Film
