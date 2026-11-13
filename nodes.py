@@ -351,8 +351,11 @@ class InfiniteMovieRender(io.ComfyNode):
                 io.Int.Input(
                     "seed",
                     default=42,
-                    control_after_generate=True,
-                    tooltip="Base seed (per-segment seed = seed + index; 'reseed' adds 1000 for single segments).",
+                    # 2026-11-13 (night debug 120): fixed, not randomize - a new base seed re-renders EVERY shot on each
+                    # Run (rendered shots are kept only while their seed stays); new seeds per shot: ✗ REDO in Cut
+                    control_after_generate=io.ControlAfterGenerate.fixed,
+                    tooltip="Base seed (per-segment seed = seed + index; 'reseed' adds 1000 for single segments). "
+                            "Changing it re-renders all shots; ✗ REDO in Cut gives single shots a new seed.",
                 ),
                 io.String.Input(
                     "reseed",
