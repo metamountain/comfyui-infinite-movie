@@ -961,10 +961,9 @@ class InfiniteMovieRender(io.ComfyNode):
         for _si, _sp in enumerate(seg_prompts):
             print(f"[InfiniteMovie] scene {_si} prompt: {_sp[:80]}")
 
-        # 3. Output directory.
-        import folder_paths
-        output_root = folder_paths.get_output_directory()
-        output_dir = os.path.join(output_root, "infinite_movie", name)
+        # 3. Output directory. 116b1: shots go to <film_folder>/cache_movies/<name> (render cache).
+        from .settings_nodes import film_folder
+        output_dir = os.path.join(film_folder(settings), "cache_movies", name)
         os.makedirs(output_dir, exist_ok=True)
 
         # 3b. Skip mechanism (Auftrag 61): if all segments (A+B) already exist
@@ -1107,7 +1106,7 @@ class InfiniteMovieRender(io.ComfyNode):
             scene_frames_list.append(length)
         film_dict = {
             "segments": [ln.strip() for ln in (seg_paths_str or "").splitlines() if ln.strip()],
-            "save_folder": output_dir,
+            "save_folder": film_folder(settings),
             "save_name": name,
             "fps": cfg.get("fps", 24.0),
             "loop": loop,

@@ -76,7 +76,7 @@ DERIVED_GPU_KEYS = ["min_free_mb", "acquire_timeout_s", "free_vram", "free_ram"]
 
 # Widgets of the Settings node (order = schema).
 SETTING_KEYS = [
-    "prompt_model", "aspect", "long_side", "output_folder", "film_name", "audio",
+    "prompt_model", "aspect", "long_side", "output_folder", "film_name", "raw", "audio",
 ]
 # Prompt style: widgets of Prompt Style; always present in the dict (defaults).
 STYLE_KEYS = ["instruction", "max_words", "camera"]  # no audio (user 2026-11-04: sound in the prompt = dead weight)
@@ -91,8 +91,10 @@ def settings_defaults() -> dict:
         "long_side": LONG_SIDE_DEFAULT,
         "width": 0,    # without a Settings node: size of the engine (0 = engine default)
         "height": 0,
-        "output_folder": "",
+        "output_folder": "Infinite Movie",
         "film_name": "",
+        # 116b1: raw = the chosen shots are saved one by one to <output_folder>/raw/ as well.
+        "raw": False,
         # 2026-11-08 (user: "normally I don't need audio, please disable it! … setting"): sound off = the engine
         # does not decode audio (no audio VAE load), segments and film stay silent.
         "audio": False,
@@ -117,6 +119,23 @@ def get_setting(settings, key):
     if isinstance(settings, dict) and key in settings:
         return settings[key]
     return settings_defaults()[key]
+
+
+def film_folder(settings) -> str:
+    """116b1: film folder from settings > output_folder.
+
+    Empty -> "Infinite Movie"; a relative name lies inside ComfyUI/output,
+    an absolute path stays as is.
+    """
+    import os
+
+    import folder_paths
+    folder = str(get_setting(settings, "output_folder") or "").strip()
+    if not folder:
+        folder = "Infinite Movie"
+    if not os.path.isabs(folder):
+        folder = os.path.join(folder_paths.get_output_directory(), folder)
+    return folder
 
 
 def chain_settings(settings) -> dict:
@@ -149,11 +168,15 @@ class InfiniteMovieSettings(io.ComfyNode):
                 io.Int.Input("long_side", default=LONG_SIDE_DEFAULT, min=256, max=2048, step=32,
                              tooltip="Longest side in pixels (rounded to 32). 960 with 4:5 = 768×960 (LTX template); "
                                      "1344 with 4:5 = 1088×1344 (≈ Instagram 1080×1350)."),
-                io.String.Input("output_folder", default="",
-                                tooltip="Folder for the finished film. Empty = next to the shots "
-                                        "(ComfyUI output/infinite_movie/<name>). Use 📂 Choose folder."),
+                io.String.Input("output_folder", default="Infinite Movie",
+                                tooltip="Folder for the films. A relative name lies inside ComfyUI/output. "
+                                        "Inside it: cache_movies/<film_name>/ = rendered shots (render cache, "
+                                        "safe to delete), raw/ = the chosen shots when raw is on. Use 📂 Choose folder."),
                 io.String.Input("film_name", default="",
                                 tooltip="File name of the finished film (no extension). Empty = 'infinite_movie'."),
+                io.Boolean.Input("raw", default=False, label_on="on", label_off="off",
+                                 tooltip="Also save the chosen shots one by one to <output_folder>/raw/ "
+                                         "(<film_name>_shot01.mp4 …, in film order, with sound) - for cutting them yourself."),
                 io.Boolean.Input("audio", default=False, label_on="on", label_off="off",
                                  tooltip="Sound from engines that make it (LTX). Off (default) = the audio is not decoded "
                                          "(saves the audio VAE load per shot) and shots and film stay silent."),
