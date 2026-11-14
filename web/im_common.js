@@ -61,13 +61,36 @@ export function fcShotSecondsOf(director, shotNumber) {
   return entry > 0 ? entry : global;
 }
 
-// 124c: number of film images - storyboard entries with an image, or (images batch linked) at least 2.
-export function imShotImageCount(director) {
-  let shots = [];
-  try { shots = JSON.parse(director?.widgets?.find((w) => w.name === "shots")?.value || "[]"); } catch { shots = []; }
-  const batch = (director?.inputs || []).some((i) => i.name === "images" && i.link != null);
-  return batch ? Math.max(2, shots.length) : shots.filter((x) => x?.image).length;
+// 124c: the Director's storyboard list (raw JSON of the storyboard widget; [] when empty or broken).
+export function imParseStoryboard(director) {
+  try {
+    const v = JSON.parse(director?.widgets?.find((w) => w.name === "storyboard")?.value || "[]");
+    return Array.isArray(v) ? v.filter((x) => x && typeof x === "object") : [];
+  } catch { return []; }
 }
+
+// Number of film images - storyboard entries with an image, or (images batch linked) at least 2.
+export function imShotImageCount(director) {
+  const shots = imParseStoryboard(director);
+  const batch = (director?.inputs || []).some((i) => i.name === "images" && i.link != null);
+  return batch ? Math.max(2, shots.length) : shots.filter((x) => x.image).length;
+}
+
+// Films of the storyboard without a prompt (image i -> i+1, loop: last -> first), as "1 → 2" labels.
+export function imEmptyPromptFilms(director) {
+  const s = imParseStoryboard(director), n = s.length;
+  const loop = !!director?.widgets?.find((w) => w.name === "loop")?.value;
+  const out = [];
+  for (let i = 0; i < n; i++) {
+    const j = i + 1 < n ? i + 1 : loop && n > 1 ? 0 : -1;
+    if (j >= 0 && s[i].image && s[j].image && !String(s[i].prompt || "").trim()) out.push(`${i + 1} → ${j + 1}`);
+  }
+  return out;
+}
+
+// 124b: a prompt-writing run (storyboard ↻ / Write all) = Director with a non-empty regen widget. Renders nothing.
+export const imPromptRun = (n) => n?.comfyClass === "InfiniteMovieRender"
+  && !!String(n.widgets?.find((w) => w.name === "regen")?.value || "").trim();
 
 // Auto Prompt · Regenerate (2026-11-03): the prompt is created IN ComfyUI with the local model from
 // Settings › prompt_model (autoprompt.py). The button queues ONLY this node (partial execution:
@@ -217,23 +240,18 @@ export function wrapQueue() {
       }
     }
     // 72 (user 2026-11-03: „prompts automatically filled – prefer manual“): a full run generates no
-    // prompts. Empty Auto Prompts -> message, NO queue. Regenerate (partial targets in args[2]) goes through.
+    // prompts. Films without a prompt -> ask, NO queue on cancel. Prompt writing (partial run) goes through.
     const partial = !userRun;
-    if (!partial) {
-      const empty = (app.graph?._nodes || []).filter((n) => n.comfyClass === "InfiniteMovieAutoPrompt"
-        && (n.mode ?? 0) === 0 && (n.outputs?.[0]?.links || []).length
-        && !String(n.widgets?.find((w) => w.name === "prompt")?.value ?? "").trim());
-      if (empty.length) {
-        const names = empty.map((n) => `#${n.id} ${n.title || "Auto Prompt"}`).join("\n");
-        if (!window.confirm(`Empty prompt (nothing is generated on Run):\n${names}\n\nRender without prompt?`)) return false;
-      }
+    const director = (app.graph?._nodes || []).find((n) => n.comfyClass === "InfiniteMovieRender" && (n.mode ?? 0) === 0);
+    if (!partial && director) {
+      const empty = imEmptyPromptFilms(director);
+      if (empty.length && !window.confirm(`Films without a prompt: ${empty.join(", ")}\n\nRender without prompt?`)) return false;
     }
     // 65 (user 2026-11-03: „the render must not be sent out!“): check the GPU BEFORE the queue (one measurement,
     // foreign programs are never touched). Not enough free -> message, NO queue.
-    const director = (app.graph?._nodes || []).find((n) => n.comfyClass === "InfiniteMovieRender" && (n.mode ?? 0) === 0);
-    // 2026-11-11: Regenerate (only Auto Prompts as targets) renders nothing - and an LLM server must hold the GPU
-    // while it writes. The render check would block exactly that.
-    const promptOnly = partial && args[2].every((id) => app.graph?.getNodeById(Number(id))?.comfyClass === "InfiniteMovieAutoPrompt");
+    // 2026-11-11: prompt writing renders nothing - and an LLM server must hold the GPU while it writes.
+    // The render check would block exactly that.
+    const promptOnly = partial && args[2].every((id) => imPromptRun(app.graph?.getNodeById(Number(id))));
     if (director && !promptOnly && !window.__fc_skip_gpu_preflight) {
       const min = MIN_FREE_MB;   // 74: constant (was the settings widget min_free_mb)
       fcReviewToast("Checking GPU memory ...");

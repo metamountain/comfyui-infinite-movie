@@ -1,14 +1,14 @@
-// 124c (2026-11-14): data + I/O of the Director storyboard (web/im_shots.js).
-// shots widget = JSON list [{image, prompt, own, pair}], image relative to ComfyUI's input folder ("" = empty).
+// 124c (2026-11-14): data + I/O of the Director storyboard (web/im_storyboard.js).
+// storyboard widget = JSON list [{image, prompt, own, pair}], image relative to ComfyUI's input folder ("" = empty).
 // Prompt i = film from image i to image i+1 (loop: last -> image 1). pair = the two images the prompt was
 // written for; when it no longer matches the current neighbours the prompt is shown red (stale).
 import { api } from "../../scripts/api.js";
-import { fcParseShotSeconds, fcReviewToast } from "./im_common.js";
+import { fcParseShotSeconds, fcReviewToast, imParseStoryboard } from "./im_common.js";
 import { fcPickFolder, imResolveSize } from "./im_settings.js";
 
-export const MAX_SHOTS = 24;
-export const DEFAULT_SHOTS = 4;
-export const emptyShot = () => ({ image: "", prompt: "", own: false, pair: null });
+export const MAX_IMAGES = 24;
+export const DEFAULT_IMAGES = 4;
+export const emptyEntry = () => ({ image: "", prompt: "", own: false, pair: null });
 
 const W = (node, name) => node.widgets?.find((w) => w.name === name);
 
@@ -22,20 +22,17 @@ function setWidget(node, name, text) {
   node.graph?.incrementVersion?.();
 }
 
-export function readShots(node) {
-  let data = [];
-  try { data = JSON.parse(W(node, "shots")?.value || "[]"); } catch { data = []; }
-  if (!Array.isArray(data)) data = [];
-  const list = data.filter((e) => e && typeof e === "object").slice(0, MAX_SHOTS).map((e) => ({
+export function readBoard(node) {
+  const list = imParseStoryboard(node).slice(0, MAX_IMAGES).map((e) => ({
     image: String(e.image || ""), prompt: String(e.prompt || ""), own: !!e.own,
     pair: Array.isArray(e.pair) && e.pair.length === 2 ? e.pair.map(String) : null,
   }));
-  if (!list.length) for (let i = 0; i < DEFAULT_SHOTS; i++) list.push(emptyShot());
+  if (!list.length) for (let i = 0; i < DEFAULT_IMAGES; i++) list.push(emptyEntry());
   return list;
 }
 
-export function writeShots(node, list) {
-  setWidget(node, "shots", JSON.stringify(list.slice(0, MAX_SHOTS)));
+export function writeBoard(node, list) {
+  setWidget(node, "storyboard", JSON.stringify(list.slice(0, MAX_IMAGES)));
 }
 
 export const isLoop = (node) => !!W(node, "loop")?.value;
@@ -96,12 +93,12 @@ export async function importFolder() {
   let j = {};
   try { j = await r.json(); } catch { j = { ok: false, error: `HTTP ${r.status}` }; }
   if (!j.ok) { fcReviewToast(j.error || "Folder import failed", "#d93025"); return null; }
-  if (j.skipped) fcReviewToast(`${j.skipped} more images skipped (max ${MAX_SHOTS})`, "#e68929");
+  if (j.skipped) fcReviewToast(`${j.skipped} more images skipped (max ${MAX_IMAGES})`, "#e68929");
   return j.images || [];
 }
 
 // Film format from the Settings node (user: "format comes from settings"). Ratio only matters for the tiles.
-export function shotFormat(node, firstImg) {
+export function boardFormat(node, firstImg) {
   const s = node.graph?._nodes?.find((n) => n.comfyClass === "InfiniteMovieSettings" && (n.mode ?? 0) === 0);
   const aspect = W(s || {}, "aspect")?.value, long = W(s || {}, "long_side")?.value;
   if (aspect === "from images") {

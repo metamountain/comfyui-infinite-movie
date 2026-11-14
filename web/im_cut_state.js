@@ -1,6 +1,6 @@
 import { app } from "../../scripts/app.js";
 import { api } from "../../scripts/api.js";
-import { fcClearFilms, fcChooseRedoTokens, fcReviewToast, imFilmInfoText } from "./im_common.js";
+import { fcClearFilms, fcChooseRedoTokens, fcReviewToast, imEmptyPromptFilms, imFilmInfoText, imPromptRun } from "./im_common.js";
 import { fcChooseRender } from "./im_cut.js";
 import { fmtTime, renderEstimate } from "./im_progress.js";
 import { IMV_NODE_W, imvDraw, imvStop } from "./im_viewer.js";
@@ -72,7 +72,7 @@ api.addEventListener("executing", (e) => {
   const n = app.graph?.getNodeById?.(top);
   fcRun.node = n ? (n.title || n.type) : String(id);
   // Only generating a prompt (Regenerate) is not a render: Choose stays operable (user 2026-11-03)
-  fcRun.promptOnly = n?.comfyClass === "InfiniteMovieAutoPrompt" ? (fcRun.promptOnly ?? true) : false;
+  fcRun.promptOnly = imPromptRun(n) ? (fcRun.promptOnly ?? true) : false;
   fcRun.max = 0;
   for (const c of fcChooseAll()) fcChooseStatus(c);
 });
@@ -264,11 +264,8 @@ function fcChooseSteps(node) {
   const entries = fcChooseEntries(node);
   const isPlaceholder = !!entries[0]?.placeholder;
   const filmDone = node._fc_choose_ran != null;
-  const aps = (app.graph?._nodes || []).filter((n) => n.comfyClass === "InfiniteMovieAutoPrompt");
-  const promptsFilled = aps.length === 0 || aps.every((n) => {
-    const w = n.widgets?.find((x) => x.name === "prompt");
-    return w && String(w.value || "").trim().length > 0;
-  });
+  const director = fcChooseDirectorOf(node);
+  const promptsFilled = !director || imEmptyPromptFilms(director).length === 0;
   let s1, s2, s3, s4;
   if (filmDone) { s1 = s2 = s3 = s4 = "done"; }
   else if (!isPlaceholder) { s1 = "done"; s2 = "done"; s3 = "current"; s4 = "open"; }

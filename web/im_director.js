@@ -1,7 +1,7 @@
 import { app } from "../../scripts/app.js";
 import { fcActive, fcReviewToast, getLink } from "./im_common.js";
 import { imToggleWidget } from "./im_settings.js";
-import { addShotsBoard, render as renderShots } from "./im_shots.js";
+import { addStoryboard, render as renderStoryboard } from "./im_storyboard.js";
 const slotIndex = (node, name) => (node.inputs || []).findIndex((i) => i.name === name);
 function addLayoutButton(node) {
   if (node.widgets?.find((w) => w.name === "🔗 AUTO LAYOUT")) return;
@@ -170,9 +170,9 @@ export function wireSettingsChain(director) {
   return true;
 }
 
-// 124c: shots (JSON) and shot_seconds are edited in the storyboard - hidden as widgets.
+// 124c: storyboard (JSON), shot_seconds and regen are set by the storyboard - hidden as widgets.
 function hideDataWidgets(node) {
-  for (const k of ["shots", "shot_seconds"]) imToggleWidget(node.widgets?.find((w) => w.name === k), false);
+  for (const k of ["storyboard", "shot_seconds", "regen"]) imToggleWidget(node.widgets?.find((w) => w.name === k), false);
   node.setSize([node.size[0], node.computeSize()[1]]);
 }
 
@@ -197,8 +197,8 @@ app.registerExtension({
       setTimeout(() => {
         try {
           addLayoutButton(this);
-          addShotsBoard(this);
-          renderShots(this);
+          addStoryboard(this);
+          renderStoryboard(this);
           hideDataWidgets(this);
           this.setSize([this.size[0], this.computeSize()[1]]);
           this._fcReady = true;
@@ -210,7 +210,7 @@ app.registerExtension({
   nodeCreated(node) {
     if (node.comfyClass !== "InfiniteMovieRender") return;
     addLayoutButton(node);
-    addShotsBoard(node);
+    addStoryboard(node);
     setTimeout(() => hideDataWidgets(node), 0);
   },
 });

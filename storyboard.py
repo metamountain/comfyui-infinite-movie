@@ -1,6 +1,6 @@
 """124a: shot-list helpers for the Director (Auftrag 124a).
 
-The Director's storyboard is one JSON list in the ``shots`` widget:
+The Director's storyboard is one JSON list in the ``storyboard`` widget:
 ``[{"image": "<file>", "prompt": "<text>", "own": true}, ...]``.
 This module parses the list, loads the per-shot images and maps shots to
 segment prompts. It must stay importable without a running ComfyUI server
@@ -16,16 +16,16 @@ import numpy as np
 
 from .shot_utils import _to_numpy_image
 
-MAX_SHOTS = 24
-DEFAULT_SHOTS = 4
+MAX_IMAGES = 24
+DEFAULT_IMAGES = 4
 
 
-def parse_shots(text) -> list[dict]:
-    """Parse the storyboard JSON list from the ``shots`` widget.
+def parse(text) -> list[dict]:
+    """Parse the storyboard JSON list from the ``storyboard`` widget.
 
     Every entry is normalised to ``{"image": str, "prompt": str, "own": bool}``.
     Empty text, broken JSON or a non-list result yields ``[]``. Entries that
-    are not dicts are skipped, the list is truncated to ``MAX_SHOTS``.
+    are not dicts are skipped, the list is truncated to ``MAX_IMAGES``.
     """
     if not text:
         return []
@@ -37,7 +37,7 @@ def parse_shots(text) -> list[dict]:
         return []
     shots: list[dict] = []
     for entry in data:
-        if len(shots) >= MAX_SHOTS:
+        if len(shots) >= MAX_IMAGES:
             break
         if not isinstance(entry, dict):
             continue
@@ -49,7 +49,7 @@ def parse_shots(text) -> list[dict]:
     return shots
 
 
-def load_shot_images(shots) -> list[np.ndarray]:
+def load_images(shots) -> list[np.ndarray]:
     """Load the per-shot images (H×W×3 uint8 arrays) from the shot list.
 
     Entries with an empty ``image`` are skipped (empty storyboard slots).
@@ -76,11 +76,11 @@ def load_shot_images(shots) -> list[np.ndarray]:
     return images
 
 
-def shot_prompt_list(shots, n_segments) -> list[str]:
+def prompt_list(shots, n_segments) -> list[str]:
     """Map shots to segment prompts (image index == prompt index).
 
     Only shots that carry an image count (same filter as
-    :func:`load_shot_images`); segment ``i`` gets the prompt of the
+    :func:`load_images`); segment ``i`` gets the prompt of the
     ``i``-th shot with image, ``""`` beyond the shot list.
     """
     n_segments = max(0, int(n_segments))

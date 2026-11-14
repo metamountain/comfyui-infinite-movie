@@ -486,7 +486,7 @@ app.registerExtension({
       node.setDirtyCanvas?.(true, true);
     };
 
-    for (const wn of ["seconds", "loop", "shot_seconds", "shots"]) {
+    for (const wn of ["seconds", "loop", "shot_seconds", "storyboard"]) {
       const w = node.widgets?.find((x) => x.name === wn);
       if (!w) continue;
       const origCb = w.callback;
