@@ -76,22 +76,19 @@ def load_images(shots) -> list[np.ndarray]:
     return images
 
 
-def prompt_list(shots, n_segments) -> list[str]:
-    """Map shots to segment prompts (image index == prompt index).
+def prompt_list(board, n_segments) -> list[str]:
+    """One prompt per segment: entry ``i`` with an image -> segment ``i``.
 
-    Only shots that carry an image count (same filter as
-    :func:`load_images`); segment ``i`` gets the prompt of the
-    ``i``-th shot with image, ``""`` beyond the shot list.
+    Entries without an image do not count (same filter as :func:`load_images`).
+    An empty prompt takes the previous one (also past the end of the list),
+    a leading empty one stays ``""``. Whitespace is collapsed.
     """
-    n_segments = max(0, int(n_segments))
-    prompts: list[str] = []
-    for shot in shots:
-        if len(prompts) >= n_segments:
-            break
-        if not (shot.get("image") or "").strip():
-            continue
-        prompts.append(str(shot.get("prompt") or ""))
-    return prompts + [""] * (n_segments - len(prompts))
+    prompts = [" ".join(str(e.get("prompt") or "").split()) for e in board if str(e.get("image") or "").strip()]
+    out: list[str] = []
+    for i in range(max(0, int(n_segments))):
+        p = prompts[i] if i < len(prompts) else ""
+        out.append(p or (out[-1] if out else ""))
+    return out
 
 
 def images_from_batch(images) -> list[np.ndarray]:

@@ -82,38 +82,6 @@ def _collect_images(images) -> list[np.ndarray]:
     return [_to_numpy_image(t) for t in tensors]
 
 
-def _parse_prompt_list(prompts: str) -> list[str] | None:
-    """Per-image prompts from the web extension (web/infinite_movie.js): a JSON list,
-    one entry per image (entry i = transition image i -> i+1). Empty entries
-    take the previous prompt. None if `prompts` is plain multiline text."""
-    text = (prompts or "").strip()
-    if not text.startswith("["):
-        return None
-    try:
-        items = json.loads(text)
-    except ValueError:
-        return None
-    if not isinstance(items, list):
-        return None
-    out: list[str] = []
-    for it in items:
-        s = " ".join(str(it or "").split())
-        out.append(s if s else (out[-1] if out else ""))
-    return out
-
-
-def _wired_prompts(shot_prompts) -> list[str]:
-    """Autogrow dict {prompt0: str, prompt1: str, ...} -> list ordered by slot
-    number; [] if nothing is wired or all entries are empty."""
-    if not isinstance(shot_prompts, dict):
-        return []
-    def idx(k: str) -> int:
-        m = re.search(r"(\d+)$", k)
-        return int(m.group(1)) if m else 0
-    vals = [str(shot_prompts[k] or "") for k in sorted(shot_prompts, key=idx)]
-    return vals if any(v.strip() for v in vals) else []
-
-
 def _clean_prompt(text: str, max_words: int = 350) -> str:
     """Clean an LLM-generated prompt: remove think blocks, Markdown, and
     truncate to max_words at a word boundary."""
@@ -133,26 +101,6 @@ def _clean_prompt(text: str, max_words: int = 350) -> str:
     if len(words) > max_words:
         text = " ".join(words[:max_words])
     return text.strip()
-
-
-def _build_prompts(prompts: str, style_prompt: str, n_segments: int) -> list[str]:
-    """Split the prompts into one per transition, repeating the last if there
-    are fewer entries than segments. Accepts plain multiline text (one line per
-    transition) or the per-image JSON list. Append the style prompt."""
-    per_image = _parse_prompt_list(prompts)
-    if per_image is not None:
-        # keep positions (entry i = segment i); leading empties stay "" (no shift)
-        lines = per_image[:n_segments] or [""]
-    else:
-        lines = [ln.strip() for ln in (prompts or "").splitlines() if ln.strip()]
-    if not lines:
-        lines = [""]
-    if style_prompt and style_prompt.strip():
-        lines = [ln + ", " + style_prompt.strip() for ln in lines]
-    out = []
-    for i in range(n_segments):
-        out.append(lines[i] if i < len(lines) else lines[-1])
-    return out
 
 
 def _parse_reseed(text: str) -> dict:

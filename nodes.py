@@ -30,7 +30,7 @@ from comfy_api.latest import io
 from . import vram
 from .expansion import build_expansion_graph
 from .media import (_count_frames, _encode_dir_to_mp4, _ffmpeg, _no_window, _segment_is_complete, _write_audio_to_wav, _write_frames_to_dir)
-from .shot_utils import (_build_prompts, _clean_prompt, _parse_prompt_list,
+from .shot_utils import (_clean_prompt,
                            _parse_reseed, _parse_shot_seconds, _scene_frames, _seconds_to_frames,
                            _snap_length, _to_numpy_image, center_crop_resize)
 # 57d: SETTINGS pipe + get_setting (settings_nodes imports only .vram + lazy .autoprompt,
@@ -481,11 +481,8 @@ class InfiniteMovieRender(io.ComfyNode):
         # 2. Build per-transition prompts.
         n_images = len(image_tensors)
         n_segments = (2 if loop else 1) if n_images == 1 else (n_images if loop else n_images - 1)
-        # 124a: per-shot prompts from the storyboard (image index == prompt index).
-        wired = _storyboard.prompt_list(board, n_segments)
-        seg_prompts = _build_prompts(json.dumps(wired) if wired else "", None, n_segments)
-        # Clean LLM-generated prompts (think blocks, Markdown, word limit).
-        seg_prompts = [_clean_prompt(p) for p in seg_prompts]
+        # Prompt per segment from the storyboard, cleaned (think blocks, Markdown, word limit).
+        seg_prompts = [_clean_prompt(p) for p in _storyboard.prompt_list(board, n_segments)]
 
         # Auftrag 48G.1: log the prompt used per scene (first 80 characters)
         for _si, _sp in enumerate(seg_prompts):
