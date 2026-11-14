@@ -329,7 +329,7 @@ app.registerExtension({
         ta.value = this.properties?.im_plan || "";
         this._imPlanEl = ta;
         this.addDOMWidget("im_plan", "textarea", ta, { serialize: false, getMinHeight: () => 120,
-          getValue: () => ta.value, setValue: () => {} });
+          getValue: () => ta.value, setValue: () => {} }).serialize = false;
         void lbl;
       }
       // provider fills endpoint / model / api_key_env (table from llm_nodes.PROVIDERS), only on a user change

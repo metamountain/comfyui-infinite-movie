@@ -27,7 +27,7 @@ const findGroup = (groups, re) => groups.find((g) => re.test(g.title || ""));
 const isEngineGroup = (g) => /ENGINE/i.test(g.title || "");
 const isNote = (n) => /Note/i.test(n.type || "");
 const isHelp = (n) => /^\s*help/i.test(n.title || "");
-// "Help: 3 · Prompts" / "3 · Prompts" → number 3 and key "prompts". Only a LEADING group number counts, otherwise
+// "Help: 2 · Director" / "2 · Director" → number 2 and key "director". Only a LEADING group number counts, otherwise
 // "ENGINE: Wan 2.2" would match "Help: 2 · Images".
 const numOf = (t) => { const m = /^\s*(?:help\s*:?\s*)?(\d+)\s*·/i.exec(t || ""); return m ? +m[1] : null; };
 const keyOf = (t) => (t || "").replace(/^\s*help\s*:?/i, "").replace(/[\d·:.\-]+/g, " ").trim().toLowerCase();
@@ -36,34 +36,6 @@ const helpFits = (note, grp) => {
   if (a != null && b != null) return a === b;
   return keyOf(note.title) === keyOf(grp.title);
 };
-
-function linkedOrigins(g, node, prefix) {
-  // Origin nodes of the prefix.* inputs in slot order (images.image0.. / shot_prompts.prompt0..)
-  const out = [];
-  for (const inp of node.inputs || []) {
-    if (!inp.name?.startsWith(prefix) || inp.link == null) continue;
-    const l = g.links?.[inp.link] ?? g.links?.get?.(inp.link);
-    const o = l && g.getNodeById(l.origin_id);
-    if (o && !out.includes(o)) out.push(o);
-  }
-  return out;
-}
-
-// 2026-11-08: image chain of a source upstream (Load Image → Upscale Crop Universal → … → source), only via
-// IMAGE inputs and without core nodes; order root first.
-function imageRow(g, src, core) {
-  const row = [src];
-  let n = src;
-  for (let d = 0; d < 20; d++) {
-    const inp = (n.inputs || []).find((i) => i.type === "IMAGE" && i.link != null);
-    const l = inp && (g.links?.[inp.link] ?? g.links?.get?.(inp.link));
-    const o = l && g.getNodeById(l.origin_id);
-    if (!o || core.has(o.comfyClass) || row.includes(o)) break;
-    row.unshift(o);
-    n = o;
-  }
-  return row;
-}
 
 // Height of the help block on top in a group (title bar + note + spacing)
 const helpH = (help) => (help ? T + help.size[1] + NGAP : 0);
@@ -96,39 +68,22 @@ function placeCol(nodes, side, help, x, y, w) {
 export function fcWorkflowLayout(director, second = false) {
   const g = director?.graph || app.graph;
   if (!g) return;
-  // Cleanup: remove auto prompts whose prompt output is no longer connected (image removed).
-  // Muted ones stay (image muted / loop off): they keep their text for later (user 2026-11-04).
-  for (const ap of (g._nodes || []).filter((n) => n.comfyClass === "InfiniteMovieAutoPrompt" && (n.mode ?? 0) === 0)) {
-    const out = (ap.outputs || []).find((o) => o.name === "prompt");
-    if (out && !(out.links || []).length) g.remove(ap);
-  }
   // Adapt Choose to the current shot count, then measure.
   fcChooseRefreshAll();
   const groups = g._groups || [];
   const engines = groups.filter(isEngineGroup);
   // Core nodes NEVER belong to the engine, even if they currently sit over an engine group.
-  const CORE = new Set(["InfiniteMovieSettings", "InfiniteMovieStoryMode", "InfiniteMovieStyle", "InfiniteMovieAutoPrompt", "InfiniteMovieRender",
+  const CORE = new Set(["InfiniteMovieSettings", "InfiniteMovieStoryMode", "InfiniteMovieStyle", "InfiniteMovieRender",
     "InfiniteMovieChooser", "InfiniteMovieAssemble", "InfiniteMovieFilm"]);
-  // Image sources (without core nodes like Assemble > last_frame - those stay in their group) plus their image chain
-  const imgRows = linkedOrigins(g, director, "images.").filter((n) => !CORE.has(n.comfyClass))
-    .map((src) => imageRow(g, src, CORE));
-  // A node feeding several images (e.g. a Load Image before two upscalers) appears only in the first row.
-  { const seen = new Set();
-    for (let i = 0; i < imgRows.length; i++) {
-      imgRows[i] = imgRows[i].filter((n, j, r) => j === r.length - 1 || !seen.has(n));
-      imgRows[i].forEach((n) => seen.add(n));
-    }
-    for (let i = imgRows.length - 1; i >= 0; i--) if (seen.size && imgRows.slice(0, i).some((r) => r.at(-1) === imgRows[i].at(-1))) imgRows.splice(i, 1); }
-  const coreImages = new Set(imgRows.flat());
   const allNotes = (g._nodes || []).filter(isNote);
   const engineHelp = engines.map((e) => allNotes.find((n) => isHelp(n) && helpFits(n, e)) || null);
-  const inEngine = (n) => !CORE.has(n.comfyClass) && !coreImages.has(n) && !isNote(n)
+  const inEngine = (n) => !CORE.has(n.comfyClass) && !isNote(n)
     && engines.some((e) => inRect(n, gRect(e)));
   // Determine members BEFORE any moving (the engine lands where something else used to be).
   const engineMembers = engines.map((e) => (g._nodes || []).filter((n) => inEngine(n) && inRect(n, gRect(e))));
   // 8 Upscale (optional, B3 2026-11-04): block like the engine, members determined BEFORE moving.
   const upGrp = groups.find((x) => !isEngineGroup(x) && /upscale/i.test(x.title || ""));
-  const upMembers = upGrp ? (g._nodes || []).filter((n) => !isNote(n) && !inEngine(n) && !coreImages.has(n) && inRect(n, gRect(upGrp))) : [];
+  const upMembers = upGrp ? (g._nodes || []).filter((n) => !isNote(n) && !inEngine(n) && inRect(n, gRect(upGrp))) : [];
   const upHelp = upGrp ? allNotes.find((n) => isHelp(n) && helpFits(n, upGrp)) || null : null;
   const upSet = new Set(upMembers);
   // 9 Movie to GIF (optional, 2026-11-13): right of Upscale, help on top, the GIF node(s) below.
@@ -138,8 +93,6 @@ export function fcWorkflowLayout(director, second = false) {
   const nodes = (g._nodes || []).filter((n) => !inEngine(n) && !upSet.has(n));
   const byType = (t) => nodes.filter((n) => n.comfyClass === t || n.type === t);
 
-  const prompts = linkedOrigins(g, director, "shot_prompts.");
-  for (const p of byType("InfiniteMovieAutoPrompt")) if (!prompts.includes(p)) prompts.push(p);
   const G = (re) => findGroup(groups.filter((x) => !isEngineGroup(x)), re);
   // 2026-11-13 (user: "the finished film below in our Film node, the same in 6 7 8", "6 7 8 all players square, 6 7 8
   // the same width"): Cut / Even Motion / Upscale on top, a Film node with a SQUARE player at the bottom of each group;
@@ -164,10 +117,10 @@ export function fcWorkflowLayout(director, second = false) {
   // ONE row, order = numbers 2…7
   // 2026-11-11: help note "Story Mode …" sits right under the Story Mode node (not with the README)
   const storyHelp = byType("InfiniteMovieStoryMode").length ? allNotes.filter((n) => /story mode/i.test(n.title || "")) : [];
+  const SET = 0, DIR = 1, CUT = 2;   // row indices
   const row = [
-    [G(/settings/i), [...byType("InfiniteMovieSettings"), ...byType("InfiniteMovieStoryMode"), ...storyHelp]],
-    [G(/images/i), imgRows.flat()],
-    [G(/prompt/i), [...byType("InfiniteMovieStyle"), ...prompts]],
+    // 124c: the storyboard lives in the Director - prompt writing settings (Style, Story Mode) join Settings
+    [G(/settings/i), [...byType("InfiniteMovieSettings"), ...byType("InfiniteMovieStyle"), ...byType("InfiniteMovieStoryMode"), ...storyHelp]],
     [G(/director/i), [director]],
     // user 2026-11-13 ("widen 6, double it - the bottom edge of the 4 images is the bottom edge"): Cut and its preview
     // side by side, so group 6 is no taller than the image column
@@ -245,97 +198,53 @@ export function fcWorkflowLayout(director, second = false) {
   const HH = rowHelps.length ? Math.max(...rowHelps.map((h) => h.size[1])) : 0;
   // the help never makes a group wider: the nodes set the width, the help is stretched to it afterwards
   for (const h of rowHelps) h.size = [MINW - 2 * PAD, HH];
-  const rowW = (r) => r.reduce((s, n) => s + n.size[0], 0) + PAD * (r.length - 1);
-  const rowH = (r) => T + Math.max(...r.map((n) => n.size[1]));
-  const sizes = row.map(([, ns, side], k) => {
-    if (k !== 1 || !imgRows.length) return colSize(ns, side, rowHelp[k]);
-    const help = rowHelp[k];
-    const w = Math.max(MINW, ...imgRows.map((r) => rowW(r) + 2 * PAD), (help ? help.size[0] : 0) + 2 * PAD);
-    const h = HEAD + helpH(help) + imgRows.reduce((s, r) => s + rowH(r), 0) + NGAP * (imgRows.length - 1) + PAD;
-    return [w, h];
-  });
-  // user 2026-11-13 ("groups modular, 2 or 3 widths, no more"; "5 as wide as 4"): one module width U = a Cut column
-  // (Cut node + margins). 2 Settings, 4 Prompts, 5 Director, 7, 8, 9 are U wide, 6 Cut (Cut + preview side by side)
-  // is 2U + GAP, only 3 Images keeps its own narrow width. The nodes of a U column are stretched to fill it.
-  const U = Math.max(inner678 + 2 * PAD, sizes[0][0], sizes[2][0], sizes[3][0]);
-  for (const k of [0, 2, 3]) {
+  const sizes = row.map(([, ns, side], k) => colSize(ns, side, rowHelp[k]));
+  // user 2026-11-13 ("groups modular, 2 or 3 widths, no more"): one module width U = a Cut column (Cut node + margins)
+  // or the storyboard, whichever is wider. Settings and Director are U wide, Cut (Cut + preview side by side) 2U + GAP.
+  const U = Math.max(inner678 + 2 * PAD, sizes[SET][0], sizes[DIR][0]);
+  for (const k of [SET, DIR]) {
     sizes[k][0] = U;
     for (const n of row[k][1]) if (!isHelp(n)) n.size = [U - 2 * PAD, n.size[1]];
   }
-  sizes[4][0] = Math.max(sizes[4][0], 2 * U + GAP);
-  // user 2026-11-13 ("2 3 4 the same"): 3 Images is U wide too; a row with a single node (Load Image) fills it
-  if (imgRows.length) {
-    sizes[1][0] = Math.max(sizes[1][0], U);
-    for (const r of imgRows) if (r.length === 1) r[0].size = [U - 2 * PAD, r[0].size[1]];
-  }
-  // user 2026-11-13 ("1 wider"): the engine on top spans groups 2-5 (4U + 3 GAP); help stays on the left
+  sizes[CUT][0] = Math.max(sizes[CUT][0], 2 * U + GAP);
+  // user 2026-11-13 ("1 wider"): the engine on top spans Settings + Director (2U + GAP); help stays on the left
   for (const [k, e] of engines.entries()) {
     if (engines.length !== 1) break;
-    const w = Math.max(e.size[0], 4 * U + 3 * GAP);
+    const w = Math.max(e.size[0], 2 * U + GAP);
     e.size = [w, e.size[1]];
   }
   row.forEach((_, k) => { const h = rowHelp[k]; if (h) h.size = [sizes[k][0] - 2 * PAD, HH]; });
   let x = X0;
   row.forEach(([grp, ns, side], k) => {
     if (!ns.length && !grp) return;
-    if (k === 1 && imgRows.length) {
-      const help = rowHelp[k];
-      if (help) help.pos = [x + (sizes[k][0] - help.size[0]) / 2, Y + HEAD + T];
-      let top = Y + HEAD + helpH(help);
-      for (const r of imgRows) {
-        let nx = x + PAD;
-        for (const n of r) { n.pos = [nx, top + T]; nx += n.size[0] + PAD; }
-        top += rowH(r) + NGAP;
-      }
-    } else {
-      placeCol(ns, side, rowHelp[k], x, Y, sizes[k][0]);
-    }
+    placeCol(ns, side, rowHelp[k], x, Y, sizes[k][0]);
     if (grp) grp.pos = [x, Y];
     x += sizes[k][0] + GAP;
   });
 
-  // Prompt k exactly between image k and image k+1 (loop prompt n→1 half a step below the last image):
-  // so you can read the transition directly (user 2026-11-03: "exactly between the images ... important").
-  const imgs = imgRows.map((r) => r[r.length - 1]);   // source per row (the prompts align to it)
-  const linkedPrompts = linkedOrigins(g, director, "shot_prompts.");
-  if (imgs.length >= 2 && linkedPrompts.length) {
-    const mid = (n) => n.pos[1] + (n.size[1] - T) / 2;          // middle of the box incl. title bar
-    const c = imgs.map(mid);
-    const step = c[1] - c[0];
-    linkedPrompts.forEach((p, k) => {
-      const target = k + 1 < c.length ? (c[k] + c[k + 1]) / 2 : c[c.length - 1] + step / 2;
-      p.pos = [p.pos[0], target - (p.size[1] - T) / 2];
-    });
-    // Prompt Style sits on top of the prompt column: move images + prompts down enough so nothing overlaps.
-    const style = byType("InfiniteMovieStyle")[0];
-    if (style) {
-      const need = style.pos[1] + style.size[1] + NGAP + T;
-      const shift = Math.max(0, need - Math.min(...linkedPrompts.map((p) => p.pos[1])));
-      if (shift) for (const n of [...imgRows.flat(), ...linkedPrompts]) n.pos = [n.pos[0], n.pos[1] + shift];
-    }
-  }
-  // user 2026-11-13 ("the bottom edge of the 4 images is the bottom edge"): if the Settings column (Story Mode with its
-  // big text fields) reaches lower than images + prompts, Story Mode gets shorter (min 400) instead of the row taller.
+  // user 2026-11-13 ("the bottom edge of the images is the bottom edge"): if the Settings column (Story Mode with its
+  // big text fields) reaches lower than the Director's storyboard, Story Mode gets shorter (min 400) instead of the
+  // row taller.
   const story = byType("InfiniteMovieStoryMode")[0];
-  if (story && imgRows.length && row[0][0]) {
-    const b12 = Math.max(...[...imgRows.flat(), ...prompts].map((n) => n.pos[1] + n.size[1]));
-    const b0 = Math.max(...row[0][1].map((n) => n.pos[1] + n.size[1]));
-    if (b0 > b12) {
-      story.size = [story.size[0], Math.max(400, story.size[1] - (b0 - b12))];
-      sizes[0] = [sizes[0][0], colSize(row[0][1], row[0][2], rowHelp[0])[1]];
-      placeCol(row[0][1], row[0][2], rowHelp[0], row[0][0].pos[0], Y, sizes[0][0]);
+  if (story && row[SET][0]) {
+    const bDir = director.pos[1] + director.size[1];
+    const bSet = Math.max(...row[SET][1].map((n) => n.pos[1] + n.size[1]));
+    if (bSet > bDir) {
+      story.size = [story.size[0], Math.max(400, story.size[1] - (bSet - bDir))];
+      sizes[SET] = [sizes[SET][0], colSize(row[SET][1], row[SET][2], rowHelp[SET])[1]];
+      placeCol(row[SET][1], row[SET][2], rowHelp[SET], row[SET][0].pos[0], Y, sizes[SET][0]);
     }
   }
   // user 2026-11-13 ("Director and Cut as tall as the layout allows, content as big as possible"): first both at
   // their natural height (so they never make the row taller), they grow to the group bottom after H is known.
   for (const n of [director, ...cut]) {
     n.properties ||= {};
-    delete n.properties.imv_h; delete n.properties.im_row;
+    delete n.properties.imv_h;
     n.size = [n.size[0], n.computeSize()[1]];
   }
-  // 6: the preview sits at the right edge of the double-width group
-  if (row[4][0]) for (const f of cutFilms) f.pos = [row[4][0].pos[0] + sizes[4][0] - PAD - f.size[0], f.pos[1]];
-  // Group height from the real content (prompts can reach below the last image)
+  // Cut: the preview sits at the right edge of the double-width group
+  if (row[CUT][0]) for (const f of cutFilms) f.pos = [row[CUT][0].pos[0] + sizes[CUT][0] - PAD - f.size[0], f.pos[1]];
+  // Group height from the real content
   const bottom = Math.max(...row.flatMap(([, ns]) => ns.map((n) => n.pos[1] + n.size[1])));
   // Upscale content (block + Film players below) also counts, so 8 has exactly the height of the row (user: "7-8 the
   // same height as everything")
@@ -353,14 +262,8 @@ export function fcWorkflowLayout(director, second = false) {
   }
   const H = Math.max(...sizes.map((s) => s[1]), bottom - Y + PAD, upNeed, gifNeed);
   row.forEach(([grp, ns], k) => { if (grp && (ns.length || grp)) grp.size = [sizes[k][0], H]; });
-  // ...now grow: Director's image list gets taller rows, Cut's analysis area gets taller, both end at the group bottom
+  // ...now grow: Cut's analysis area gets taller and ends at the group bottom (the storyboard keeps its fixed rows)
   const floor = Y + H - PAD;
-  const nImg = director.widgets?.some((w) => w.name === "im_layers") ? Math.max(1, imgRows.length) : 0;
-  const dExtra = floor - (director.pos[1] + director.size[1]);
-  if (nImg && dExtra > nImg) {
-    director.properties.im_row = 64 + Math.floor(dExtra / nImg);
-    director.size = [director.size[0], director.computeSize()[1]];
-  }
   for (const c of cut) {
     const extra = floor - (c.pos[1] + c.size[1]);
     if (extra > 0 && c.widgets?.some((w) => w.name === "im_viz")) {
@@ -429,7 +332,7 @@ export function fcWorkflowLayout(director, second = false) {
 
   g.setDirtyCanvas?.(true, true);
   console.log("[InfiniteMovie] layout: README left / engine 0 top / row 1-8 with help", { XR, X0, TOP, Y, H, second });
-  // Second pass: newly created nodes (e.g. auto prompts) only get their real height after the
+  // Second pass: newly created nodes only get their real height after the
   // first draw - without re-measuring they overlap.
   if (!second) setTimeout(() => fcWorkflowLayout(director, true), 250);
 }

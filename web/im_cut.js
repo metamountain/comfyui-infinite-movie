@@ -17,6 +17,7 @@ export function fcChooseRender(node) {
       getMinHeight: () => fcChooseLayout(node, fcChooseEntries(node)).domH,
       getMaxHeight: () => fcChooseLayout(node, fcChooseEntries(node)).domH,
     });
+    domW.serialize = false;   // the option alone does not keep it out of widgets_values
     // 79 (user 2026-11-03: Choose „halved“): the frontend takes the frame width from widget.width
     // (DomWidgets updateWidgets: (n.width ?? node.width) - 2*margin). widget.width stayed at an old,
     // smaller value (624) when Choose grew -> right shots cut off. Always the node width.

@@ -201,7 +201,7 @@ function imvEnsure(node) {
     serialize: false,
     getMinHeight: () => imvArea(node)[1] + 96 + 20,
     getMaxHeight: () => imvArea(node)[1] + 96 + 20,
-  });
+  }).serialize = false;   // the option alone does not keep it out of widgets_values
   return st;
 }
 

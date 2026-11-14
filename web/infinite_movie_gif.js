@@ -226,7 +226,7 @@ function buildWidget(node) {
   node.addDOMWidget("gif_preview", "div", el, {
     serialize: false,
     getMinHeight: () => gifSide(node) + INFO_H + 8,   // no max: a taller node (layout) gives the extra space here
-  });
+  }).serialize = false;   // the option alone does not keep it out of widgets_values
 }
 
 app.registerExtension({

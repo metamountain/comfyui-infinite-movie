@@ -307,6 +307,18 @@ class InfiniteMovieRender(io.ComfyNode):
                     optional=True,
                     tooltip="Storyboard (JSON: image, prompt per entry) – edited in the Director's storyboard.",
                 ),
+                # 124b: set by the storyboard's "Regenerate" button (web/im_storyboard.js):
+                # a JSON list of 0-based shot indices (e.g. "[0, 2]"). Non-empty -> the
+                # Director writes only those shots' prompts (director_prompts.write_prompts)
+                # and renders nothing; the result goes back to the frontend as
+                # ui["im_prompts"]. Empty = a normal render run.
+                io.String.Input(
+                    "regen",
+                    default="",
+                    advanced=True,
+                    optional=True,
+                    tooltip="Set by the storyboard: shot numbers whose prompt gets written. Empty = normal run.",
+                ),
                 # 82: per-shot length, edited in Infinite Movie · Choose (⏱ button).
                 # optional=True + declared last -> last widget in the UI
                 # and old saved workflows keep their positional widgets_values.
@@ -383,6 +395,9 @@ class InfiniteMovieRender(io.ComfyNode):
 
     @classmethod
     def fingerprint_inputs(cls, **kwargs):
+        # NaN != NaN (IEEE 754) -> the fingerprint never equals the last run, so the
+        # Director always re-executes - including when the storyboard's `regen` widget
+        # changes (124b). No need to include `regen` explicitly.
         return float("NaN")
 
     @classmethod
@@ -397,7 +412,25 @@ class InfiniteMovieRender(io.ComfyNode):
                 loop=True, seconds=2.0,
                 seed=42,
                 reseed="", engine=None,
-                shot_seconds="", settings=None, variants="1"):
+                shot_seconds="", settings=None, variants="1",
+                regen=""):
+        # 124b: the storyboard's "Regenerate" sets `regen` to a JSON list of 0-based
+        # shot indices and queues ONLY the Director -> write exactly those shots'
+        # prompts (no GPU handoff, no engine expansion) and return them to the
+        # frontend as ui["im_prompts"]. Empty `regen` = a normal render run.
+        if str(regen).strip():
+            try:
+                indices = json.loads(regen)
+            except (TypeError, ValueError):
+                indices = []
+            if not isinstance(indices, list):
+                indices = []
+            board = _storyboard.parse(storyboard)
+            from .director_prompts import write_prompts
+            result = write_prompts(board, indices, loop, settings)
+            n_out = len(cls.define_schema().outputs)
+            return io.NodeOutput(*(None,) * n_out, ui={"im_prompts": result})
+
         # Format, name and GPU handoff from the settings chain; without it -> defaults.
         # 73: negative is gone (Engine In no longer has a negative output).
         width = get_setting(settings, "width")

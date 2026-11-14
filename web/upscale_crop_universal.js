@@ -534,6 +534,6 @@ function buildPreview(node) {
         return r;
     };
 
-    node.addDOMWidget("ucu_preview", "preview", wrap, { serialize: false });
+    node.addDOMWidget("ucu_preview", "preview", wrap, { serialize: false }).serialize = false;
     schedule(0);
 }

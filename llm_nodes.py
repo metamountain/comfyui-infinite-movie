@@ -227,57 +227,6 @@ def red_thread(system: str, story: str) -> str:
     return f"{system}\n\nThe whole film follows this red thread: {story}" if story else system
 
 
-def shot_of(prompt: dict, uid) -> tuple:
-    """(Director id, shot index k) of the Auto Prompt uid in the API prompt (Director > shot_prompts.prompt<k>)."""
-    for nid, node in (prompt or {}).items():
-        if node.get("class_type") != "InfiniteMovieRender":
-            continue
-        for key, val in (node.get("inputs") or {}).items():
-            m = re.fullmatch(r"shot_prompts\.prompt(\d+)", key)
-            if m and isinstance(val, list) and str(val[0]) == str(uid):
-                return nid, int(m.group(1))
-    return None, -1
-
-
-def _image_file(prompt: dict, nid, depth: int = 0):
-    """Walk upstream from a node to the image file it loads (Load Image style: a string `image` input)."""
-    import os
-    node = (prompt or {}).get(str(nid))
-    if not node or depth > 12:
-        return None
-    inputs = node.get("inputs") or {}
-    img = inputs.get("image")
-    if isinstance(img, str) and img.strip():
-        try:
-            import folder_paths
-            path = folder_paths.get_annotated_filepath(img)
-        except Exception:  # noqa: BLE001 - without ComfyUI (tests): plain path
-            path = img
-        return path if path and os.path.isfile(path) else None
-    for key in ("image", "images", "pixels", "image_from", "input"):
-        val = inputs.get(key)
-        if isinstance(val, list) and len(val) == 2:
-            return _image_file(prompt, val[0], depth + 1)
-    for val in inputs.values():
-        if isinstance(val, list) and len(val) == 2 and isinstance(val[1], int):
-            return _image_file(prompt, val[0], depth + 1)
-    return None
-
-
-def film_images(prompt: dict, director_id) -> tuple:
-    """Image files of the film in order (Director > images.image<i>) + loop flag. Unresolvable image -> []."""
-    node = (prompt or {}).get(str(director_id)) or {}
-    inputs = node.get("inputs") or {}
-    keyed = []
-    for k, v in inputs.items():
-        m = re.fullmatch(r"images\.image(\d+)", k)
-        if m and isinstance(v, list):
-            keyed.append((int(m.group(1)), v))
-    keyed.sort(key=lambda t: t[0])
-    files = [_image_file(prompt, v[0]) for _, v in keyed]
-    return ([] if any(f is None for f in files) else files), bool(inputs.get("loop", True))
-
-
 def parse_storyboard(text: str, n: int):
     text = re.sub(r"<think>.*?</think>", "", text or "", flags=re.S)
     m = re.search(r"\{.*\}", text, flags=re.S)

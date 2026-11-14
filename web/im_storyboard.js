@@ -367,6 +367,7 @@ export function addStoryboard(node) {
     getMinHeight: () => TOOLBAR_H + boardSize(node).h + 8,
     getMaxHeight: () => TOOLBAR_H + boardSize(node).h + 8,
   });
+  dw.serialize = false;   // the option alone does not keep it out of widgets_values (would drop all values on load)
   if (dw) Object.defineProperty(dw, "width", { get: () => node.size[0], set() {}, configurable: true });
   // Changes from outside (loop/seconds widgets, Cut's ⏱, the Settings format, loading a workflow): redraw.
   node._imsb.timer = setInterval(() => {

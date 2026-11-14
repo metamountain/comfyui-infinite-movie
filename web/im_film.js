@@ -82,7 +82,7 @@ export function fcFilmRender(node) {
     node.addDOMWidget("fc_film", "div", el, {
       serialize: false,
       getMinHeight: () => fcFilmSide(node) + FC_FILM_BAR_H + 4 + 8,
-    });
+    }).serialize = false;   // the option alone does not keep it out of widgets_values
     node._fc_film_el = el; node._fc_film_video = video; node._fc_film_status = status;
   }
   fcFilmWidgets(node);
