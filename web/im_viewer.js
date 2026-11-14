@@ -91,11 +91,14 @@ function imvShot(node) {
 export const IMV_W = 480, IMV_H = 480, IMV_NODE_W = IMV_W + 24;
 // 2026-11-13 (user: "Cut as tall as the layout allows, content as big as possible"): AUTO LAYOUT may give a node its
 // own area height (properties.imv_h); the area is then as wide as the node. Without it the area stays 480×480.
+// 2026-11-14 (user: "Cut-Vorschau ... soll quadratisch sein"): with imv_h the area is a SQUARE (height = width), not
+// as tall as the node - the preview used to be 1:2 in the user's file.
 export const IMV_MIN_H = 200;
 function imvArea(node) {
   const h = Number(node?.properties?.imv_h);
   if (!(h >= IMV_MIN_H)) return [IMV_W, IMV_H];
-  return [Math.max(IMV_W, Math.round((node.size?.[0] || IMV_NODE_W) - 24)), Math.round(h)];
+  const w = Math.max(IMV_W, Math.round((node.size?.[0] || IMV_NODE_W) - 24));
+  return [w, w];
 }
 // 2026-11-13 (user: "Assemble as wide as the group"): only a minimum – AUTO LAYOUT may make it wider, the 480 area
 // stays centred (canvas margin auto).

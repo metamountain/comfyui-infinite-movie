@@ -238,7 +238,7 @@ export function fcWorkflowLayout(director, second = false) {
     }
   }
   // user 2026-11-13 ("Director and Cut as tall as the layout allows, content as big as possible"): first both at
-  // their natural height (so they never make the row taller), they grow to the group bottom after H is known.
+  // their natural height (so they never make the row taller), they grow to the group bottom after H123 is known.
   for (const n of [director, ...cut]) {
     n.properties ||= {};
     delete n.properties.imv_h;
@@ -246,26 +246,27 @@ export function fcWorkflowLayout(director, second = false) {
   }
   // Cut: the preview sits at the right edge of the double-width group
   if (row[CUT][0]) for (const f of cutFilms) f.pos = [row[CUT][0].pos[0] + sizes[CUT][0] - PAD - f.size[0], f.pos[1]];
-  // Group height from the real content
-  const bottom = Math.max(...row.flatMap(([, ns]) => ns.map((n) => n.pos[1] + n.size[1])));
-  // Upscale content (block + Film players below) also counts, so 8 has exactly the height of the row (user: "7-8 the
-  // same height as everything")
+  // Group height from the real content. user 2026-11-14 ("Gruppen 4, 5, 6 zusammen gleich, geringere Höhe"):
+  // groups 1-3 keep the full row height, groups 4-6 share one lower height (the smallest that fits all three).
+  const bottom123 = Math.max(...row.slice(0, 3).flatMap(([, ns]) => ns.map((n) => n.pos[1] + n.size[1])));
+  // Upscale content (block + Film players below) counts for the 4-6 height, not the 1-3 height
   let upNeed = 0;
   if (upGrp && upMembers.length) {
     const ms = upBlock.length ? upBlock : upMembers;
     const blockH = Math.max(...ms.map((n) => n.pos[1] + n.size[1])) - Math.min(...ms.map((n) => n.pos[1] - T));
     upNeed = HEAD + helpH(upHelp) + blockH + (upBlock.length ? upFilms.reduce((s, f) => s + NGAP + T + f.size[1], 0) : 0) + PAD;
   }
-  // 9 GIF: width = 6/7/8 (square preview), its full height counts for the row height too
+  // GIF: width = 6/7/8 (square preview), its full height counts for the 4-6 height
   let gifNeed = 0;
   if (gifGrp && gifNodes.length) {
     for (const n of gifNodes) { n.size = [inner678, n.size[1]]; n.size = [inner678, n.computeSize()[1]]; }
     gifNeed = HEAD + helpH(gifHelp) + gifNodes.reduce((s, n) => s + T + n.size[1] + NGAP, 0) + PAD;
   }
-  const H = Math.max(...sizes.map((s) => s[1]), bottom - Y + PAD, upNeed, gifNeed);
-  row.forEach(([grp, ns], k) => { if (grp && (ns.length || grp)) grp.size = [sizes[k][0], H]; });
-  // ...now grow: Cut's analysis area gets taller and ends at the group bottom (the storyboard keeps its fixed rows)
-  const floor = Y + H - PAD;
+  const H123 = Math.max(sizes[SET][1], sizes[DIR][1], sizes[CUT][1], bottom123 - Y + PAD);
+  const H456 = Math.max(sizes[3][1], upNeed, gifNeed);
+  row.forEach(([grp, ns], k) => { if (grp && (ns.length || grp)) grp.size = [sizes[k][0], k <= CUT ? H123 : H456]; });
+  // ...now grow: Cut's analysis area ends at the group bottom (the storyboard keeps its fixed rows)
+  const floor = Y + H123 - PAD;
   for (const c of cut) {
     const extra = floor - (c.pos[1] + c.size[1]);
     if (extra > 0 && c.widgets?.some((w) => w.name === "im_viz")) {
@@ -274,19 +275,19 @@ export function fcWorkflowLayout(director, second = false) {
     }
     if (c._imv) imvDraw(c);
   }
-  // Film player(s) of 6 and 7 sit at the bottom edge of their group (user: "films at the bottom")
-  for (const fs of [cutFilms, asmFilms]) { let b = Y + H - PAD; for (const f of [...fs].reverse()) { f.pos = [f.pos[0], b - f.size[1]]; b -= T + f.size[1] + NGAP; } }
+  // Film player(s) of 6 and 7 sit at the bottom edge of their group (user: "films at the bottom"); 6 is 1-3 tall, 7 is 4-6 tall
+  for (const [fs, hh] of [[cutFilms, H123], [asmFilms, H456]]) { let b = Y + hh - PAD; for (const f of [...fs].reverse()) { f.pos = [f.pos[0], b - f.size[1]]; b -= T + f.size[1] + NGAP; } }
   // user 2026-11-13 ("5 Cut: don't fix the height of the preview, min square"): a single preview beside Cut spans
   // from Cut's top to the group bottom; the square stays its minimum
   if (cut.length && cutFilms.length === 1) {
     const f = cutFilms[0], top = cut[0].pos[1];
-    f.size = [f.size[0], Math.max(f.computeSize()[1], Y + H - PAD - top)];
+    f.size = [f.size[0], Math.max(f.computeSize()[1], Y + H123 - PAD - top)];
     f.pos = [f.pos[0], top];
   }
   // user 2026-11-13 ("never collapse the graph, always open"): Even Motion reaches down to its Film player, so its
   // analysis graph (image preview below the widgets) always has room inside group 7 - also before the first run
   for (const a of asm) {
-    const below = asmFilms.length ? Math.min(...asmFilms.map((f) => f.pos[1])) - T - NGAP : Y + H - PAD;
+    const below = asmFilms.length ? Math.min(...asmFilms.map((f) => f.pos[1])) - T - NGAP : Y + H456 - PAD;
     a.size = [a.size[0], Math.max(a.computeSize()[1], below - a.pos[1])];
   }
   // 8 Upscale right of 7, content as a block, help centered on top, same height as the row
@@ -301,10 +302,10 @@ export function fcWorkflowLayout(director, second = false) {
     const dx = x + PAD - minX, dy = Y + HEAD + helpH(upHelp) - minY;
     for (const n of ms) n.pos = [n.pos[0] + dx, n.pos[1] + dy];
     // Film player(s) at the bottom edge, level with the one in 7
-    let b = Y + H - PAD;
+    let b = Y + H456 - PAD;
     for (const f of upBlock.length ? [...upFilms].reverse() : []) { f.pos = [x + PAD, b - f.size[1]]; b -= T + f.size[1] + NGAP; }
     upGrp.pos = [x, Y];
-    upGrp.size = [w, H];
+    upGrp.size = [w, H456];
   }
   // 9 Movie to GIF right of 8 (or of 7 without Upscale): help on top, GIF node(s) one under another, row height
   if (gifGrp && gifNodes.length) {
@@ -317,23 +318,24 @@ export function fcWorkflowLayout(director, second = false) {
     // bottom edge - its preview sits at the bottom of the node, level with the Film players
     let gy = Y + HEAD + helpH(gifHelp) + T;
     gifNodes.forEach((n, k) => {
-      if (k === gifNodes.length - 1) n.size = [inner678, Math.max(n.size[1], Y + H - PAD - gy)];
+      if (k === gifNodes.length - 1) n.size = [inner678, Math.max(n.size[1], Y + H456 - PAD - gy)];
       n.pos = [gx + PAD, gy]; gy += n.size[1] + NGAP + T;
     });
     gifGrp.pos = [gx, Y];
-    gifGrp.size = [w, H];
+    gifGrp.size = [w, H456];
   }
 
   // README at the front without a group: title bar level with the group tops, the last note reaches the group bottom
+  // (the front groups 1-3 are the taller H123)
   let ry = Y + T;
   restNotes.forEach((n, k) => {
-    const h = k === restNotes.length - 1 ? Math.max(100, Y + H - ry) : n.size[1];
+    const h = k === restNotes.length - 1 ? Math.max(100, Y + H123 - ry) : n.size[1];
     n.pos = [XR, ry]; n.size = [rw, h];
     ry += h + NGAP + T;
   });
 
   g.setDirtyCanvas?.(true, true);
-  console.log("[InfiniteMovie] layout: README left / engine 0 top / row 1-8 with help", { XR, X0, TOP, Y, H, second });
+  console.log("[InfiniteMovie] layout: README left / engine 0 top / row 1-8 with help", { XR, X0, TOP, Y, H123, H456, second });
   // Second pass: newly created nodes only get their real height after the
   // first draw - without re-measuring they overlap.
   if (!second) setTimeout(() => fcWorkflowLayout(director, true), 250);

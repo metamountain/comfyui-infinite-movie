@@ -193,7 +193,12 @@ def _pair(image_from, image_to):
     """Both images as ONE batch (image 1 = start, image 2 = end); end resized to the start's size."""
     import torch
     import comfy.utils
-    a, b = image_from[:1], image_to[:1]
+    def as_batch(im):   # storyboard images arrive as HxWx3 uint8 numpy arrays, node inputs as BxHxWxC float tensors
+        if isinstance(im, torch.Tensor):
+            return im[:1]
+        t = torch.from_numpy(im).float() / 255.0 if im.dtype.kind == "u" else torch.from_numpy(im).float()
+        return t.unsqueeze(0) if t.ndim == 3 else t[:1]
+    a, b = as_batch(image_from), as_batch(image_to)
     if a.shape[1:3] != b.shape[1:3]:
         b = comfy.utils.common_upscale(b.movedim(-1, 1), a.shape[2], a.shape[1], "bilinear", "center").movedim(1, -1)
     return torch.cat([a, b], dim=0)
