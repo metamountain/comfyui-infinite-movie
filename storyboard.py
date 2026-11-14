@@ -1,11 +1,8 @@
-"""124a: shot-list helpers for the Director (Auftrag 124a).
+"""The Director's storyboard: one JSON list in its ``storyboard`` widget, ``[{"image", "prompt", "own"}, ...]``.
 
-The Director's storyboard is one JSON list in the ``storyboard`` widget:
-``[{"image": "<file>", "prompt": "<text>", "own": true}, ...]``.
-This module parses the list, loads the per-shot images and maps shots to
-segment prompts. It must stay importable without a running ComfyUI server
-(the unit tests run headless), so ``folder_paths`` / ``node_helpers`` are
-imported inside the functions that need them.
+Row i is an image and the film that starts there (web/im_storyboard_model.js holds the same rules for the UI):
+film i runs from image i to image ``next_of(i)``. Importable without a running ComfyUI (headless unit tests),
+so ``folder_paths`` / ``node_helpers`` are imported where they are used.
 """
 from __future__ import annotations
 
@@ -21,81 +18,65 @@ DEFAULT_IMAGES = 4
 
 
 def parse(text) -> list[dict]:
-    """Parse the storyboard JSON list from the ``storyboard`` widget.
-
-    Every entry is normalised to ``{"image": str, "prompt": str, "own": bool}``.
-    Empty text, broken JSON or a non-list result yields ``[]``. Entries that
-    are not dicts are skipped, the list is truncated to ``MAX_IMAGES``.
-    """
-    if not text:
-        return []
+    """Rows from the widget JSON: ``{"image": str, "prompt": str, "own": bool}``, at most MAX_IMAGES.
+    Empty or broken JSON -> ``[]``; entries that are not dicts are skipped."""
     try:
-        data = json.loads(text)
+        data = json.loads(text or "[]")
     except (ValueError, TypeError):
         return []
     if not isinstance(data, list):
         return []
-    shots: list[dict] = []
-    for entry in data:
-        if len(shots) >= MAX_IMAGES:
-            break
-        if not isinstance(entry, dict):
-            continue
-        shots.append({
-            "image": str(entry.get("image") or ""),
-            "prompt": str(entry.get("prompt") or ""),
-            "own": bool(entry.get("own") or False),
-        })
-    return shots
+    return [{"image": str(e.get("image") or "").strip(), "prompt": str(e.get("prompt") or ""), "own": bool(e.get("own"))}
+            for e in data if isinstance(e, dict)][:MAX_IMAGES]
 
 
-def load_images(shots) -> list[np.ndarray]:
-    """Load the per-shot images (H×W×3 uint8 arrays) from the shot list.
+def next_of(n: int, i: int, loop: bool) -> int:
+    """End image of film i: the next one, with loop the last one back to the first. A single image is an open
+    film (no end image), so it is its own "next". -1 = row i starts no film."""
+    return 0 if n == 1 else i + 1 if i < n - 1 else 0 if loop else -1
 
-    Entries with an empty ``image`` are skipped (empty storyboard slots).
-    Missing files raise ``ValueError``.
-    """
+
+def film_count(n: int, loop: bool) -> int:
+    """Films rendered: one per row that starts one; a single image with loop also gets the way back."""
+    return 0 if n < 1 else (2 if loop else 1) if n == 1 else n if loop else n - 1
+
+
+def load_image(name: str) -> np.ndarray:
+    """One image from ComfyUI's input folder as an H×W×3 uint8 array; a missing file raises ``ValueError``."""
     import folder_paths
     import node_helpers
     from PIL import Image, ImageOps
 
-    images: list[np.ndarray] = []
-    for shot in shots:
-        name = (shot.get("image") or "").strip()
-        if not name:
-            continue
-        path = folder_paths.get_annotated_filepath(name)
-        # get_annotated_filepath resolves the path but does not check existence
-        # (ComfyUI core nodes.py:1764-1782 relies on Image.open raising).
-        if not path or not os.path.isfile(path):
-            raise ValueError(f"Director: image not found: {name}")
-        img = node_helpers.pillow(Image.open, path)
-        img = node_helpers.pillow(ImageOps.exif_transpose, img)
-        img = img.convert("RGB")
-        images.append(np.asarray(img, dtype=np.uint8))
-    return images
+    path = folder_paths.get_annotated_filepath(name)
+    # get_annotated_filepath does not check existence (ComfyUI core LoadImage relies on Image.open raising).
+    if not path or not os.path.isfile(path):
+        raise ValueError(f"Director: image not found: {name}")
+    img = node_helpers.pillow(ImageOps.exif_transpose, node_helpers.pillow(Image.open, path))
+    return np.asarray(img.convert("RGB"), dtype=np.uint8)
+
+
+def load_images(board) -> list[np.ndarray]:
+    """The image of every row. An empty row raises: the UI counts it as a film position, so skipping it would
+    shift every later prompt onto the wrong film."""
+    empty = [str(i + 1) for i, row in enumerate(board) if not row["image"]]
+    if empty:
+        raise ValueError(f"Director: storyboard image {', '.join(empty)} is empty - load an image or remove the row")
+    return [load_image(row["image"]) for row in board]
 
 
 def prompt_list(board, n_segments) -> list[str]:
-    """One prompt per segment: entry ``i`` with an image -> segment ``i``.
-
-    Entries without an image do not count (same filter as :func:`load_images`).
-    An empty prompt takes the previous one (also past the end of the list),
-    a leading empty one stays ``""``. Whitespace is collapsed.
-    """
-    prompts = [" ".join(str(e.get("prompt") or "").split()) for e in board if str(e.get("image") or "").strip()]
+    """One prompt per rendered film: row i -> film i. An empty prompt takes the one before (also past the end of
+    the list, e.g. the way back of a single image); whitespace is collapsed."""
     out: list[str] = []
     for i in range(max(0, int(n_segments))):
-        p = prompts[i] if i < len(prompts) else ""
+        p = " ".join(board[i]["prompt"].split()) if i < len(board) else ""
         out.append(p or (out[-1] if out else ""))
     return out
 
 
 def images_from_batch(images) -> list[np.ndarray]:
-    """Convert an IMAGE tensor (B,H,W,C) float [0,1] to B uint8 HWC arrays."""
+    """An IMAGE tensor (B,H,W,C) float [0,1] as B uint8 H×W×C arrays."""
     if images is None:
         return []
     t = images.detach().cpu() if hasattr(images, "detach") else images
-    if not len(t):
-        return []
     return [_to_numpy_image(t[i]) for i in range(len(t))]

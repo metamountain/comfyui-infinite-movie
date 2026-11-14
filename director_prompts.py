@@ -1,19 +1,13 @@
-"""124b: the Director writes the prompts for selected shots (no render, no GPU).
+"""The Director writes the prompts of chosen storyboard rows - no render, no GPU.
 
-Since 124c the storyboard (the Director's ``storyboard`` widget, a JSON list of
-``{"image", "prompt", "own", "pair"}``) holds one prompt per shot. When the user
-presses Regenerate in the storyboard, the frontend sets the Director's ``regen``
-widget to a JSON list of 0-based shot indices (e.g. ``"[0, 2]"``) and queues ONLY
-the Director. The Director then writes the prompts for exactly those shots (from
-their image pairs, with the LLM settings from the chain) and renders nothing.
-The result goes back to the frontend as ``ui["im_prompts"]``.
-
-Like storyboard.py this module must stay importable without a running ComfyUI
-server (the unit tests run headless), so folder_paths / the LLM / the prompt
-model / the settings are imported inside the functions that need them.
+↻ Regenerate / ✎ Write all in the storyboard set the Director's ``regen`` widget to a JSON list of row indices
+(``"[0, 2]"``) and queue ONLY the Director; it writes those prompts from their image pairs with the LLM settings of
+the chain and sends them back as ``ui["im_prompts"]``. Importable without a running ComfyUI (headless unit tests):
+folder_paths, the LLM, the prompt model and the settings are imported where they are used.
 """
 from __future__ import annotations
 
+import json
 import time
 
 
@@ -49,75 +43,58 @@ def prompt_config(settings) -> dict:
     }
 
 
-def write_prompts(board, indices, loop, settings) -> list[dict]:
-    """Write the prompts for the listed shots ONLY (no render, no GPU).
+def parse_indices(text) -> list[int]:
+    """Row indices from the ``regen`` widget (JSON list); anything else -> ``[]``."""
+    try:
+        data = json.loads(text or "[]")
+    except (TypeError, ValueError):
+        return []
+    return [int(i) for i in data if isinstance(i, int) and not isinstance(i, bool)] if isinstance(data, list) else []
 
-    ``board`` = the shot list from storyboard.parse; ``indices`` = 0-based shot
-    indices (from the Director's ``regen`` widget, e.g. ``[0, 2]``). For shot i
-    the pair is image i -> image i+1 (with ``loop``: the last shot -> image 0;
-    without loop the last shot has no film and is skipped). A shot (or its
-    partner) without an image is skipped. A shot whose generation fails becomes
-    ``{"i": i, "error": ...}``; the other shots still run.
-    """
-    from . import storyboard as _sb
+
+def write_prompts(board, indices, loop, settings) -> list[dict]:
+    """The prompts of the rows ``indices`` (storyboard.parse rows): ``{"i", "prompt", "pair"}`` per film, or
+    ``{"i", "error"}`` when its images are missing or the generation fails - the other rows still run. Rows that
+    start no film (the last one without loop) are left out. Only the images of these films are loaded."""
+    from . import storyboard as sb
     from .autoprompt import generate
 
     cfg = prompt_config(settings)
     llm = cfg["llm"]
-    story_on = isinstance(llm, dict) and bool(llm.get("story_mode"))
+    n = len(board)
+    images = {}
 
-    # Loaded image per shot index (shots without an image stay absent).
-    with_image = [i for i, s in enumerate(board) if str(s.get("image") or "").strip()]
-    try:
-        images = _sb.load_images(board)
-        img_by_shot = dict(zip(with_image, images))
-    except ValueError:
-        # A missing file must not kill the whole run: load shot by shot, the broken
-        # ones stay absent and are skipped below.
-        img_by_shot = {}
-        for i in with_image:
-            try:
-                img_by_shot[i] = _sb.load_images([board[i]])[0]
-            except ValueError:
-                pass
+    def image(k):
+        if k not in images:
+            if not board[k]["image"]:
+                raise ValueError(f"image {k + 1} is empty")
+            images[k] = sb.load_image(board[k]["image"])
+        return images[k]
 
-    # Story mode: one plan for the whole film (arc + a beat per shot with an image),
-    # then each shot gets its own beat (k = its position among the shots with an image).
-    sb = None
-    if story_on and len(with_image) >= 2:
+    # Story mode: one plan for the whole film (arc + a beat per image), each film then gets its own beat.
+    filled = [k for k, row in enumerate(board) if row["image"]]
+    plan = None
+    if isinstance(llm, dict) and llm.get("story_mode") and len(filled) >= 2:
         import folder_paths
         from .llm_nodes import storyboard
-        files = [folder_paths.get_annotated_filepath(str(board[i]["image"]).strip()) for i in with_image]
-        sb = storyboard(llm, files, loop, llm.get("story"))
+        plan = storyboard(llm, [folder_paths.get_annotated_filepath(board[k]["image"]) for k in filled], loop, llm.get("story"))
 
     out = []
-    n = len(board)
     for i in indices:
-        try:
-            i = int(i)
-        except (TypeError, ValueError):
+        j = sb.next_of(n, i, loop) if 0 <= i < n else -1
+        if j < 0:
             continue
-        if not (0 <= i < n):
-            continue
-        j = i + 1 if i < n - 1 else (0 if loop else None)
-        if j is None:
-            continue  # without loop the last shot has no film
-        a, b = img_by_shot.get(i), img_by_shot.get(j)
-        if a is None or b is None:
-            continue  # missing image in the pair -> skip
-        shot = board[i]
-        keywords = " ".join(str(shot.get("prompt") or "").split()) if shot.get("own") else ""
-        context = ""
-        if sb is not None:   # a has an image, so i is in with_image
-            from .llm_nodes import shot_context
-            context = shot_context(sb, with_image.index(i))
+        row = board[i]
         try:
+            context = ""
+            if plan is not None and i in filled:
+                from .llm_nodes import shot_context
+                context = shot_context(plan, filled.index(i))
             text, _desc, _warning = generate(
-                a, b, cfg["model_name"], keywords,
-                camera=cfg["camera"], instruction=cfg["instruction"],
-                max_words=cfg["max_words"], seed=int(time.time()) % 2**31,
-                load=cfg["load"], gen=cfg["gen"], context=context)
-            out.append({"i": i, "prompt": text, "pair": [shot["image"], board[j]["image"]]})
-        except Exception as e:  # noqa: BLE001 - one broken shot must not kill the rest
+                image(i), image(j), cfg["model_name"], " ".join(row["prompt"].split()) if row["own"] else "",
+                camera=cfg["camera"], instruction=cfg["instruction"], max_words=cfg["max_words"],
+                seed=int(time.time()) % 2**31, load=cfg["load"], gen=cfg["gen"], context=context)
+            out.append({"i": i, "prompt": text, "pair": [row["image"], board[j]["image"]]})
+        except Exception as e:  # noqa: BLE001 - one broken film must not stop the others
             out.append({"i": i, "error": str(e)})
     return out
