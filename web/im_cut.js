@@ -11,7 +11,7 @@ export function fcChooseRender(node) {
   let el = node._fc_choose_el;
   if (!el) {
     el = document.createElement("div");
-    el.style.cssText = "width:100%;box-sizing:border-box;display:flex;flex-direction:column;gap:" + FC_CHOOSE_GAP + "px;";
+    el.style.cssText = "width:100%;box-sizing:border-box;position:relative;display:flex;flex-direction:column;gap:" + FC_CHOOSE_GAP + "px;";
     const domW = node.addDOMWidget("fc_choose", "div", el, {
       serialize: false,
       getMinHeight: () => fcChooseLayout(node, fcChooseEntries(node)).domH,
@@ -139,6 +139,52 @@ export function fcChooseRender(node) {
         const line = document.createElement("div");
         line.style.cssText = `position:absolute;top:0;left:0;right:0;height:2px;background:${FC_REVIEW_LINE_COLORS[v.level] || "transparent"};`;
         t.appendChild(line);
+        // 136: the same actions the tile click performs, callable from the preview overlay.
+        const useVariant = () => {
+          if (fcRun.running) return;
+          if (!canPick) return toggleRedo();
+          if (isMarked) { setRejected([]); setMarked(false); }
+          else setRejected(rejected.filter((x) => x !== k));
+          fcChoosePick(node, i, k);
+        };
+        const rejectVariant = () => {
+          if (fcRun.running) return;
+          if (!canPick) return toggleRedo();
+          const other = k === "a" ? "b" : "a";
+          if (eff === k) {
+            if (rejected.includes(other)) { setRejected(["a", "b"]); setMarked(true); fcChooseRender(node); }
+            else { setRejected([...rejected, k]); fcChoosePick(node, i, other); }
+          } else {
+            setRejected([...rejected, k]);
+            if (rejected.includes(other)) { setMarked(true); fcChooseRender(node); }
+            else fcChoosePick(node, i, other);
+          }
+        };
+        // 136: eye icon top right -> the segment's video as a big overlay over the node DOM.
+        if (!e.placeholder && v.video) {
+          const eye = document.createElement("div");
+          eye.className = "fc-eye";
+          eye.style.cssText = "position:absolute;top:6px;right:6px;width:24px;height:24px;display:flex;align-items:center;justify-content:center;" +
+            "cursor:pointer;opacity:0.7;filter:drop-shadow(0 0 1px #000);";
+          eye.innerHTML = '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="#fff" stroke-width="1.25" ' +
+            'stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.6-6.5 10-6.5S22 12 22 12s-3.6 6.5-10 6.5S2 12 2 12z"/>' +
+            '<circle cx="12" cy="12" r="3"/></svg>';
+          eye.title = "Open preview";
+          eye.addEventListener("mouseenter", () => { eye.style.opacity = "1"; });
+          eye.addEventListener("mouseleave", () => { eye.style.opacity = "0.7"; });
+          eye.addEventListener("click", (ev) => {
+            ev.stopPropagation();   // the tile must not select/reject
+            fcEyeOverlay(el, {
+              url: fcChooseStableUrl(v.video),
+              variants: e.has_variants
+                ? { a: e.a?.video ? fcChooseStableUrl(e.a.video) : "", b: e.b?.video ? fcChooseStableUrl(e.b.video) : "" }
+                : null,
+              onUse: useVariant,
+              onReject: rejectVariant,
+            });
+          });
+          t.appendChild(eye);
+        }
         if (!e.placeholder) t.addEventListener("click", (ev) => {
           ev.stopPropagation();
           if (fcRun.running) return;
@@ -326,6 +372,81 @@ export function fcChooseRender(node) {
   const want = [fcChooseWidth(entries.length), node.computeSize()[1]];
   if (Math.abs(node.size[0] - want[0]) > 1 || Math.abs(node.size[1] - want[1]) > 1) node.setSize(want);
   node.setDirtyCanvas(true, true);
+}
+
+// 136: eye preview – the segment's own video as a big overlay over the whole Cut node DOM.
+// The bottom buttons call the same functions as the tile click (use/reject), then the
+// overlay closes. Close: ✕, Esc, or a click on the background.
+function fcEyeOverlay(host, { url, variants = null, onUse, onReject }) {
+  if (host.querySelector(":scope > .fc-eye-ov")) return null;   // one overlay at a time
+  const ov = document.createElement("div");
+  ov.className = "fc-eye-ov";
+  ov.style.cssText = "position:absolute;inset:0;z-index:50;background:rgba(0,0,0,0.85);" +
+    "display:flex;flex-direction:column;";
+  const video = document.createElement("video");
+  video.controls = true; video.autoplay = true; video.loop = true; video.muted = true; video.playsInline = true;
+  video.style.cssText = "flex:1;width:100%;min-height:0;object-fit:contain;";
+  video.src = url;
+  const row = document.createElement("div");
+  row.style.cssText = "display:flex;justify-content:center;gap:8px;padding:8px;flex:0 0 auto;";
+  const mkBtn = (label, title, fn) => {
+    const b = document.createElement("div");
+    b.textContent = label;
+    b.style.cssText = "min-width:64px;padding:4px 12px;display:flex;align-items:center;justify-content:center;" +
+      "color:#fff;border:1px solid #fff;border-radius:4px;background:transparent;cursor:pointer;" +
+      "font:bold 13px sans-serif;user-select:none;";
+    b.title = title;
+    b.addEventListener("click", (ev) => { ev.stopPropagation(); fn(); });
+    row.appendChild(b);
+    return b;
+  };
+  const onKey = (ev) => {
+    if (ev.key !== "Escape") return;
+    if (!ov.isConnected) { document.removeEventListener("keydown", onKey); return; }
+    close();
+  };
+  const close = () => {
+    video.pause();
+    video.removeAttribute("src");
+    video.load();
+    document.removeEventListener("keydown", onKey);
+    ov.remove();
+  };
+  const act = (fn) => { close(); fn(); };
+  mkBtn("✓ use", "Use this variant (same as clicking the tile)", () => act(onUse));
+  mkBtn("✗ reject", "Reject this variant (same as clicking the tile)", () => act(onReject));
+  if (variants) {
+    const vbtns = [];
+    let shown = "";
+    for (const k of ["a", "b"]) {
+      if (!variants[k]) continue;
+      const b = mkBtn(k.toUpperCase(), `Switch to variant ${k.toUpperCase()}`, () => {
+        if (shown === k) return;
+        shown = k;
+        video.src = variants[k];
+        video.currentTime = 0;
+        video.play().catch(() => {});
+        vbtns.forEach(([kk, bb]) => { bb.style.opacity = kk === shown ? "0.5" : "1"; });
+      });
+      if (variants[k] === url) shown = k;
+      vbtns.push([k, b]);
+    }
+    vbtns.forEach(([kk, bb]) => { bb.style.opacity = kk === shown ? "0.5" : "1"; });
+  }
+  const x = document.createElement("div");
+  x.textContent = "✕";
+  x.style.cssText = "position:absolute;top:8px;right:8px;z-index:2;width:28px;height:28px;" +
+    "display:flex;align-items:center;justify-content:center;color:#fff;border:1px solid #fff;border-radius:4px;" +
+    "background:transparent;cursor:pointer;font:16px sans-serif;";
+  x.title = "Close preview";
+  x.addEventListener("click", (ev) => { ev.stopPropagation(); close(); });
+  ov.appendChild(video);
+  ov.appendChild(row);
+  ov.appendChild(x);
+  ov.addEventListener("click", (ev) => { if (ev.target === ov) close(); });
+  document.addEventListener("keydown", onKey);
+  host.appendChild(ov);
+  return close;
 }
 
 app.registerExtension({
