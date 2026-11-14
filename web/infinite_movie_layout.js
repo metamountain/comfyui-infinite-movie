@@ -246,8 +246,8 @@ export function fcWorkflowLayout(director, second = false) {
   }
   // Cut: the preview sits at the right edge of the double-width group
   if (row[CUT][0]) for (const f of cutFilms) f.pos = [row[CUT][0].pos[0] + sizes[CUT][0] - PAD - f.size[0], f.pos[1]];
-  // Group height from the real content. user 2026-11-14 ("Gruppen 4, 5, 6 zusammen gleich, geringere Höhe"):
-  // groups 1-3 keep the full row height, groups 4-6 share one lower height (the smallest that fits all three).
+  // Group height from the real content: groups 1-3 keep the full row height, groups 4-6 share one lower height
+  // (the smallest that fits all three).
   const bottom123 = Math.max(...row.slice(0, 3).flatMap(([, ns]) => ns.map((n) => n.pos[1] + n.size[1])));
   // Upscale content (block + Film players below) counts for the 4-6 height, not the 1-3 height
   let upNeed = 0;
