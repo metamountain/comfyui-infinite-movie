@@ -1,9 +1,8 @@
 """InfiniteMovieRender custom nodes (V3 ComfyNode API).
 
 Nodes:
-- InfiniteMovieRender: the main node. Takes a sequence of images + per-transition
-  prompts, expands into per-segment FLF2V sub-graphs, and returns the sync pipe
-  (segments + settings) for Cut.
+- InfiniteMovieRender (Director): the storyboard (images + one prompt per film) expands into one
+  engine render per film and returns the sync pipe (films + settings) for Cut.
 - InfiniteMovieSegmentSave: writes one segment's frames to an mp4 file (ffmpeg).
 - InfiniteMovieSegmentPaths / InfiniteMovieShotsOut: internal collector + blocking
   bridge to the sync output.
@@ -14,7 +13,6 @@ outputs, category, log).
 
 from __future__ import annotations
 
-import json
 import os
 import re
 import shutil
@@ -28,27 +26,17 @@ import torch
 from comfy_api.latest import io
 
 from . import vram
-from .expansion import build_expansion_graph
+from .expansion import build_expansion_graph, segment_path, segment_path_b
 from .media import (_count_frames, _encode_dir_to_mp4, _ffmpeg, _no_window, _segment_is_complete, _write_audio_to_wav, _write_frames_to_dir)
 from .shot_utils import (_clean_prompt,
                            _parse_reseed, _parse_shot_seconds, _scene_frames, _seconds_to_frames,
-                           _snap_length, _to_numpy_image, center_crop_resize)
-# 57d: SETTINGS pipe + get_setting (settings_nodes imports only .vram + lazy .autoprompt,
-# no cycle). The settings input goes at the END of the schema so the slot indices of the
-# Autogrow inputs (images/shot_prompts) do NOT shift (RAG: links hang off the index).
+                           _snap_length, _to_numpy_image, center_crop_resize)  # _to_numpy_image: test_misc (after 127b)
+# settings_nodes imports only .vram + lazy .autoprompt - no cycle
 from .settings_nodes import SETTINGS, get_setting, chain_settings, ASPECT_FROM_IMAGES, resolve_ratio
 
-# 124a: the Autogrow image/prompt sockets are replaced by the shot list in the
-# Director's storyboard (storyboard.py). MAX_IMAGES is the single cap, defined there.
 from . import storyboard as _storyboard
 
-# Auftrag 32: sync pipe - a "pipe" type (like rgthree-Context /
-# Efficiency-Pipes). Content: dict with segments, save_folder, save_name, fps,
-# loop, width, height, frames_per_segment, seed, render_id.
-# 57b2 (2026-11-01): type renamed (the pipe was called "shots" everywhere -
-# ID, display AND type; the old type name is in tools/migrate_workflows.py).
-# 116a (2026-11-13): renamed again - the pipe is called "sync" everywhere
-# (ID, display AND type); no load migration (user decision, no users yet).
+# The pipe from the Director to Cut and Even Motion: films, folder, name, fps, loop, size, … and the settings.
 SYNC = io.Custom("SYNC")
 
 
@@ -254,416 +242,129 @@ def _resolve_film_name(settings):
     return n
 
 class InfiniteMovieRender(io.ComfyNode):
+    """The Director: storyboard (images + one prompt per film) -> one engine render per film -> sync for Cut."""
+
     @classmethod
     def define_schema(cls):
         return io.Schema(
             node_id="InfiniteMovieRender",
             display_name="Director · Infinite Movie",
             search_aliases=["infinite movie", "infinite_movie", "film", "movie", "video", "ltx", "wan",
-                            "render", "director"],
+                            "render", "director", "storyboard"],
             category="Infinite Movie/2 Render",
-            description="Stage 2 (Render) of the Infinite Movie: turns a sequence of images into FLF2V video segments, "
-                        "one per transition. Images and prompts come from the storyboard (or a wired "
-                        "image batch that overrides it); segment_paths goes to Infinite Movie · Normalize Time or "
-                        "Infinite Movie · Concat. Handles GPU handoff to/from the local LLM. While rendering, a "
-                        "progress bar with segment/step/elapsed/ETA is drawn at the bottom of the node.",
+            description="Turns the storyboard (images, one prompt per film between two images) into one video per "
+                        "film with the engine group, and hands them to Cut over sync (the settings travel along). "
+                        "Writes the prompts with the LLM from the settings chain (Regenerate / Write all prompts).",
             is_output_node=True,
             enable_expand=True,
             inputs=[
-                # 66 (user 2026-11-03: "logical order, wire it cleanly"): sockets on top in
-                # reading order: settings, engine, images, storyboard; then the widgets.
-                # All sockets optional - the frontend sets required BEFORE optional, that is
-                # why images is optional too (execute raises "Director: no images" when nothing comes in).
+                # Sockets first (all optional - the frontend sorts required ones above optional ones), then widgets.
                 SETTINGS.Input("settings", optional=True, display_name="settings",
-                               tooltip="Settings chain (format, film name, GPU handoff). Without it the built-in defaults apply."),
-                # 57e: the engine input is optional + lazy.
-                # lazy=True: the chain does NOT run directly (graph.py add_node does not create
-                #   lazy inputs as strong links) - no double run. The Director reads the
-                #   connection from the dynprompt, not from the engine value.
-                # optional=True: automatic. Unconnected -> the SINGLE non-muted
-                #   Engine Out in the prompt. Connected -> exactly that one.
-                io.String.Input(
-                    "engine",
-                    force_input=True,
-                    lazy=True,
-                    optional=True,
-                    tooltip="Engine (INFINITE_ENGINE) – the video model chain (Engine Start → model chain → Engine Result). "
-                            "Optional: when unconnected, the single non-muted engine group in the workflow is used. "
-                            "Connect exactly one Engine Result to use a specific engine group.",
-                ),
-                # 124a: the Autogrow image/prompt sockets are replaced by the shot list
-                # (JSON in the 'storyboard' widget, edited in the Director's storyboard).
-                # A wired image batch overrides the shot list (one image per shot).
-                io.Image.Input(
-                    "images",
-                    optional=True,
-                    tooltip="Optional image batch – overrides the shot list (one image per shot).",
-                ),
-                io.String.Input(
-                    "storyboard",
-                    default="[]",
-                    multiline=False,
-                    advanced=True,
-                    optional=True,
-                    tooltip="Storyboard (JSON: image, prompt per entry) – edited in the Director's storyboard.",
-                ),
-                # 124b: set by the storyboard's "Regenerate" button (web/im_storyboard.js):
-                # a JSON list of 0-based shot indices (e.g. "[0, 2]"). Non-empty -> the
-                # Director writes only those shots' prompts (director_prompts.write_prompts)
-                # and renders nothing; the result goes back to the frontend as
-                # ui["im_prompts"]. Empty = a normal render run.
-                io.String.Input(
-                    "regen",
-                    default="",
-                    advanced=True,
-                    optional=True,
-                    tooltip="Set by the storyboard: shot numbers whose prompt gets written. Empty = normal run.",
-                ),
-                # 82: per-shot length, edited in Infinite Movie · Choose (⏱ button).
-                # optional=True + declared last -> last widget in the UI
-                # and old saved workflows keep their positional widgets_values.
-                # No Autogrow: Autogrow sub-inputs become required (see comment below).
-                io.String.Input(
-                    "shot_seconds",
-                    default="",
-                    optional=True,
-                    advanced=True,
-                    tooltip="Per-shot length in seconds, comma separated (shot 1, shot 2, …); empty or 0 = global 'seconds'. Set from Choose › ⏱.",
-                ),
-                io.Boolean.Input(
-                    "loop",
-                    default=True,
-                    tooltip="true = add the closing transition (last image -> first image) so the film loops "
-                            "seamlessly; false = the film ends on the last image (no closing transition).",
-                ),
-                io.Float.Input(
-                    "seconds",
-                    default=2.0,
-                    min=0.5,
-                    step=0.5,
-                    tooltip="Default scene length in seconds, snapped to the preset grid (LTX 24 fps 8n+1: 1 s = 25, 2 s = 49 frames). "
-                            "Per-shot lengths can be set in Choose › ⏱.",
-                ),
-
-                io.Int.Input(
-                    "seed",
-                    default=42,
-                    # 2026-11-13 (night debug 120): fixed, not randomize - a new base seed re-renders EVERY shot on each
-                    # Run (rendered shots are kept only while their seed stays); new seeds per shot: ✗ REDO in Cut
-                    control_after_generate=io.ControlAfterGenerate.fixed,
-                    tooltip="Base seed (per-segment seed = seed + index; 'reseed' adds 1000 for single segments). "
-                            "Changing it re-renders all shots; ✗ REDO in Cut gives single shots a new seed.",
-                ),
-                io.String.Input(
-                    "reseed",
-                    default="",
-                    tooltip="Segments to re-render with a new seed, e.g. '2' or '2,4' (numbers as in the Concat check report). "
-                            "Each mention adds 1000 to that segment's seed ('2,2' = second try); all other segments keep theirs.",
-                ),
-                # mode widget removed (Auftrag 72): segment render only.
-                # 61: variants (Variants-Builder). AT THE END of the widgets (after reseed, before the
-                # engine/settings sockets) so saved workflows do not shift anything
-                # (widgets_values is positional). "2" renders every transition twice
-                # (seed A and seed A+500) for the Infinite Movie · Choose node.
-                io.Combo.Input(
-                    "variants", advanced=True,
-                    options=["1", "2"],
-                    default="1",
-                    tooltip="Variants (Auftrag 61): '2' renders every transition TWICE (variant A with the "
-                            "normal seed, variant B with seed+500) so Infinite Movie · Choose can pick the "
-                            "better one per transition. '1' (default) renders once, as before.",
-                ),
-                # scene_seconds removed (2026-10-27): optional=True did not work for
-                # Autogrow sub-inputs -> validation demanded seconds0/seconds1 as required.
-                # The global 'seconds' widget is used for all scenes.
+                               tooltip="Settings chain (format, film name, LLM, GPU handoff). Without it the built-in defaults apply."),
+                # lazy: the engine chain is not executed as an input - the Director reads the engine group from the
+                # dynprompt (expansion.engine_to_template). Unconnected = the single non-muted engine group.
+                io.String.Input("engine", force_input=True, lazy=True, optional=True,
+                                tooltip="Engine Result of the engine group to use. Unconnected: the single non-muted engine group."),
+                io.Image.Input("images", optional=True,
+                               tooltip="Optional image batch - replaces the storyboard images (image i = row i); "
+                                       "the prompts still come from the storyboard rows."),
+                io.String.Input("storyboard", default="[]", advanced=True, optional=True,
+                                tooltip="Storyboard JSON (image, prompt per row) - edited in the Director's storyboard."),
+                io.String.Input("regen", default="", advanced=True, optional=True,
+                                tooltip="Set by the storyboard: rows whose prompt gets written (no render). Empty = render."),
+                io.String.Input("shot_seconds", default="", advanced=True, optional=True,
+                                tooltip="Length of each film in seconds, comma separated; empty or 0 = 'seconds'. "
+                                        "Set with ⏱ in the storyboard or in Cut."),
+                io.Boolean.Input("loop", default=True,
+                                 tooltip="true = one more film from the last image back to the first, so the film loops."),
+                io.Float.Input("seconds", default=2.0, min=0.5, step=0.5,
+                               tooltip="Default length of a film in seconds, snapped to the engine's frame grid "
+                                       "(LTX 24 fps 8n+1: 1 s = 25, 2 s = 49 frames)."),
+                # fixed, not randomize: a new base seed re-renders EVERY film (night debug 120, 2026-11-13)
+                io.Int.Input("seed", default=42, control_after_generate=io.ControlAfterGenerate.fixed,
+                             tooltip="Base seed (film i: seed + i). Changing it re-renders all films; "
+                                     "✗ REDO in Cut gives single films a new seed."),
+                io.String.Input("reseed", default="",
+                                tooltip="Films to render again with a new seed, e.g. '2' or '2,4' (written by ✗ REDO in Cut). "
+                                        "Each mention adds 1000 to that film's seed."),
+                io.Combo.Input("variants", options=["1", "2"], default="1", advanced=True,
+                               tooltip="'2' renders every film twice (seed and seed + 500) - pick A or B per film in Cut."),
             ],
             outputs=[
-                # 71 (user 2026-11-03: "less is more"): exactly 2 outputs -
-                # sync = slot 0 (pipe to Cut), settings = slot 1 (chain).
-                # film_path / segment_paths / save_folder / save_name / images
-                # removed (no migration). Blocking: sync is a link to the
-                # internal node InfiniteMovieShotsOut, which hangs on the collector
-                # (execution.py 599-612: strong link from link values) - the Director
-                # thereby waits for all segments without a visible output.
-                SYNC.Output("sync",
-                          display_name="sync ▶ Cut",
-                          tooltip="Pipe mit allen Shots (Segment-Pfade, Ordner, Name, fps, loop …) von "
-                                  "Infinite Movie · Director."),
+                # sync is a link to the internal ShotsOut node hanging on the collector of all films: the Director
+                # thereby waits for every film without a visible output (execution.py strong links).
+                SYNC.Output("sync", display_name="sync ▶ Cut",
+                            tooltip="All films (paths, folder, name, fps, loop …) and the settings, for Cut."),
             ],
             hidden=[io.Hidden.unique_id, io.Hidden.dynprompt],
         )
 
     @classmethod
     def fingerprint_inputs(cls, **kwargs):
-        # NaN != NaN (IEEE 754) -> the fingerprint never equals the last run, so the
-        # Director always re-executes - including when the storyboard's `regen` widget
-        # changes (124b). No need to include `regen` explicitly.
-        return float("NaN")
+        return float("NaN")   # NaN != NaN: always run (the films decide themselves what is reused)
 
     @classmethod
     def check_lazy_status(cls, *args, **kwargs):
-        # 57e: the engine input is lazy (schema lazy=True) - the chain is not
-        # executed directly (no strong link). The Director reads the engine from
-        # the dynprompt. check_lazy_status=[] confirms: wait for nothing.
-        return []
+        return []   # the lazy engine input is never awaited (read from the dynprompt)
 
     @classmethod
-    def execute(cls, images=None, storyboard="[]",
-                loop=True, seconds=2.0,
-                seed=42,
-                reseed="", engine=None,
-                shot_seconds="", settings=None, variants="1",
-                regen=""):
-        # 124b: the storyboard's "Regenerate" sets `regen` to a JSON list of 0-based
-        # shot indices and queues ONLY the Director -> write exactly those shots'
-        # prompts (no GPU handoff, no engine expansion) and return them to the
-        # frontend as ui["im_prompts"]. Empty `regen` = a normal render run.
-        if str(regen).strip():
-            try:
-                indices = json.loads(regen)
-            except (TypeError, ValueError):
-                indices = []
-            if not isinstance(indices, list):
-                indices = []
-            board = _storyboard.parse(storyboard)
-            from .director_prompts import write_prompts
-            result = write_prompts(board, indices, loop, settings)
-            n_out = len(cls.define_schema().outputs)
-            return io.NodeOutput(*(None,) * n_out, ui={"im_prompts": result})
+    def execute(cls, images=None, storyboard="[]", loop=True, seconds=2.0, seed=42, reseed="", engine=None,
+                shot_seconds="", settings=None, variants="1", regen=""):
+        board = _storyboard.parse(storyboard)
+        if str(regen).strip():   # ↻ Regenerate / ✎ Write all: write these prompts, render nothing
+            from .director_prompts import parse_indices, write_prompts
+            return io.NodeOutput(None, ui={"im_prompts": write_prompts(board, parse_indices(regen), loop, settings)})
 
-        # Format, name and GPU handoff from the settings chain; without it -> defaults.
-        # 73: negative is gone (Engine In no longer has a negative output).
-        width = get_setting(settings, "width")
-        height = get_setting(settings, "height")
-        min_free_mb = get_setting(settings, "min_free_mb")
-        acquire_timeout_s = get_setting(settings, "acquire_timeout_s")
-        name = _resolve_film_name(settings)
-        # Concatenating, copying and the cleanup switches live on the visible InfiniteMovieAssemble
-        # (2026-10-26 cleanup: the chain only renders segments).
-        unique_id = cls.hidden.unique_id
-        # Model inputs: the engine template already contains the model loaders
-        # (Auftrag 29). External model override is not supported via the render
-        # node – the engine subgraph defines the model chain.
-        model_inputs = {}
-        # 61: variants (Variants-Builder). Normalize to int.
-        try:
-            variants_int = int(variants)
-        except (TypeError, ValueError):
-            variants_int = 1
-        if variants_int not in (1, 2):
-            variants_int = 1
-        # 57e: engine-based template – read the motor graph via dynprompt.
-        # The engine input is optional: when unconnected, engine_to_template
-        # resolves the single non-muted Engine Out in the prompt (or raises).
         from .expansion import engine_to_template
-        _dynprompt = getattr(cls.hidden, "dynprompt", None)
-        template, cfg = engine_to_template(_dynprompt, unique_id)
-        cfg = dict(cfg, audio=bool(get_setting(settings, "audio")))   # Settings › audio (default off)
+        from .settings_nodes import film_folder
+        uid = cls.hidden.unique_id
+        template, cfg = engine_to_template(getattr(cls.hidden, "dynprompt", None), uid)
+        cfg = dict(cfg, audio=bool(get_setting(settings, "audio")))
         preset = cfg.get("preset", "ltx25_flf2v")
-
-        # Memory display: "before" reading (visible while the job runs).
         _display_memory(cls, "before")
 
-        # 0 means "use the preset default"; snap length to the preset grid.
-        if width <= 0:
-            width = cfg["default_width"]
-        if height <= 0:
-            height = cfg["default_height"]
-        length = _seconds_to_frames(seconds, cfg["fps"], cfg["length_mod"])
-        print(f"[InfiniteMovie] {seconds:g} s -> {length} Frames "
-              f"(fps {cfg['fps']}, grid {cfg['length_mod']}n+1)")
-        snapped = _snap_length(length, cfg["length_mod"])
-        if snapped != length:
-            print(f"[InfiniteMovie] length {length} snapped to {snapped} "
-                  f"(grid {cfg['length_mod']}n+1)")
-        length = snapped
-        # 71: intro/outro removed (user 2026-11-03: "less is more") -
-        # no more intro/outro frames, prompts or segments.
-
-        # 82: per-shot seconds from the 'shot_seconds' widget
-        # ("2, 3,,4" -> [2.0, 3.0, 0.0, 4.0]; 0 = global 'seconds').
-        scene_seconds_list = _parse_shot_seconds(shot_seconds)
-        if scene_seconds_list:
-            print(f"[InfiniteMovie] per-shot seconds: {scene_seconds_list}")
-
-        # 1. Collect + preprocess images (124a: images from the storyboard,
-        # a wired image batch overrides it).
-        board = _storyboard.parse(storyboard)
-        if images is not None:
-            raw_images = _storyboard.images_from_batch(images)
-        else:
-            raw_images = _storyboard.load_images(board)
-        if not raw_images:
-            raise ValueError("Director: no images – add images in the storyboard")
-        raw_images = raw_images[:_storyboard.MAX_IMAGES]
-        # 1 image: open shot (start image + prompt, no end image); loop on adds a second shot
-        # from that shot's last frame back to the image. See expansion._segment_plan (2026-11-09).
-        # 69: size from the first input image (Settings › aspect = "from images");
-        # raw_images are H×W×C (np.uint8) -> shape[:2] = (h, w).
-        if get_setting(settings, "aspect") == ASPECT_FROM_IMAGES:
-            h0, w0 = raw_images[0].shape[:2]
-            width, height = resolve_ratio(w0, h0, get_setting(settings, "long_side"))
-            print(f"[InfiniteMovie] size from image 1 ({w0}x{h0}) -> {width}x{height}")
-        images_np = [center_crop_resize(im, width, height) for im in raw_images]
-        # Convert to the tensor format the segment nodes expect (B, H, W, C).
-        image_tensors = [
-            torch.from_numpy(np.ascontiguousarray(im)).unsqueeze(0).float() / 255.0
-            for im in images_np
-        ]
-
-        # 2. Build per-transition prompts.
-        n_images = len(image_tensors)
-        n_segments = (2 if loop else 1) if n_images == 1 else (n_images if loop else n_images - 1)
-        # Prompt per segment from the storyboard, cleaned (think blocks, Markdown, word limit).
-        seg_prompts = [_clean_prompt(p) for p in _storyboard.prompt_list(board, n_segments)]
-
-        # Auftrag 48G.1: log the prompt used per scene (first 80 characters)
-        for _si, _sp in enumerate(seg_prompts):
-            print(f"[InfiniteMovie] scene {_si} prompt: {_sp[:80]}")
-
-        # 3. Output directory. 116b1: shots go to <film_folder>/cache_movies/<name> (render cache).
-        from .settings_nodes import film_folder
+        raw = _storyboard.images_from_batch(images) if images is not None else _storyboard.load_images(board)
+        if not raw:
+            raise ValueError("Director: no images - add images in the storyboard")
+        width, height = _film_size(settings, cfg, raw[0])
+        tensors = [torch.from_numpy(np.ascontiguousarray(center_crop_resize(im, width, height))).unsqueeze(0).float() / 255.0
+                   for im in raw[:_storyboard.MAX_IMAGES]]
+        length = _snap_length(_seconds_to_frames(seconds, cfg["fps"], cfg["length_mod"]), cfg["length_mod"])
+        n_films = _storyboard.film_count(len(tensors), loop)
+        prompts = [_clean_prompt(p) for p in _storyboard.prompt_list(board, n_films)]
+        film_seconds = _parse_shot_seconds(shot_seconds)
+        own = _scene_frames(film_seconds, cfg["fps"], cfg["length_mod"], length)
+        frames = [own[k] if k < len(own) else length for k in range(n_films)]
+        variants = 2 if str(variants) == "2" else 1
+        name = _resolve_film_name(settings)
         output_dir = os.path.join(film_folder(settings), "cache_movies", name)
         os.makedirs(output_dir, exist_ok=True)
+        print(f"[InfiniteMovie] {n_films} films, {width}x{height}, {length} frames ({seconds:g} s), "
+              f"own lengths {film_seconds or '-'}, variants {variants}, preset {preset}, out {output_dir}")
+        for k, p in enumerate(prompts):
+            print(f"[InfiniteMovie] film {k + 1} prompt: {p[:80]}")
 
-        # 3b. Skip mechanism (Auftrag 61): if all segments (A+B) already exist
-        # and no reseed is set, do not request the GPU and only pass the paths
-        # through (collector graph without render). This keeps mtime stable.
-        # 57a: total segment count (scenes + loop); computed before the skip check, which needs it.
-        # 71: intro/outro removed - only scenes + optional loop segment.
-        from .expansion import segment_path, segment_path_b
-        n_scenes = n_images - 1 if n_images > 1 else 1  # 1 image: open shot (+ loop shot back if loop)
-        total_segments = n_scenes + (1 if loop else 0)
-        _skip_render = False
-        # 76 (user 2026-11-03: "not rendering when I press Run … old images"): reuse existing segments only
-        # if they were made with EXACTLY these settings (seed, prompts, images,
-        # format, length, variants, loop). Signature file in the output folder; every segment must be younger
-        # than the signature (aborted run -> older leftovers -> render again).
-        import hashlib
-        _h = hashlib.sha1()
-        _h.update(json.dumps([int(seed), seg_prompts, width, height, length,
-                              bool(loop), variants_int,
-                              str(engine)[:200]], default=str).encode("utf-8"))
-        for _t in image_tensors:
-            _h.update(str(tuple(_t.shape)).encode())
-            _h.update(_t[:, ::16, ::16, :].contiguous().numpy().tobytes())
-        _sig = _h.hexdigest()
-        _sig_path = os.path.join(output_dir, "render_signature.txt")
-        _seg_files = [segment_path(output_dir, i) for i in range(total_segments)]
-        if variants_int >= 2:
-            _seg_files += [segment_path_b(output_dir, i) for i in range(total_segments)]
-        if not reseed:
-            try:
-                _old_sig = open(_sig_path, encoding="utf-8").read().strip()
-                _sig_t = os.path.getmtime(_sig_path)
-            except OSError:
-                _old_sig, _sig_t = "", 0.0
-            if _old_sig == _sig and all(os.path.exists(f) and os.path.getmtime(f) >= _sig_t for f in _seg_files):
-                _skip_render = True
-                print(f"[InfiniteMovie] all {len(_seg_files)} segments match this run, skipping render")
-            elif all(os.path.exists(f) for f in _seg_files):
-                print("[InfiniteMovie] segments exist but were made with other settings/seed -> render")
-        if not _skip_render and not reseed:
-            # New signature BEFORE the render: the new segments will then be younger than this file.
-            with open(_sig_path, "w", encoding="utf-8") as _f:
-                _f.write(_sig)
-
-        # 4. Acquire the GPU (synchronously, BEFORE building the expansion so
-        #    it is guaranteed to run before the first loader).
-        # 2026-11-05 (user: "ASSEMBLE … strong delay"): acquire only AFTER building the expansion and only
-        # if it actually renders - if all segments are reused (PrimitiveString), no
-        # waiting for 20 GB / unloading. The expansion runs only after return, the order before the loader is kept.
-
-        # 5. Build the expansion graph.
-        # save_folder = the output dir; save_name = the film name (no ext).
-        # The collector node always depends on the render output(s), so the
-        # parent (this node) is blocked until the work is finished
-        # (execution.py:600-613 strong links).
-        acquire_kwargs = {
-            "min_free_mb": min_free_mb,
-            "timeout_s": acquire_timeout_s,
-        }
-        # segments mode (as before): one render per transition, collector
-        # (InfiniteMovieSegmentPaths) depends on ALL segments.
-        if _skip_render:
-            # Skip graph: only the collector with hardcoded paths (no render).
-            collector_id = f"{unique_id}_collector"
-            _seg_inputs = {}
-            for i in range(total_segments):
-                # Autogrow flat like in the expansion's collector (expansion.py:1021)
-                _seg_inputs[f"segments.segment{i}"] = segment_path(output_dir, i)
-            graph = {collector_id: {"class_type": "InfiniteMovieSegmentPaths",
-                                    "inputs": _seg_inputs}}
-            print(f"[InfiniteMovie] skip-render: {total_segments} segments, "
-                  f"variants={variants_int}, out={output_dir}")
+        _SEG_MARK[str(uid)] = time.time()   # each SegmentSave measures the time since the previous mark
+        _SEG_META[str(uid)] = {"width": width, "height": height, "length": length, "preset": preset, "variants": variants}
+        graph = build_expansion_graph(
+            unique_id=uid, preset=preset, images=tensors, prompts=prompts, seed=seed,
+            width=width, height=height, length=length, loop=loop, output_dir=output_dir, film_name=name,
+            seed_bumps=_parse_reseed(reseed), template=template, cfg=cfg,
+            scene_seconds=film_seconds or None, variants=variants)
+        # GPU only when something renders (all films reused -> no waiting, no unloading)
+        cheap = {"PrimitiveString", "InfiniteMovieSegmentPaths", "InfiniteMovieShotsOut"}
+        if any(v.get("class_type") not in cheap for v in graph.values()):
+            vram.wait_acquire(min_free_mb=get_setting(settings, "min_free_mb"),
+                              timeout_s=get_setting(settings, "acquire_timeout_s"))
+            _SEG_MARK[str(uid)] = time.time()   # the GPU wait is not part of the first film's time
+            _send_render_plan(_display_node_id(cls) or uid, n_films, width, height, length, preset)
         else:
-            # 88: stamp the render start (wall clock) right before building the
-            # expansion; each SegmentSave measures time since the previous mark.
-            _SEG_MARK[str(unique_id)] = time.time()
-            _SEG_META[str(unique_id)] = {
-                "width": width, "height": height, "length": length,
-                "preset": preset, "variants": variants_int,
-            }
-            graph = build_expansion_graph(
-                unique_id=unique_id,
-                preset=preset,
-                images=image_tensors,
-                prompts=seg_prompts,
-                seed=seed,
-                width=width, height=height, length=length,
-                loop=loop,
-                output_dir=output_dir,
-                film_name=name,
-                acquire_kwargs=acquire_kwargs,
-                seed_bumps=_parse_reseed(reseed),
-                model_inputs=model_inputs,
-                template=template,
-                cfg=cfg,
-                scene_seconds=scene_seconds_list or None,
-                variants=variants_int,
-            )
-            collector_id = f"{unique_id}_collector"
-            print(f"[InfiniteMovie] built expansion: {n_segments} segments, "
-                  f"preset={preset}, size={width}x{height}, length={length}, "
-                  f"loop={loop}, variants={variants_int}, out={output_dir}")
-
-        _cheap = {"PrimitiveString", "InfiniteMovieSegmentPaths", "InfiniteMovieShotsOut"}
-        if not _skip_render and any(v.get("class_type") not in _cheap for v in graph.values()):
-            # 65: GPU occupied by another program -> clear abort BEFORE the render (vram.py, generic)
-            vram.wait_acquire(
-                min_free_mb=min_free_mb,
-                timeout_s=acquire_timeout_s,
-            )
-            # 88: reset the mark after the GPU wait - the wait time does not belong to the segment duration
-            if str(unique_id) in _SEG_MARK:
-                _SEG_MARK[str(unique_id)] = time.time()
-            _send_render_plan(_display_node_id(cls) or unique_id, total_segments, width, height, length, preset)
-        elif not _skip_render:
-            print("[InfiniteMovie] all segments reused -> no GPU acquire")
-
-        # 71: images output and film_path removed - the frames collector
-        # (InfiniteMovieFramesCollect) is no longer attached here.
-        # "after" reading (the heavy work happens in the expansion; this is
-        # the state right after the graph is built / acquire finished).
+            print("[InfiniteMovie] all films reused -> no GPU acquire")
         _display_memory(cls, "after")
-        # SYNC dict (a "pipe")
-        # 57a: total segment count (intro/outro/loop) + per-segment frame counts.
-        # Build the segment paths (the collector output is a link, not a direct value)
-        seg_paths_str = "\n".join(
-            segment_path(output_dir, i) for i in range(total_segments)
-        )
-        # Per-segment frame counts (order: scenes…, loop?). 71: intro/outro removed.
-        if scene_seconds_list:
-            scene_lengths = _scene_frames(scene_seconds_list, cfg["fps"], cfg["length_mod"], length)
-        else:
-            scene_lengths = [length] * n_scenes
-        scene_frames_list = []
-        for k in range(n_scenes):
-            scene_frames_list.append(scene_lengths[k] if k < len(scene_lengths) else length)
-        if loop:
-            scene_frames_list.append(length)
-        film_dict = {
-            "segments": [ln.strip() for ln in (seg_paths_str or "").splitlines() if ln.strip()],
+
+        paths = [segment_path(output_dir, k) for k in range(n_films)]
+        sync = {
+            "segments": paths,
             "save_folder": film_folder(settings),
             "save_name": name,
             "fps": cfg.get("fps", 24.0),
@@ -672,31 +373,25 @@ class InfiniteMovieRender(io.ComfyNode):
             "height": height,
             "frames_per_segment": length,
             "seed": seed,
-            "render_id": unique_id,  # the uid line was dropped in package 71 (NameError 2026-11-04)
-            "scene_frames": scene_frames_list,
-            # 2026-11-13 (user: "settings in sync absorbieren"): behind the Director the settings travel inside sync
-            "settings": chain_settings(settings),
+            "render_id": uid,
+            "scene_frames": frames,
+            "settings": chain_settings(settings),   # behind the Director the settings travel in sync
         }
-        # 61: variants (Variants-Builder). Only present when variants=2 (segments mode).
-        # segments stays the A list, so Assemble without a Chooser works unchanged.
-        if variants_int == 2:
-            film_dict["variants"] = [
-                [segment_path(output_dir, i), segment_path_b(output_dir, i)]
-                for i in range(total_segments)
-            ]
-        # 71: blocking bridge - the sync output is a link to
-        # InfiniteMovieShotsOut, which hangs on the collector (segment_paths).
-        # The Director thereby waits for all segments without needing a visible
-        # output (execution.py:599-612).
-        shots_id = f"{unique_id}_shots"
-        graph[shots_id] = {
-            "class_type": "InfiniteMovieShotsOut",
-            "inputs": {"segment_paths": [collector_id, 0], "sync": film_dict},
-        }
-        return io.NodeOutput(
-            [shots_id, 0],      # 71: sync = slot 0 (link to InfiniteMovieShotsOut); carries the settings
-            expand=graph,
-        )
+        if variants == 2:   # segments stays the A list: Even Motion without Cut works unchanged
+            sync["variants"] = [[a, segment_path_b(output_dir, k)] for k, a in enumerate(paths)]
+        out_id = f"{uid}_shots"
+        graph[out_id] = {"class_type": "InfiniteMovieShotsOut",
+                         "inputs": {"segment_paths": [f"{uid}_collector", 0], "sync": sync}}
+        return io.NodeOutput([out_id, 0], expand=graph)
+
+
+def _film_size(settings, cfg, first_image) -> tuple[int, int]:
+    """Film size from Settings (0 = the engine default); aspect "from images" = the shape of image 1."""
+    if get_setting(settings, "aspect") == ASPECT_FROM_IMAGES:
+        h0, w0 = first_image.shape[:2]
+        return resolve_ratio(w0, h0, get_setting(settings, "long_side"))
+    width, height = get_setting(settings, "width"), get_setting(settings, "height")
+    return width if width > 0 else cfg["default_width"], height if height > 0 else cfg["default_height"]
 
 
 # ---------------------------------------------------------------------------

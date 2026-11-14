@@ -45,27 +45,18 @@ def segment_path_b(output_dir, index):
 
 
 def _segment_plan(n_images: int, loop: bool, scene_lengths: list, length: int) -> list:
-    """Ordered segment plan: scene0..scene(n-2), then loop (last image -> first) if loop.
+    """Ordered films as (start_idx, end_idx, seg_length, kind); kind 'scene', 'loop' or 'open'. Film k is
+    scene_lengths[k] frames long (missing = length) - the loop film too (storyboard ⏱ on the last row).
 
-    Returns (start_idx, end_idx, seg_length, kind) tuples; kind is 'scene', 'loop' or 'open'.
-    One image without loop = an 'open' shot: start image + prompt, no end image (end_idx None).
-    One image + loop = two passes (user 2026-11-09): the open shot from the image, then a loop
-    shot from that shot's LAST FRAME back to the image (start_idx None = previous segment's last
-    frame). Image -> itself in one shot reads as "nothing happens"; the two-pass loop moves.
-    Intro/outro removed in 71.
+    One image without loop = an 'open' film: start image + prompt, no end image (end_idx None).
+    One image + loop = two passes (user 2026-11-09): the open film, then one from its LAST FRAME back to the
+    image (start_idx None = previous film's last frame) - image -> itself in one film reads as "nothing happens".
     """
     if n_images == 1:
-        plan = [(0, None, scene_lengths[0] if scene_lengths else length, "open")]
-        if loop:
-            plan.append((None, 0, length, "loop"))
-        return plan
-    plan = []
-    for i in range(n_images - 1):
-        seg_length = scene_lengths[i] if i < len(scene_lengths) else length
-        plan.append((i, i + 1, seg_length, "scene"))
-    if loop and n_images >= 1:
-        plan.append((n_images - 1, 0, length, "loop"))
-    return plan
+        ends = [(0, None, "open")] + ([(None, 0, "loop")] if loop else [])
+    else:
+        ends = [(i, i + 1, "scene") for i in range(n_images - 1)] + ([(n_images - 1, 0, "loop")] if loop else [])
+    return [(a, b, scene_lengths[k] if k < len(scene_lengths) else length, kind) for k, (a, b, kind) in enumerate(ends)]
 
 
 PRESET_CONFIGS = {
@@ -505,11 +496,6 @@ def _find_loadimage_by_marker(graph: dict, marker: str) -> str | None:
     return None
 
 
-def _find_prompt_node(graph: dict, marker: str) -> str | None:
-    hit = _find_prompt_input(graph, marker)
-    return hit[0] if hit else None
-
-
 def _find_prompt_input(graph: dict, marker: str) -> tuple[str, str] | None:
     """(node id, input name) holding the prompt marker. CLIPTextEncode.text first,
     else any input whose value is the marker (e.g. MiniMaxH3ImageToVideo.prompt)."""
@@ -806,7 +792,7 @@ def build_expansion_graph(unique_id: str, preset: str,
                           loop: bool,
                           output_dir: str,
                           film_name: str,
-                          acquire_kwargs: dict,
+                          acquire_kwargs: dict | None = None,   # unused - goes with the tests after 127b
                           seed_bumps: dict | None = None,
                           model_inputs: dict | None = None,
                           template: dict | None = None,
@@ -828,7 +814,6 @@ def build_expansion_graph(unique_id: str, preset: str,
         loop: whether to add the closing N->1 segment.
         output_dir: directory for segment files (also the film save_folder).
         film_name: name of the final film (without extension, the save_name).
-        acquire_kwargs: GPU check kwargs (min_free_mb, timeout_s).
         seed_bumps: {segment number (1-based): bump count} from InfiniteMovieRender.reseed;
             each bump adds 1000 to that segment's seed, the others keep theirs.
 
@@ -852,12 +837,8 @@ def build_expansion_graph(unique_id: str, preset: str,
     n_images = len(images)
     # --- Per-segment graphs ---
     # Auftrag 41A: per-scene lengths (n_scenes entries)
-    n_scenes = n_images - 1 if n_images > 1 else 1   # 1 image: open shot (+ loop shot back if loop)
-    if scene_seconds:
-        from .shot_utils import _scene_frames
-        scene_lengths = _scene_frames(scene_seconds, cfg["fps"], cfg["length_mod"], length)
-    else:
-        scene_lengths = [length] * n_scenes
+    from .shot_utils import _scene_frames
+    scene_lengths = _scene_frames(scene_seconds or [], cfg["fps"], cfg["length_mod"], length)
     plan = _segment_plan(n_images, loop, scene_lengths, length)
     n_segments = len(plan)
     if n_segments < 1:
