@@ -230,7 +230,9 @@ export function fcWorkflowLayout(director, second = false) {
     const bDir = director.pos[1] + director.size[1];
     const bSet = Math.max(...row[SET][1].map((n) => n.pos[1] + n.size[1]));
     if (bSet > bDir) {
-      story.size = [story.size[0], Math.max(400, story.size[1] - (bSet - bDir))];
+      // never below its own minimum: the frontend grows a node back to computeSize() after the layout and the
+      // help note below would then cover it
+      story.size = [story.size[0], Math.max(400, story.computeSize()[1], story.size[1] - (bSet - bDir))];
       sizes[SET] = [sizes[SET][0], colSize(row[SET][1], row[SET][2], rowHelp[SET])[1]];
       placeCol(row[SET][1], row[SET][2], rowHelp[SET], row[SET][0].pos[0], Y, sizes[SET][0]);
     }

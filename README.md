@@ -90,7 +90,7 @@ automatic download set the environment variable `HF_TOKEN` to your Hugging Face 
 The video model is always **visible** in the workflow as an engine group:
 
 ```
-Engine Start (from Director) · Infinite Movie  →  your model chain  →  Engine Result (to Director) · Infinite Movie
+Engine Start · Infinite Movie  →  your model chain  →  Engine Result · Infinite Movie
 ```
 
 | Engine | Workflow with only this group | fps | Frame grid | Sound |

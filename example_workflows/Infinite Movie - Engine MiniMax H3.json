@@ -604,7 +604,7 @@
           ]
         }
       ],
-      "title": "Negative (empty, cfg 1)",
+      "title": "Negative (empty)",
       "properties": {
         "Node name for S&R": "ConditioningZeroOut"
       },
