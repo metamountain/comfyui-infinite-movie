@@ -129,6 +129,12 @@ Lower Director › `images`: the last images and their Auto Prompts are removed;
 
 **Image order:** the Director shows the images as a list, top = first. Drag a row up or down to move an image, ✕ removes it (raising `images` brings it back at the end). Transitions whose image pair changed get an empty prompt and the button **⚠ new pair – 🔄 regenerate**; unchanged transitions keep their text. To put an image in between: raise `images`, load the picture, drag it into place.
 
+## Cloud engines (untested)
+
+`Infinite Movie - Engine Seedance 2.5 (cloud)`, `… Kling 3.0 (cloud)`, `… Veo 3.1 (cloud)`: first + last frame through the
+ComfyUI partner nodes. **Untested** – they cost credits per shot (comfy.org account, sign in). No GPU needed. Minimum shot
+length: Seedance 4 s, Kling 3 s, Veo 4 s (set the Director's `seconds`). Veo only renders 16:9 or 9:16.
+
 ## Sound
 
 Settings › `audio` is **off** by default (faster, no audio model is loaded). Turn it on for engines with sound

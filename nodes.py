@@ -30,18 +30,17 @@ from comfy_api.latest import io
 from . import vram
 from .expansion import build_expansion_graph
 from .media import (_count_frames, _encode_dir_to_mp4, _ffmpeg, _no_window, _segment_is_complete, _write_audio_to_wav, _write_frames_to_dir)
-from .shot_utils import (_build_prompts, _clean_prompt, _collect_images, _parse_prompt_list,
+from .shot_utils import (_build_prompts, _clean_prompt, _parse_prompt_list,
                            _parse_reseed, _parse_shot_seconds, _scene_frames, _seconds_to_frames,
-                           _snap_length, _to_numpy_image, _wired_prompts, center_crop_resize)
+                           _snap_length, _to_numpy_image, center_crop_resize)
 # 57d: SETTINGS pipe + get_setting (settings_nodes imports only .vram + lazy .autoprompt,
 # no cycle). The settings input goes at the END of the schema so the slot indices of the
 # Autogrow inputs (images/shot_prompts) do NOT shift (RAG: links hang off the index).
 from .settings_nodes import SETTINGS, get_setting, chain_settings, ASPECT_FROM_IMAGES, resolve_ratio
 
-# Image slots: Autogrow starts with one, the next appears once one is connected
-# (user 2026-11-13: max. 8 - ~40 s film, Cut fits one screen). Single source: the frontend reads it from
-# /object_info (images template max) via fcMaxImages() in web/im_images.js.
-MAX_IMAGES = 8
+# 124a: the Autogrow image/prompt sockets are replaced by the shot list in the
+# Director's storyboard (shots.py). MAX_SHOTS is the single cap, defined there.
+from .shots import MAX_SHOTS, images_from_batch, load_shot_images, parse_shots, shot_prompt_list
 
 # Auftrag 32: sync pipe - a "pipe" type (like rgthree-Context /
 # Efficiency-Pipes). Content: dict with segments, save_folder, save_name, fps,
@@ -257,12 +256,6 @@ def _resolve_film_name(settings):
 class InfiniteMovieRender(io.ComfyNode):
     @classmethod
     def define_schema(cls):
-        images_template = io.Autogrow.TemplatePrefix(
-            io.Image.Input("image", tooltip="One input image. Images are used pairwise (1->2, 2->3, ...)."),
-            prefix="image",
-            min=1,
-            max=MAX_IMAGES,
-        )
         return io.Schema(
             node_id="InfiniteMovieRender",
             display_name="Director · Infinite Movie",
@@ -270,17 +263,17 @@ class InfiniteMovieRender(io.ComfyNode):
                             "render", "director"],
             category="Infinite Movie/2 Render",
             description="Stage 2 (Render) of the Infinite Movie: turns a sequence of images into FLF2V video segments, "
-                        "one per transition. Typically: images from Load Image nodes, shot_prompts from Infinite Movie · "
-                        "Auto Prompt nodes; segment_paths goes to Infinite Movie · Normalize Time or Infinite Movie · Concat. "
-                        "Handles GPU handoff to/from the local LLM. While rendering, a progress bar with "
-                        "segment/step/elapsed/ETA is drawn at the bottom of the node.",
+                        "one per transition. Images and prompts come from the shot list in the storyboard (or a wired "
+                        "image batch that overrides it); segment_paths goes to Infinite Movie · Normalize Time or "
+                        "Infinite Movie · Concat. Handles GPU handoff to/from the local LLM. While rendering, a "
+                        "progress bar with segment/step/elapsed/ETA is drawn at the bottom of the node.",
             is_output_node=True,
             enable_expand=True,
             inputs=[
                 # 66 (user 2026-11-03: "logical order, wire it cleanly"): sockets on top in
-                # reading order: settings, engine, images, shot_prompts; then the widgets.
+                # reading order: settings, engine, images, shots; then the widgets.
                 # All sockets optional - the frontend sets required BEFORE optional, that is
-                # why images is optional too (execute reports "no images provided" when nothing comes in).
+                # why images is optional too (execute raises "Director: no images" when nothing comes in).
                 SETTINGS.Input("settings", optional=True, display_name="settings",
                                tooltip="Settings chain (format, film name, GPU handoff). Without it the built-in defaults apply."),
                 # 57e: the engine input is optional + lazy.
@@ -298,25 +291,21 @@ class InfiniteMovieRender(io.ComfyNode):
                             "Optional: when unconnected, the single non-muted engine group in the workflow is used. "
                             "Connect exactly one Engine Result to use a specific engine group.",
                 ),
-                io.Autogrow.Input(
+                # 124a: the Autogrow image/prompt sockets are replaced by the shot list
+                # (JSON in the 'shots' widget, edited in the Director's storyboard).
+                # A wired image batch overrides the shot list (one image per shot).
+                io.Image.Input(
                     "images",
-                    template=images_template,
                     optional=True,
-                    tooltip="Input images, used pairwise for transitions.",
+                    tooltip="Optional image batch – overrides the shot list (one image per shot).",
                 ),
-                # Wired prompt per image (prompt i = transition image i -> i+1). web/infinite_movie.js
-                # lays the Auto Prompt nodes out between the images.
-                io.Autogrow.Input(
-                    "shot_prompts",
-                    template=io.Autogrow.TemplatePrefix(
-                        io.String.Input("prompt", force_input=True,
-                                        tooltip="Prompt for the transition from this image to the next."),
-                        prefix="prompt",
-                        min=1,
-                        max=MAX_IMAGES,
-                    ),
+                io.String.Input(
+                    "shots",
+                    default="[]",
+                    multiline=False,
+                    advanced=True,
                     optional=True,
-                    tooltip="One wired prompt per image (transition to the next image).",
+                    tooltip="Shot list (JSON) – edited in the Director's storyboard.",
                 ),
                 # 82: per-shot length, edited in Infinite Movie · Choose (⏱ button).
                 # optional=True + declared last -> last widget in the UI
@@ -404,7 +393,7 @@ class InfiniteMovieRender(io.ComfyNode):
         return []
 
     @classmethod
-    def execute(cls, images=None, shot_prompts=None,
+    def execute(cls, images=None, shots="[]",
                 loop=True, seconds=2.0,
                 seed=42,
                 reseed="", engine=None,
@@ -464,8 +453,16 @@ class InfiniteMovieRender(io.ComfyNode):
         if scene_seconds_list:
             print(f"[InfiniteMovie] per-shot seconds: {scene_seconds_list}")
 
-        # 1. Collect + preprocess images.
-        raw_images = _collect_images(images or [])
+        # 1. Collect + preprocess images (124a: shot list from the storyboard,
+        # a wired image batch overrides it).
+        shot_list = parse_shots(shots)
+        if images is not None:
+            raw_images = images_from_batch(images)
+        else:
+            raw_images = load_shot_images(shot_list)
+        if not raw_images:
+            raise ValueError("Director: no images – add images in the storyboard")
+        raw_images = raw_images[:MAX_SHOTS]
         # 1 image: open shot (start image + prompt, no end image); loop on adds a second shot
         # from that shot's last frame back to the image. See expansion._segment_plan (2026-11-09).
         # 69: size from the first input image (Settings › aspect = "from images");
@@ -484,8 +481,8 @@ class InfiniteMovieRender(io.ComfyNode):
         # 2. Build per-transition prompts.
         n_images = len(image_tensors)
         n_segments = (2 if loop else 1) if n_images == 1 else (n_images if loop else n_images - 1)
-        # Wired per-image prompts (shot_prompts.prompt0..) win over the text field.
-        wired = _wired_prompts(shot_prompts)
+        # 124a: per-shot prompts from the storyboard (image index == prompt index).
+        wired = shot_prompt_list(shot_list, n_segments)
         seg_prompts = _build_prompts(json.dumps(wired) if wired else "", None, n_segments)
         # Clean LLM-generated prompts (think blocks, Markdown, word limit).
         seg_prompts = [_clean_prompt(p) for p in seg_prompts]

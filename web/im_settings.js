@@ -51,7 +51,7 @@ export function imToggleWidget(w, show) {
   }
 }
 
-function imResolveSize(aspect, longSide) {
+export function imResolveSize(aspect, longSide) {
   const m = /^(\d+):(\d+)/.exec(String(aspect ?? "")) || [0, 4, 5];   // old/invalid value -> 4:5
   const rw = +m[1], rh = +m[2];
   const r32 = (v) => Math.max(32, Math.round(v / 32) * 32);
@@ -101,7 +101,7 @@ app.registerExtension({
 
 // 66 (2026-11-03): folder browser as an in-page dialog. The server only delivers folder names
 // (POST /infinite_movie/list_dirs, only from this machine). Grayscale, ComfyUI color variables.
-function fcPickFolder(start) {
+export function fcPickFolder(start, heading = "Output folder for the finished film") {
   return new Promise((resolve) => {
     const bg = document.createElement("div");
     bg.style.cssText = "position:fixed;inset:0;z-index:10000;background:rgba(0,0,0,.55);display:flex;align-items:center;justify-content:center";
@@ -109,7 +109,7 @@ function fcPickFolder(start) {
     box.style.cssText = "width:min(560px,92vw);max-height:76vh;display:flex;flex-direction:column;gap:8px;padding:14px;" +
       "background:var(--comfy-menu-bg,#222);color:var(--input-text,#ddd);border:1px solid var(--border-color,#555);border-radius:8px;font:13px sans-serif";
     const title = document.createElement("div");
-    title.textContent = "Output folder for the finished film";
+    title.textContent = heading;
     title.style.cssText = "font-weight:600;font-size:14px";
     const cur = document.createElement("div");
     cur.style.cssText = "padding:6px 8px;background:var(--comfy-input-bg,#111);border-radius:4px;word-break:break-all;min-height:18px";
