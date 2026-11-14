@@ -76,7 +76,8 @@ function boardSize(node, rows, loop) {
   const iw = Math.round(fmt.w * k), ih = Math.round(fmt.h * k), row = ih + GAP;
   const pw = Math.max(PROMPT_W, Math.round(node.size[0]) - iw - GAP - 2 * MARGIN);
   const lastFilm = hasFilm(n, n - 1, loop) ? n - 1 : n - 2;   // its prompt box reaches half a row below its image
-  const h = Math.max(n * row - GAP, lastFilm >= 0 ? lastFilm * row + row / 2 + ih : 0);
+  // + room for the insert strip below the last image
+  const h = Math.max(n * row - GAP + (n < MAX_IMAGES ? GAP / 2 + 10 : 0), lastFilm >= 0 ? lastFilm * row + row / 2 + ih : 0);
   return { iw, ih, row, pw, h, w: iw + GAP + PROMPT_W + 2 * MARGIN };
 }
 
@@ -276,7 +277,7 @@ export function render(node) {
     st.board.appendChild(tileEl(node, rows, i));
     if (hasFilm(rows.length, i, loop)) st.board.appendChild(promptEl(node, rows, i, loop));
   }
-  for (let k = 1; k < rows.length && rows.length < MAX_IMAGES; k++) {
+  for (let k = 1; k <= rows.length && rows.length < MAX_IMAGES; k++) {   // k = n: below the last image
     const z = el("div", "imsb-ins");
     z.style.cssText = `top:${k * row - GAP / 2 - 9}px;width:${iw}px`;
     z.title = "Insert an image here";
