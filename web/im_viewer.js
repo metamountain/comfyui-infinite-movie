@@ -3,6 +3,7 @@ import { api } from "../../scripts/api.js";
 import { fcReviewToast, imFilmDoneNotice } from "./im_common.js";
 import { fcChooseFocus, fcChooseStatus } from "./im_cut_state.js";
 import { imToggleWidget } from "./im_settings.js";
+import { imSyncGet } from "./im_sync.js";
 // Normalize Time: draw the graph of the last run below the widgets (user 2026-10-26:
 // "must be visualized which normalization takes effect"). Uses the analysis of the last run
 // (POST /infinite_movie/normalize_graph, retime_nodes.py) - no render, no encode.
@@ -207,6 +208,43 @@ function imvEnsure(node) {
   return st;
 }
 
+// Player time t (s) -> shot index, frame index k and position 0..1 inside that shot. t runs over the whole film
+// (shots back to back), or over one shot when segIdx (Cut tile index) is given.
+export function imvTimeToFrame(shots, t, segIdx = null) {
+  const fpsOf = (sh) => { const l = sh.frames?.[sh.frames.length - 1]; return l && l.t > 0 ? l.out / l.t : 24; };
+  const dur = (sh) => sh.n_out / fpsOf(sh);
+  let i = 0, local = Math.max(0, t);
+  if (segIdx != null) {
+    i = shots.findIndex((s) => s.seg === segIdx + 1);
+    if (i < 0) i = Math.min(Math.max(segIdx, 0), shots.length - 1);
+  } else {
+    while (i < shots.length - 1 && local >= dur(shots[i])) { local -= dur(shots[i]); i++; }
+  }
+  const sh = shots[i];
+  if (!sh?.frames?.length) return null;
+  let k = 0;
+  while (k < sh.frames.length - 1 && sh.frames[k + 1].t <= local) k++;
+  return { seg: i, k, frac: Math.min(1, local / dur(sh)) };
+}
+
+// The player drives every analysis view: same shot and frame, white position bar at the bottom.
+window.addEventListener("imv-time", (e) => {
+  const t = e.detail?.t;
+  if (t == null) return;
+  const sync = imSyncGet();
+  for (const n of (app.graph?._nodes || [])) {
+    const shots = n.properties?.im_viz?.shots, st = n._imv;
+    if (!shots?.length || !st) continue;
+    const m = imvTimeToFrame(shots, t, sync.src === "seg" ? sync.seg : null);
+    if (!m) continue;
+    const moved = m.seg !== st.seg || m.k !== st.k;
+    if (!moved && Math.abs((st.playFrac ?? -1) - m.frac) < 0.005) continue;   // nothing visible changed
+    if (moved) { imvStop(st); st.seg = m.seg; st.k = m.k; }
+    st.playFrac = m.frac;
+    imvDraw(n);
+  }
+});
+
 export function imvDraw(node) {
   const st = imvEnsure(node);
   const v = node.properties?.im_viz;
@@ -398,6 +436,10 @@ export function imvDraw(node) {
     });
     const every = sh.step > 1 ? ` (every ${sh.step}. of ${sh.n_out})` : "";
     text = `seg ${sh.seg} · ${picks.length} of ${sh.frames.length} frames${every} · bar green used, orange duplicate · click = open in Frames`;
+  }
+  if (st.playFrac != null && shots.length) {   // player position inside the shown shot
+    ctx.fillStyle = "#fff";
+    ctx.fillRect(0, H - 3, Math.round(W * st.playFrac), 3);
   }
   if (text !== null) st.info.textContent = text;
   const need = node.computeSize()[1];

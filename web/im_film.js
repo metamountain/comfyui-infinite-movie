@@ -3,6 +3,7 @@ import { api } from "../../scripts/api.js";
 import { fcReviewToast } from "./im_common.js";
 import { fcRun } from "./im_cut_state.js";
 import { imToggleWidget } from "./im_settings.js";
+import { imvTime } from "./im_sync.js";
 // ---------------------------------------------------------------------------
 // InfiniteMovie.Film (2026-11-03): show the finished film + „Saved: …“ status.
 // Before the run: „Waiting for the film…“; while ComfyUI renders: „Rendering…“.
@@ -84,6 +85,14 @@ export function fcFilmRender(node) {
       getMinHeight: () => fcFilmSide(node) + FC_FILM_BAR_H + 4 + 8,
     }).serialize = false;   // the option alone does not keep it out of widgets_values
     node._fc_film_el = el; node._fc_film_video = video; node._fc_film_status = status;
+    // While the video plays, report its time every frame (im_sync.js "imv-time"); a seek reports once.
+    const tick = () => {
+      if (video.paused || !video.isConnected) { node._fc_film_raf = 0; return; }
+      imvTime(video.currentTime, node.id);
+      node._fc_film_raf = requestAnimationFrame(tick);
+    };
+    video.addEventListener("play", () => { if (!node._fc_film_raf) node._fc_film_raf = requestAnimationFrame(tick); });
+    video.addEventListener("seeked", () => imvTime(video.currentTime, node.id));
   }
   fcFilmWidgets(node);
   const info = fcFilmCurrentInfo(node);
