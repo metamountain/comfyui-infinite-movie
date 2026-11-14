@@ -18,7 +18,6 @@ from __future__ import annotations
 
 import os
 import re
-import shutil
 
 from comfy_api.latest import io
 
@@ -284,65 +283,6 @@ def _register_choose_folder_route():
 
 
 _register_choose_folder_route()
-
-
-# 2026-11-14 (124, Director storyboard "Load folder…"): copy the images of a folder the user picked in the folder
-# browser into ComfyUI's input folder. The workflow then stores only input-relative names like Load Image does -
-# the Director never reads arbitrary paths that come from a workflow.
-IMAGE_EXTS = (".png", ".jpg", ".jpeg", ".webp", ".bmp", ".tif", ".tiff")
-
-
-def _natural_key(name: str):
-    return [int(t) if t.isdigit() else t.lower() for t in re.split(r"(\d+)", name)]
-
-
-def import_folder_images(folder: str, input_dir: str, limit: int = 24) -> dict:
-    """Pure function (testable): copy up to `limit` images of `folder` (not recursive, natural name order)
-    to <input_dir>/infinite_movie/<folder name>/. Returns input-relative names with forward slashes."""
-    folder = os.path.abspath(os.path.expanduser(str(folder or "").strip()))
-    if not folder or not os.path.isdir(folder):
-        return {"ok": False, "error": f"not a folder: {folder}"}
-    files = sorted((f for f in os.listdir(folder)
-                    if f.lower().endswith(IMAGE_EXTS) and os.path.isfile(os.path.join(folder, f))), key=_natural_key)
-    if not files:
-        return {"ok": False, "error": "no images in this folder"}
-    sub = re.sub(r"[^\w.-]+", "_", os.path.basename(folder.rstrip("\\/")) or "folder")
-    dest = os.path.join(input_dir, "infinite_movie", sub)
-    os.makedirs(dest, exist_ok=True)
-    names = []
-    for f in files[:limit]:
-        src, dst = os.path.join(folder, f), os.path.join(dest, f)
-        if os.path.abspath(src) != os.path.abspath(dst):
-            st = os.stat(src)
-            if not (os.path.isfile(dst) and os.path.getsize(dst) == st.st_size and os.path.getmtime(dst) >= st.st_mtime):
-                shutil.copy2(src, dst)
-        names.append(f"infinite_movie/{sub}/{f}")
-    return {"ok": True, "images": names, "skipped": max(0, len(files) - limit)}
-
-
-def _register_import_folder_route():
-    import asyncio
-    try:
-        import folder_paths
-        from aiohttp import web
-        from server import PromptServer
-
-        @PromptServer.instance.routes.post("/infinite_movie/import_folder")
-        async def _import_folder(request):
-            if (request.remote or "") not in _own_addresses():
-                return web.json_response({"ok": False, "error": "folder import only from this computer"}, status=403)
-            try:
-                data = await request.json()
-            except Exception:  # noqa: BLE001
-                data = {}
-            res = await asyncio.to_thread(import_folder_images, str(data.get("path", "") or ""),
-                                          folder_paths.get_input_directory())
-            return web.json_response(res)
-    except Exception as e:  # noqa: BLE001 - without a server (unit tests) no route
-        print(f"[InfiniteMovieSettings] import_folder route not registered: {e}")
-
-
-_register_import_folder_route()
 
 
 # ---------------------------------------------------------------------------

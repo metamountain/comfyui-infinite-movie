@@ -3,7 +3,7 @@
 // input folder ("" = empty); the seconds of each film live in the `shot_seconds` widget (Cut's ⏱ edits it too).
 import { api } from "../../scripts/api.js";
 import { fcParseShotSeconds, fcReviewToast, imParseStoryboard, imWidget, settingsNodeOf } from "./im_common.js";
-import { fcPickFolder, imResolveSize } from "./im_settings.js";
+import { imResolveSize } from "./im_settings.js";
 import { DEFAULT_IMAGES, MAX_IMAGES, emptyRow, toRow } from "./im_storyboard_model.js";
 
 function setWidget(node, name, text) {
@@ -52,17 +52,6 @@ export async function uploadImage(file) {
   if (r.status !== 200) { fcReviewToast(`Upload failed: ${r.status}`, "#d93025"); return null; }
   const j = await r.json();
   return j.subfolder ? `${j.subfolder}/${j.name}` : j.name;
-}
-
-export async function importFolder() {
-  const path = await fcPickFolder("", "Folder with the images for the film");
-  if (!path) return null;
-  const r = await api.fetchApi("/infinite_movie/import_folder", { method: "POST", body: JSON.stringify({ path }) });
-  let j = {};
-  try { j = await r.json(); } catch { j = { ok: false, error: `HTTP ${r.status}` }; }
-  if (!j.ok) { fcReviewToast(j.error || "Folder import failed", "#d93025"); return null; }
-  if (j.skipped) fcReviewToast(`${j.skipped} more images skipped (max ${MAX_IMAGES})`, "#e68929");
-  return j.images || [];
 }
 
 // Film format from the Settings node in the Director's settings chain (user: "format comes from settings") -

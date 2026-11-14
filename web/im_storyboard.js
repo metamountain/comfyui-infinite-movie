@@ -9,7 +9,7 @@ import {
   MAX_IMAGES, emptyRow, hasFilm, isStale, moveRow, nextOf, pairOf, samePair,
 } from "./im_storyboard_model.js";
 import {
-  boardFormat, defaultSeconds, imageUrl, importFolder, isLoop, readRows, uploadImage, writeRows,
+  boardFormat, defaultSeconds, imageUrl, isLoop, readRows, uploadImage, writeRows,
 } from "./im_storyboard_io.js";
 
 // LI_W x LI_H: preview box of a standard Load Image node (measured 2026-11-14: 16:9 = 283x159, 4:5 = 164x205)
@@ -305,23 +305,30 @@ export function addStoryboard(node) {
     if (rows.length >= MAX_IMAGES) { fcReviewToast(`Max ${MAX_IMAGES} images`, "#e68929"); return; }
     commit(node, [...rows, emptyRow()]);
   };
-  const replace = (names) => { if (names?.length) commit(node, names.slice(0, MAX_IMAGES).map((image) => ({ ...emptyRow(), image }))); };
-  const bLoad = el("button", null, "📂 Load images…");
-  bLoad.onclick = async () => {
-    const names = [];
-    for (const f of (await pickFiles(true)).slice(0, MAX_IMAGES)) { const nm = await uploadImage(f); if (nm) names.push(nm); }
-    replace(names);
+  // Load images appends: empty rows at the end are filled first, then new rows follow (max MAX_IMAGES).
+  const append = (names) => {
+    if (!names.length) return;
+    const rows = readRows(node);
+    while (rows.length && !rows[rows.length - 1].image && !rows[rows.length - 1].prompt) rows.pop();
+    const room = MAX_IMAGES - rows.length;
+    if (names.length > room) fcReviewToast(`${names.length - room} images skipped (max ${MAX_IMAGES})`, "#e68929");
+    commit(node, [...rows, ...names.slice(0, room).map((image) => ({ ...emptyRow(), image }))]);
   };
-  const bFolder = el("button", null, "🗂 Storyboard folder…");
-  bFolder.title = `Load all images of a folder (sorted by name, max ${MAX_IMAGES}) - replaces the storyboard`;
-  bFolder.onclick = async () => replace(await importFolder());
+  const bLoad = el("button", null, "📂 Load images…");
+  bLoad.title = `Adds the chosen images below the last one (sorted by name, max ${MAX_IMAGES})`;
+  bLoad.onclick = async () => {
+    const files = (await pickFiles(true)).sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true }));
+    const names = [];
+    for (const f of files.slice(0, MAX_IMAGES)) { const nm = await uploadImage(f); if (nm) names.push(nm); }
+    append(names);
+  };
   const bAll = el("button", null, "✎ Write all prompts");
   bAll.title = "Writes every prompt except the ✎ own ones";
   bAll.onclick = () => {
     const rows = readRows(node), loop = isLoop(node);
     regen(node, rows.flatMap((r, i) => (pairOf(rows, i, loop) && !r.own ? [i] : [])));
   };
-  tb.append(cnt, bAll, bLoad, bFolder);
+  tb.append(cnt, bAll, bLoad);
   const board = el("div", "imsb-bd");
   root.append(tb, board);
   const st = node._imsb = { root, board, cnt: num, gap: el("div", "imsb-gap"), fmt: { w: 4, h: 5, label: "" }, sig: "", land: -1 };
