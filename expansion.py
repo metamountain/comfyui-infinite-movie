@@ -74,15 +74,6 @@ PRESET_CONFIGS = {
         "size_class_type": "WanFirstLastFrameToVideo",
         "size_inputs": ("width", "height", "length"),
         "save_class_type": "SaveImage",
-        # Optional model inputs (Auftrag 29): InfiniteMovieRender input -> (loader class,
-        # consumer class, consumer input) resolved via the CONSUMER (the API
-        # JSON declares no output types). None = not applicable / ambiguous.
-        "loader_map": {
-            "model": None,  # two UNETLoader (high/low) -> ambiguous, ValueError
-            "clip": ("CLIPLoader", "CLIPTextEncode", "clip"),
-            "vae": ("VAELoader", "WanFirstLastFrameToVideo", "vae"),
-            "audio_vae": None,  # Wan has no audio VAE
-        },
     },
     "ltx25_flf2v": {
         "template": "ltx25_flf2v_api.json",
@@ -98,15 +89,6 @@ PRESET_CONFIGS = {
         "size_class_type": "EmptyLTXVLatentVideo",
         "size_inputs": ("width", "height", "length"),
         "save_class_type": "SaveImage",
-        # Optional model inputs (Auftrag 29): InfiniteMovieRender input -> (loader class,
-        # consumer class, consumer input) resolved via the CONSUMER (the API
-        # JSON declares no output types). None = not applicable / ambiguous.
-        "loader_map": {
-            "model": ("UNETLoader", "LTXVDualCFGGuider", "model"),
-            "clip": ("CLIPLoader", "CLIPTextEncode", "clip"),
-            "vae": ("VAELoader", "LTXVAddGuide", "vae"),
-            "audio_vae": ("VAELoader", "LTXVEmptyLatentAudio", "audio_vae"),
-        },
     },
 }
 
@@ -337,7 +319,6 @@ def _derive_cfg_from_graph(template: dict, out_node: dict) -> dict:
     - preset (a label derived from the family, used in the segment key)
     - seed_class_types, size_class_type, size_inputs, save_class_type
     - start_image_marker, end_image_marker, prompt_marker
-    - loader_map (from the loader nodes)
 
     PRESET_CONFIGS is NOT used here as a fallback – it stays an internal
     knowledge table for the example groups and the tests only (Auftrag 57e).
@@ -398,7 +379,6 @@ def _derive_cfg_from_graph(template: dict, out_node: dict) -> dict:
         "size_class_type": size_class,
         "size_inputs": ("width", "height", "length"),
         "save_class_type": "SaveImage",
-        "loader_map": {},
     }
 
     # Size / length defaults from the size node.
@@ -444,39 +424,6 @@ def _derive_cfg_from_graph(template: dict, out_node: dict) -> dict:
             text = text if isinstance(text, str) else ""  # link/number -> no marker (error 2026-11-04: int not iterable)
             if "PROMPT" in text or "POSITIVE" in text:
                 cfg["prompt_marker"] = text
-
-    # Derive loader_map
-    loader_map = {}
-    for nid, n in template.items():
-        ct = n.get("class_type", "")
-        if ct == "UNETLoader":
-            # Find the consumer (LTXVDualCFGGuider or similar)
-            for cnid, cn in template.items():
-                if cn.get("class_type") in ("LTXVDualCFGGuider", "BasicGuider", "CFGGuider"):
-                    val = cn.get("inputs", {}).get("model")
-                    if is_link(val) and val[0] == nid:
-                        loader_map["model"] = (ct, cn.get("class_type"), "model")
-                        break
-        elif ct == "CLIPLoader":
-            for cnid, cn in template.items():
-                if cn.get("class_type") == "CLIPTextEncode":
-                    val = cn.get("inputs", {}).get("clip")
-                    if is_link(val) and val[0] == nid:
-                        loader_map["clip"] = (ct, "CLIPTextEncode", "clip")
-                        break
-        elif ct == "VAELoader":
-            for cnid, cn in template.items():
-                cct = cn.get("class_type", "")
-                if cct in ("LTXVAddGuide", "WanFirstLastFrameToVideo", "LTXVEmptyLatentAudio"):
-                    for inp in ("vae", "audio_vae"):
-                        val = cn.get("inputs", {}).get(inp)
-                        if is_link(val) and val[0] == nid:
-                            loader_map["vae" if inp == "vae" else "audio_vae"] = (ct, cct, inp)
-                            break
-                    if "vae" in loader_map or "audio_vae" in loader_map:
-                        break
-
-    cfg["loader_map"] = loader_map
 
     return cfg
 
@@ -559,93 +506,6 @@ def _drop_end_image(graph: dict, source_id: str) -> None:
     graph.pop(source_id, None)
 
 
-def _find_loader_by_consumer(template: dict, loader_class: str,
-                             consumer_class: str, consumer_input: str) -> str | None:
-    """Find the loader node whose output is consumed by a specific consumer.
-
-    The API JSON declares no output types, so the loader is resolved via the
-    CONSUMER (which node pulls the loader's output), not the loader's class
-    alone. Returns the loader node ID, or None if not found.
-    """
-    for nid, n in template.items():
-        if n.get("class_type") != consumer_class:
-            continue
-        val = n.get("inputs", {}).get(consumer_input)
-        if is_link(val):
-            src = val[0]
-            if template.get(src, {}).get("class_type") == loader_class:
-                return src
-    return None
-
-
-def _apply_model_inputs(seg: dict, template: dict, cfg: dict, prefix: str,
-                        model_inputs: dict) -> list[str]:
-    """Replace template loader nodes with the connected model inputs (literal).
-
-    For each connected model input (model/clip/vae/audio_vae), find the
-    corresponding template loader (via cfg['loader_map'], resolved by consumer)
-    and replace all links to it with the input value, then remove the loader.
-    The template loader ID is unprefixed; the seg node ID is prefix + loader_id.
-    Returns a list of log notes (e.g. which loaders were replaced).
-
-    Raises ValueError if a connected input has no matching loader in the
-    template (None in loader_map) or the loader cannot be found.
-    """
-    notes: list[str] = []
-    loader_map = cfg.get("loader_map", {})
-    for name, value in (model_inputs or {}).items():
-        if value is None:
-            continue
-        mapping = loader_map.get(name)
-        if mapping is None:
-            raise ValueError(
-                f"InfiniteMovieRender: input '{name}' is not applicable for this preset "
-                f"(no matching loader in the template). Leave it unconnected.")
-        loader_class, consumer_class, consumer_input = mapping
-        loader_id = _find_loader_by_consumer(
-            template, loader_class, consumer_class, consumer_input)
-        if loader_id is None:
-            raise ValueError(
-                f"InfiniteMovieRender: could not find a {loader_class} consumed by "
-                f"{consumer_class}.{consumer_input} in the template for "
-                f"input '{name}'.")
-        _replace_links_to(seg, prefix + loader_id, value)
-        notes.append(f"{name}: {loader_class}({loader_id}) -> literal")
-    return notes
-
-
-def _model_inputs_tag(model_inputs: dict | None) -> str:
-    """Stable identifier for connected model inputs (for the resume key).
-
-    Uses the class name + a name abbreviation (model_name/clip_name/vae_name or
-    a short repr). No id() (that changes per run). Returns an empty string if
-    no model inputs are connected. The tag is NOT guaranteed to uniquely
-    identify the external model (logged by the caller); it only ensures a model
-    swap invalidates the cached segment.
-    """
-    if not model_inputs:
-        return ""
-    parts = []
-    for name in sorted(model_inputs):
-        value = model_inputs[name]
-        if value is None:
-            continue
-        cls = type(value).__name__
-        short = ""
-        for attr in ("model_name", "clip_name", "vae_name", "name"):
-            v = getattr(value, attr, None)
-            if isinstance(v, str) and v:
-                short = v
-                break
-        if not short:
-            try:
-                short = repr(value)[:50]
-            except Exception:  # noqa: BLE001
-                short = "?"
-        parts.append(f"{name}={cls}:{short}")
-    return "|".join(parts)
-
-
 def _reusable_segment(path: str, key: str) -> bool:
     """Reuse an existing shot unless its seed changed (user 2026-11-10: only 'reseed' decides what is rendered
     again - edited prompts, images or lengths do not). The key file still stores the full key; only its
@@ -686,15 +546,10 @@ def _set_trigger(graph: dict, nid: str, src: str) -> None:
 def build_segment(template: dict, cfg: dict, prefix: str,
                   start_tensor, end_tensor,
                   prompt: str,
-                  seed: int, width: int, height: int, length: int,
-                  model_inputs: dict | None = None) -> dict:
+                  seed: int, width: int, height: int, length: int) -> dict:
     """Build one segment graph (prefixed copy of the template) with the
     LoadImage outputs replaced by literal tensors and the SaveImage node
     replaced by a InfiniteMovieSegmentSave node.
-
-    model_inputs: optional dict of connected model inputs (model/clip/vae/
-    audio_vae -> live object). Each connected input replaces the template's
-    loader node with the literal value (Auftrag 29).
 
     Returns (segment_graph, save_node_id).
     """
@@ -720,13 +575,6 @@ def build_segment(template: dict, cfg: dict, prefix: str,
         _drop_end_image(seg, prefix + end_src)
     else:
         _replace_links_to(seg, prefix + end_src, end_tensor)
-
-    # 2b. Replace template loader nodes with connected model inputs (Auftrag 29).
-    # The loader IDs in the template are unprefixed; _apply_model_inputs resolves
-    # the loader via the (unprefixed) template and replaces links in the
-    # (prefixed) seg using prefix + loader_id.
-    if model_inputs:
-        _apply_model_inputs(seg, template, cfg, prefix, model_inputs)
 
     # 3. Set prompt. (73: negative is no longer set - the negative encoder
     # stays empty; Engine In has no negative output anymore.)
@@ -793,7 +641,6 @@ def build_expansion_graph(unique_id: str, preset: str,
                           output_dir: str,
                           frames: list[int],
                           seed_bumps: dict | None = None,
-                          model_inputs: dict | None = None,
                           template: dict | None = None,
                           cfg: dict | None = None,
                            variants: int = 1) -> tuple[dict, bool]:
@@ -875,12 +722,6 @@ def build_expansion_graph(unique_id: str, preset: str,
             h.update(f"after:{prev_key}".encode("utf-8"))   # pass 2 follows pass 1's exact result
         for t in ((images[start_idx] if start_idx is not None else None), end_tensor):
             h.update(t.cpu().numpy().tobytes() if t is not None else b"open")
-        # Model identifier (Auftrag 29): stable (class + name short form), not
-        # id() (which changes per run). Without the identifier, a newly
-        # connected model would silently reuse the old segment.
-        model_tag = _model_inputs_tag(model_inputs)
-        if model_tag:
-            h.update(model_tag.encode("utf-8"))
         # Settings > audio on: its own key (do not reuse silently rendered segments as "with audio");
         # off: key as before - existing segments stay valid, the film becomes silent when chained.
         if cfg.get("audio"):
@@ -900,7 +741,6 @@ def build_expansion_graph(unique_id: str, preset: str,
                 prompt=seg_prompt,
                 seed=seg_seed,
                 width=width, height=height, length=seg_length,
-                model_inputs=model_inputs,
             )
             renders = True
             # Add the segment to the graph, then fill in the save path / index.
@@ -926,7 +766,6 @@ def build_expansion_graph(unique_id: str, preset: str,
                     prompt=seg_prompt,
                     seed=seed_b,
                     width=width, height=height, length=seg_length,
-                    model_inputs=model_inputs,
                 )
                 renders = True
                 graph.update(seg_b)
