@@ -133,7 +133,7 @@ const endBusy = (node) => { if (node._imsb?.busy) { node._imsb.busy = null; rend
 // rows, renders nothing, and sends them back as ui.im_prompts (received).
 async function regen(node, idx) {
   if (node._imsb?.busy) { fcReviewToast("Prompts are being written", "#e68929"); return; }
-  if (!idx.length) { fcReviewToast("No prompt to write (all are ✎ own)", "#e68929"); return; }
+  if (!idx.length) { fcReviewToast("No prompt to write (all are ✎ manual)", "#e68929"); return; }
   const w = imWidget(node, "regen");
   if (!w) { fcReviewToast("Director has no regen input - restart ComfyUI", "#d93025"); return; }
   node._imsb.busy = new Set(idx);
@@ -228,8 +228,9 @@ function promptEl(node, rows, i, loop) {
   const box = el("div", "imsb-p" + (j === 0 && n > 1 ? " loop" : "") + (isStale(rows, i, loop) ? " stale" : ""));
   box.style.cssText = `left:${iw + GAP}px;top:${i * row + row / 2}px;height:${ih}px;width:${pw}px`;
   const hd = el("div", "hd");
-  const badge = () => (r.own ? ["own", "✎ own"] : r.prompt.trim() ? ["llm", "LLM"] : ["", "empty"]);
+  const badge = () => (r.own ? ["own", "✎ manual"] : r.prompt.trim() ? ["llm", "LLM"] : ["", "empty"]);
   const bg = el("span", "bg " + badge()[0], badge()[1]);
+  bg.title = "manual = you typed this prompt; ✎ Write all prompts keeps it. LLM = written by the model.";
   const red = el("span", "red", "● doesn't fit");
   red.title = "The images around this prompt changed – edit or regenerate it";
   const def = defaultSeconds(node);
@@ -323,7 +324,7 @@ export function addStoryboard(node) {
     append(names);
   };
   const bAll = el("button", null, "✎ Write all prompts");
-  bAll.title = "Writes every prompt except the ✎ own ones";
+  bAll.title = "Writes every prompt except the ✎ manual ones (typed by you)";
   bAll.onclick = () => {
     const rows = readRows(node), loop = isLoop(node);
     regen(node, rows.flatMap((r, i) => (pairOf(rows, i, loop) && !r.own ? [i] : [])));
