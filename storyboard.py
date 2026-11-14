@@ -64,13 +64,19 @@ def load_images(board) -> list[np.ndarray]:
     return [load_image(row["image"]) for row in board]
 
 
+def row_of(n: int, k: int) -> int:
+    """Row that owns film k: its own row; the way back of a single image belongs to that image."""
+    return min(k, n - 1)
+
+
 def prompt_list(board, n_segments) -> list[str]:
-    """One prompt per rendered film: row i -> film i. An empty prompt takes the one before (also past the end of
-    the list, e.g. the way back of a single image); whitespace is collapsed."""
+    """One prompt per rendered film: film k takes row ``row_of(len(board), k)`` — its own row, except the way
+    back of a single image, which belongs to that image. An empty prompt stays empty (no fill from the film
+    that starts one row earlier); whitespace is collapsed."""
     out: list[str] = []
-    for i in range(max(0, int(n_segments))):
-        p = " ".join(board[i]["prompt"].split()) if i < len(board) else ""
-        out.append(p or (out[-1] if out else ""))
+    for k in range(max(0, int(n_segments))):
+        p = " ".join(board[row_of(len(board), k)]["prompt"].split()) if (k < len(board) or len(board) == 1) else ""
+        out.append(p)
     return out
 
 

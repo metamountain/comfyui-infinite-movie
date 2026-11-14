@@ -125,17 +125,21 @@ function remove(node, i) {
   commit(node, rows.length ? rows : [emptyRow()]);
 }
 
+// End the "writing" state of a storyboard: clear busy and redraw (no-op when it already ended).
+const endBusy = (node) => { if (node._imsb?.busy) { node._imsb.busy = null; render(node); } };
+
 // Prompt writing = a partial run of the Director alone with its `regen` widget set: it writes the prompts of these
 // rows, renders nothing, and sends them back as ui.im_prompts (received).
 async function regen(node, idx) {
+  if (node._imsb?.busy) { fcReviewToast("Prompts are being written", "#e68929"); return; }
   if (!idx.length) { fcReviewToast("No prompt to write (all are ✎ own)", "#e68929"); return; }
   const w = imWidget(node, "regen");
   if (!w) { fcReviewToast("Director has no regen input - restart ComfyUI", "#d93025"); return; }
   node._imsb.busy = new Set(idx);
   render(node);
   w.value = JSON.stringify(idx);
-  try { await fcQueueFixedSeeds([String(node.id)]); }
-  catch (e) { node._imsb.busy = null; render(node); fcReviewToast(`Prompt writing not started: ${e}`, "#d93025"); }
+  try { if (!(await fcQueueFixedSeeds([String(node.id)]))) endBusy(node); }
+  catch (e) { endBusy(node); fcReviewToast(`Prompt writing not started: ${e}`, "#d93025"); }
   finally { w.value = ""; }
 }
 
@@ -155,20 +159,12 @@ function received(e) {
   commit(node, rows);
 }
 
-// "executing" names the running node; null = the run is over (also on error/cancel). Only a run in which the
-// Director itself ran ends its "writing" state - an earlier job finishing does not.
-function executing(e) {
-  const id = e.detail == null ? null : String(e.detail).split(":")[0];
-  for (const n of app.graph?._nodes || []) {
-    const st = n._imsb;
-    if (!st?.busy) continue;
-    if (id === String(n.id)) st.ran = true;
-    else if (id == null && st.ran) { st.busy = null; st.ran = false; render(n); }
-  }
-}
-
 api.addEventListener("executed", received);
-api.addEventListener("executing", executing);
+// The queue drained (queue_remaining 0) = every run is over -> end every "writing" state. Robust also when the
+// Director ran without sending im_prompts (error/cancel), where "executed" never fires.
+api.addEventListener("status", (e) => {
+  if (e.detail?.exec_info?.queue_remaining === 0) for (const n of app.graph?._nodes || []) endBusy(n);
+});
 
 function startDrag(node, e, i, tile) {
   const st = node._imsb, bd = st.board, x0 = e.clientX, y0 = e.clientY, { row } = st.size;
@@ -322,7 +318,7 @@ export function addStoryboard(node) {
   bAll.title = "Writes every prompt except the ✎ own ones";
   bAll.onclick = () => {
     const rows = readRows(node), loop = isLoop(node);
-    regen(node, rows.flatMap((r, i) => (hasFilm(rows.length, i, loop) && !r.own ? [i] : [])));
+    regen(node, rows.flatMap((r, i) => (pairOf(rows, i, loop) && !r.own ? [i] : [])));
   };
   tb.append(cnt, bAll, bLoad, bFolder);
   const board = el("div", "imsb-bd");

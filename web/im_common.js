@@ -92,6 +92,9 @@ export function imEmptyPromptFilms(director) {
   });
 }
 
+// Storyboard rows without an image (1-based); empty when the images batch is linked (it provides the images).
+export const imEmptyImageRows = (d) => imagesBatchLinked(d) ? [] : imParseStoryboard(d).flatMap((r, i) => (r.image ? [] : [i + 1]));
+
 // 124b: a prompt-writing run (storyboard ↻ / Write all) = Director with a non-empty regen widget. Renders nothing.
 export const imPromptRun = (n) => n?.comfyClass === "InfiniteMovieRender"
   && !!String(n.widgets?.find((w) => w.name === "regen")?.value || "").trim();
@@ -244,12 +247,18 @@ export function wrapQueue() {
       }
     }
     // 72 (user 2026-11-03: „prompts automatically filled – prefer manual“): a full run generates no
-    // prompts. Films without a prompt -> ask, NO queue on cancel. Prompt writing (partial run) goes through.
+    // prompts. An empty image row -> NO queue (the storyboard is incomplete); films without a prompt -> ask,
+    // NO queue on cancel. Prompt writing (partial run) goes through.
     const partial = !userRun;
     const director = (app.graph?._nodes || []).find((n) => n.comfyClass === "InfiniteMovieRender" && (n.mode ?? 0) === 0);
     if (!partial && director) {
+      const emptyRows = imEmptyImageRows(director);
+      if (emptyRows.length) {
+        imErrorToast("Storyboard incomplete", `Image ${emptyRows.join(", ")} is empty - load an image or remove the row`);
+        return false;
+      }
       const empty = imEmptyPromptFilms(director);
-      if (empty.length && !window.confirm(`Films without a prompt: ${empty.join(", ")}\n\nRender without prompt?`)) return false;
+      if (empty.length && !window.confirm(`Films ${empty.join(", ")} have no prompt and render with an empty prompt. Render anyway?`)) return false;
     }
     // 65 (user 2026-11-03: „the render must not be sent out!“): check the GPU BEFORE the queue (one measurement,
     // foreign programs are never touched). Not enough free -> message, NO queue.
