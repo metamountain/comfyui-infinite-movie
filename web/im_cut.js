@@ -466,19 +466,18 @@ app.registerExtension({
       imToggleWidget(node.widgets?.find((w) => w.name === "reseed"), false);
       node.setSize([node.size[0], node.computeSize()[1]]);
     }, 0);
-    // Status row „Film: 7 shots · 14.0 s · 337 frames“ (2026-11-04: computed locally from seconds +
-    // shot_seconds (⏱ in Choose); the old server estimate from the one-pass time is removed).
-    const estWidget = node.addWidget("text", "Film:", null, "");
+    // Status row "Film  7 films · 14.0 s · ~337 frames", computed locally from seconds + shot_seconds (⏱ in Cut).
+    const estWidget = node.addWidget("text", "Film", null, "");
     estWidget.serialize = false;
     estWidget._fc_est = true;
 
     const refreshEstimate = () => {
       const nShots = imFilmCount(node);
-      if (nShots < 1) { estWidget.value = "Film: needs at least 1 image"; node.setDirtyCanvas?.(true, true); return; }
+      if (nShots < 1) { estWidget.value = "needs at least 1 image"; node.setDirtyCanvas?.(true, true); return; }
       let total = 0;
       for (let i = 1; i <= nShots; i++) total += fcShotSecondsOf(node, i);
       const fps = 24; // LTX
-      estWidget.value = `Film: ${nShots} shot${nShots > 1 ? "s" : ""} · ${total.toFixed(1)} s · ~${Math.round(total * fps)} frames`;
+      estWidget.value = `${nShots} film${nShots > 1 ? "s" : ""} · ${total.toFixed(1)} s · ~${Math.round(total * fps)} frames`;
       node.setDirtyCanvas?.(true, true);
     };
 
