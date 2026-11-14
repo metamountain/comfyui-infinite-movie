@@ -6,10 +6,14 @@ import { fcChooseRender } from "./im_cut.js";
 import { fmtTime, renderEstimate } from "./im_progress.js";
 import { IMV_NODE_W, imvDraw, imvStop } from "./im_viewer.js";
 import { fcChooseDirectorOf } from "./im_cut_edit.js";
-const FC_CHOOSE_COL = 160;           // fixed square tile per shot (image contain). 2026-11-13 (user: "Cut is the problem, optimise for 4"): 256 -> 160, Cut 672 px wide with 4 shots; more shots make it wider
+import { boardFormat } from "./im_storyboard_io.js";
+// 124d: one row per film (mirror of the Director's prompt boxes): tile box 283×205 scaled to the
+// connected Director's format, rows staggered half a row, node width fixed 672.
+const FC_CHOOSE_LI_W = 283, FC_CHOOSE_LI_H = 205;
+export const FC_CHOOSE_ROW_GAP = 10;
+export const FC_CHOOSE_NODE_W = 672;
 export const FC_CHOOSE_GAP = 4;
-const FC_CHOOSE_PAD = 20;            // DOM widget margin left+right in the node
-export const FC_CHOOSE_HEAD_H = 20, FC_CHOOSE_STAT_H = 24, FC_CHOOSE_BTNROW_H = 34;
+export const FC_CHOOSE_PAD = 20;     // DOM widget margin left+right in the node
 // Effective choice of a shot: A/B from the widget only counts if the shot has both variants (otherwise after
 // a run with variants=1 an old „b“ sits in the widget and sheet/seam look for a variant that does not exist).
 export function fcChooseEff(e, c) { return (e?.has_variants && (c === "a" || c === "b")) ? c : (e?.auto || "a"); }
@@ -29,7 +33,6 @@ export function fcChooseQuality(v, e) {
   return q;
 }
 export const FC_CHOOSE_STATUS_H = 26, FC_CHOOSE_BIG_H = 44;
-export const FC_CHOOSE_SEAM_H = 84;   // 2026-11-08: seam row (last image of this shot | first image of the next)
 
 // 2026-11-08 (user: couple chooser + Assemble): show the shot in the Assemble viewer (click on the shot header
 // in the chooser) or highlight it in the chooser (seg button in the Assemble viewer). number = shot number (1-based).
@@ -132,29 +135,20 @@ export function fcChooseEntries(node) {
 
 export function fcChooseSig(e) { return e.length + (e[0]?.placeholder ? "p" : "r") + (e[0]?.has_variants ? "v" : ""); }
 
-// Tile square: height = column width (film aspect ratio irrelevant).
+// 124d: one row per film (mirror of the Director's prompt boxes): the tile box 283×205 is scaled to the
+// connected Director's format (Settings node via boardFormat), rows staggered half a row, node width fixed 672.
 export function fcChooseLayout(node, entries) {
-  const colW = FC_CHOOSE_COL;
-  const tileH = colW;
-  const v = entries[0]?.has_variants ? 2 : 1;
-  // 78: reserve the seam row if any shot has seam_bad (otherwise clipping).
-  const seamH = entries.some((e) => !e.placeholder && e.seam_next) ? FC_CHOOSE_SEAM_H + FC_CHOOSE_GAP : 0;
-  const colH = FC_CHOOSE_HEAD_H + v * (tileH + FC_CHOOSE_GAP + FC_CHOOSE_STAT_H) + seamH + (entries[0]?.placeholder ? 0 : FC_CHOOSE_BTNROW_H + FC_CHOOSE_GAP);
-  const sheet = fcChooseSheetSize(entries);
-  // 2026-11-13: no play field in Cut any more – shots and the film play in the Film node below Cut.
-  // 2026-11-13 (user: "make Cut's window smaller"): the analysis viewer is its own widget (im_viz) below this one -
-  // its height (IMV_H + 96 + 20) was counted here a second time and left ~600 px of empty space.
-  const domH = (entries.length ? colH : 0) + FC_CHOOSE_GAP + FC_CHOOSE_STATUS_H + FC_CHOOSE_GAP + FC_CHOOSE_BIG_H + 8
-    + (sheet ? FC_CHOOSE_GAP + sheet[1] : 0);
-  return { colW, tileH, domH, sheet };
+  const fmt = boardFormat(fcChooseDirectorOf(node), null) || { w: 4, h: 5 };
+  const k = Math.min(FC_CHOOSE_LI_W / fmt.w, FC_CHOOSE_LI_H / fmt.h);
+  const iw = Math.round(fmt.w * k), ih = Math.round(fmt.h * k);
+  const row = ih + FC_CHOOSE_ROW_GAP;
+  const boardH = entries.length ? (entries.length - 1) * row + row / 2 + ih : 0;
+  // 2026-11-13: no play field in Cut any more – the analysis viewer is its own widget (im_viz) below this one.
+  const domH = boardH + FC_CHOOSE_GAP + FC_CHOOSE_STATUS_H + FC_CHOOSE_GAP + FC_CHOOSE_BIG_H + 8;
+  return { iw, ih, row, boardH, domH, sheet: null };
 }
-// 2026-11-08 (user: „dont like 3x3 in same window … put them to bottom“, then „2x 3x3 at the bottom side by side, i.e.
-// under each image“): at the bottom of the chooser a row of 3×3 sheets, per shot exactly under its column (same width).
-// The chosen variant is shown; mouse over tile A/B shows its sheet.
-function fcChooseSheetSize(entries) {
-  if (!entries.some((e) => !e.placeholder && (e.a?.sheet || e.b?.sheet))) return null;
-  return [FC_CHOOSE_COL, FC_CHOOSE_COL];
-}
+// 124d: the 3×3 sheet row is gone (one row per film) – the sheet is reached via the analysis viewer.
+function fcChooseSheetSize() { return null; }
 export function fcChooseUpdateSheet(node, only = -1) {
   const cells = node._fc_sheet_cells || [];
   const entries = node._fc_choose_entries || [];
@@ -170,15 +164,14 @@ export function fcChooseUpdateSheet(node, only = -1) {
     if (src && cell.img.getAttribute("src") !== src) cell.img.setAttribute("src", src);
     cell.img.style.visibility = src ? "visible" : "hidden";
     const err = e[k]?.errors?.find((x) => x.startsWith("sheet")) || (e.placeholder ? "" : e[k] ? "" : `variant ${k.toUpperCase()} missing`);
-    cell.lbl.textContent = src ? `Shot ${e.number}${e.has_variants ? " · " + k.toUpperCase() : ""} · 3×3`
-      : err ? `✗ Shot ${e.number}: ${err}` : "no sheet yet – Run";
+    cell.lbl.textContent = src ? `Film ${e.number}${e.has_variants ? " · " + k.toUpperCase() : ""} · 3×3`
+      : err ? `✗ Film ${e.number}: ${err}` : "no sheet yet – Run";
     cell.lbl.style.color = !src && err ? "#ff6b6b" : "";
   });
 }
 
-// 116c2: minimum IMV_NODE_W – the imv viewer below the play field needs the 480 px canvas
-// (imvFixWidth would otherwise fight fcChooseRender over a 1-shot node width).
-export function fcChooseWidth(n) { return Math.max(IMV_NODE_W, FC_CHOOSE_PAD + n * FC_CHOOSE_COL + (n - 1) * FC_CHOOSE_GAP); }
+// 124d: fixed node width – one row per film, tiles + info box always fit into 672 px.
+export function fcChooseWidth() { return FC_CHOOSE_NODE_W; }
 
 export function fcChooseStableUrl(im) {
   // Stable URL WITHOUT cache buster: when switching still<->animated the file comes from the cache.
@@ -203,23 +196,23 @@ export function fcChooseEffective(node) {
   return (node._fc_choose_entries || []).map((e, i) => fcChooseEff(e, c[i]));
 }
 
-// Live preview: only the column under the mouse is animated, all others show the still image.
+// Live preview: only the row under the mouse is animated, all others show the still image.
 export function fcChooseApplyActive(node) {
   const el = node._fc_choose_el;
   if (!el) return;
   const active = node._fc_choose_active ?? -1;
   const entries = node._fc_choose_entries || [];
-  el.querySelectorAll(".fc-choose-col").forEach((col, i) => {
+  for (let i = 0; i < entries.length; i++) {
     const e = entries[i];
-    if (!e) return;
+    if (!e) continue;
     for (const k of ["a", "b"]) {
-      const img = col.querySelector(`.fc-tile-${k} img`), v = e[k];
+      const img = el.querySelector(`.fc-tile-${k}[data-fc-i="${i}"] img`), v = e[k];
       if (!img || !v) continue;
       const im = (i === active && v.preview) ? v.preview : (v.still || v.preview);
       const src = im ? fcChooseStableUrl(im) : "";
       if (src && img.getAttribute("src") !== src) img.setAttribute("src", src);
     }
-  });
+  }
 }
 
 // State for the status row + button.
@@ -245,7 +238,7 @@ function fcChooseState(node) {
     const r = dir && renderEstimate(dir);
     if (r && r.seg >= 0) {
       const left = isFinite(r.eta) ? ` · ~${fmtTime(r.eta)} left` : " · estimating…";
-      return { text: `Rendering shot ${r.seg + 1}/${r.segs} · ${fmtTime(r.el)} elapsed${left}`, tone: "busy", btn: null, frac: r.frac };
+      return { text: `Rendering film ${r.seg + 1}/${r.segs} · ${fmtTime(r.el)} elapsed${left}`, tone: "busy", btn: null, frac: r.frac };
     }
     const p = fcRun.max ? ` · ${fcRun.value}/${fcRun.max}` : "";
     return { text: `Rendering… please wait (${r?.phase || fcRun.node || "queued"}${p})`, tone: "busy", btn: null };
@@ -284,11 +277,11 @@ function fcChooseUpdateSteps(node) {
 }
 
 function fcChooseStateIdle(node, entries, plan, marked) {
-  if (entries[0]?.placeholder) return { text: `Waiting for Run: ${entries.length} shot(s)${plan.variants ? " × 2 variants" : ""} will appear here.`, tone: "idle", btn: null };
+  if (entries[0]?.placeholder) return { text: `Waiting for Run: ${entries.length} film(s)${plan.variants ? " × 2 variants" : ""} will appear here.`, tone: "idle", btn: null };
   const redo = fcChooseRedoTokens(node);
   if (redo.length) return { text: `${redo.map((t) => t.toUpperCase()).join(", ")} marked ✗ – RERENDER renders only these with new seeds.`, tone: "act", btn: "rerender" };
-  if (node._fc_choose_ran == null) return { text: entries[0]?.has_variants ? "Shots ready – pick A or B per shot, then RENDER VIDEO builds the film."
-    : "Shots ready – RENDER VIDEO builds the film.", tone: "act", btn: "assemble" };
+  if (node._fc_choose_ran == null) return { text: entries[0]?.has_variants ? "Films ready – pick A or B per film, then RENDER VIDEO builds the film."
+    : "Films ready – RENDER VIDEO builds the film.", tone: "act", btn: "assemble" };
   const changed = (node._fc_choose_ran || "") !== fcChooseEffective(node).join(",");
   if (changed) return { text: "Choice changed – press RENDER VIDEO to rebuild the film.", tone: "act", btn: "assemble" };
   if (node._fc_film_done) {
@@ -298,8 +291,8 @@ function fcChooseStateIdle(node, entries, plan, marked) {
     return { text: `✓ VIDEO READY · ${imFilmInfoText(node._fc_film_done)}${rt}`, tone: "done", btn: null,
       title: node._fc_film_done.path };
   }
-  if (entries[0]?.has_variants) return { text: "Film assembled. Pick A or B per shot to change it, ✓/✗ to re-render a shot.", tone: "ok", btn: null };
-  return { text: "Film assembled. Mark a shot ✗ to re-render it.", tone: "ok", btn: null };
+  if (entries[0]?.has_variants) return { text: "Film assembled. Pick A or B per film to change it, ✓/✗ to re-render a film.", tone: "ok", btn: null };
+  return { text: "Film assembled. Mark a film ✗ to re-render it.", tone: "ok", btn: null };
 }
 
 export function fcChooseStatus(node) {
@@ -334,7 +327,7 @@ export function fcChooseStatus(node) {
     } else if (st.btn === "rerender") {
       const m = fcChooseRedoTokens(node).length;
       b.textContent = `RERENDER ${m} ↻`; b.style.background = "#d93025"; b.style.borderColor = "#d93025";
-      b.title = "Re-render the marked shots (new seeds), then choose again.";
+      b.title = "Re-render the marked films (new seeds), then choose again.";
     }
     b._fc_mode = st.btn;
   }
@@ -364,8 +357,8 @@ export function fcChoosePlay(node, number, letter, ref) {
     const t = g?.getNodeById(linkOf(lid)?.target_id);
     if (t?.comfyClass === "InfiniteMovieFilm") films.push(t);
   }
-  if (!films.length) { fcReviewToast("Connect Cut's video_path to a Film node to play shots there.", "#d93025"); return; }
-  const title = `Shot ${number}${letter ? " · " + letter : ""}`;
+  if (!films.length) { fcReviewToast("Connect Cut's video_path to a Film node to play films there.", "#d93025"); return; }
+  const title = `Film ${number}${letter ? " · " + letter : ""}`;
   for (const f of films) fcFilmShowShot(f, { url: fcChooseStableUrl(ref), title });
 }
 

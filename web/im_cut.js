@@ -1,10 +1,10 @@
 import { app } from "../../scripts/app.js";
 import { api } from "../../scripts/api.js";
-import { FC_REVIEW_LINE_COLORS, fcQueueFixedSeeds, fcReviewToast, fcShotSecondsOf, imFilmCount } from "./im_common.js";
+import { FC_REVIEW_LINE_COLORS, fcQueueFixedSeeds, fcReviewToast, fcShotSecondsOf, getLink, imFilmCount } from "./im_common.js";
 import { fcChooseDirectorOf, fcChooseEditPrompt, fcChooseEditSeconds, fcRerenderMarked } from "./im_cut_edit.js";
-import { FC_CHOOSE_BIG_H, FC_CHOOSE_BTNROW_H, FC_CHOOSE_GAP, FC_CHOOSE_HEAD_H, FC_CHOOSE_SEAM_H, FC_CHOOSE_STATUS_H, FC_CHOOSE_STAT_H, fcAsmFocus, fcChooseApplyActive, fcChooseEff, fcChooseEffective, fcChooseEntries, fcChooseFocus, fcChooseGetChoices, fcChooseLayout, fcChoosePick, fcChoosePlay, fcChooseQuality, fcChooseSig, fcChooseStableUrl, fcChooseStatus, fcChooseUpdateSheet, fcChooseWidth, fcRun } from "./im_cut_state.js";
+import { FC_CHOOSE_BIG_H, FC_CHOOSE_GAP, FC_CHOOSE_NODE_W, FC_CHOOSE_PAD, FC_CHOOSE_ROW_GAP, FC_CHOOSE_STATUS_H, fcAsmFocus, fcChooseApplyActive, fcChooseEff, fcChooseEffective, fcChooseEntries, fcChooseFocus, fcChooseGetChoices, fcChooseLayout, fcChoosePick, fcChoosePlay, fcChooseQuality, fcChooseSig, fcChooseStableUrl, fcChooseStatus, fcChooseWidth, fcRun } from "./im_cut_state.js";
 import { fcDownstreamOutputs } from "./im_film.js";
-import { fmtTime } from "./im_progress.js";
+import { fmtTime, renderEstimate } from "./im_progress.js";
 import { imToggleWidget } from "./im_settings.js";
 import { imvDraw } from "./im_viewer.js";
 export function fcChooseRender(node) {
@@ -44,37 +44,20 @@ export function fcChooseRender(node) {
   const entries = fcChooseEntries(node);
   const sig = fcChooseSig(entries);
   node._fc_choose_sig = sig;
-  const { colW, tileH } = fcChooseLayout(node, entries);
+  const { iw, ih, row, boardH } = fcChooseLayout(node, entries);
   const marked = node.properties.marked || [];
   const choices = fcChooseGetChoices(node);
   el.innerHTML = "";
 
   if (entries.length) {
-    const row = document.createElement("div");
-    row.style.cssText = `display:flex;gap:${FC_CHOOSE_GAP}px;overflow:hidden;`;
-    el.appendChild(row);
+    // 124d: one row per film at the height of the Director's prompt box of that film (staggered half a row):
+    // tiles on the left, info box on the right – Director and Cut read across.
+    const board = document.createElement("div");
+    board.style.cssText = `position:relative;height:${boardH}px;`;
+    el.appendChild(board);
     entries.forEach((e, i) => {
-      const col = document.createElement("div");
-      col.className = "fc-choose-col";
-      col.style.cssText = `display:flex;flex-direction:column;gap:${FC_CHOOSE_GAP}px;width:${colW}px;flex:0 0 ${colW}px;min-width:0;position:relative;`;
-      col.addEventListener("mouseenter", () => { node._fc_choose_active = i; fcChooseApplyActive(node); });
-      col.addEventListener("mouseleave", () => { node._fc_choose_active = -1; fcChooseApplyActive(node); });
+      const top = i * row + ih / 2 + 5;
 
-      const head = document.createElement("div");
-      head.style.cssText = `display:flex;align-items:center;height:${FC_CHOOSE_HEAD_H}px;font:bold 13px sans-serif;color:#fff;`;
-      head.className = "fc-choose-head";
-      head.textContent = `Shot ${e.number}`;
-      if (node._fc_choose_focus === e.number) head.style.color = "#58a6ff";
-      if (!e.placeholder) {
-        head.style.cursor = "pointer";
-        head.title = "Show this shot in Even Motion's viewer (Sheet / Frames / Particles)";
-        head.addEventListener("click", (ev) => {
-          if (ev.target !== head) return;
-          ev.stopPropagation(); fcChooseFocus(e.number); fcAsmFocus(e.number);
-        });
-      }
-      col.appendChild(head);
-      // 74 (user 2026-11-03: „clearly where hop or top“): KEEP/REDO big below the images, click on the image.
       const isMarked = !e.placeholder && marked.includes(e.number);
       const toggleRedo = () => {
         if (fcRun.running || e.placeholder) return;
@@ -105,15 +88,16 @@ export function fcChooseRender(node) {
         const dim = !e.placeholder && (pending || isMarked || (e.has_variants && !sel));
         const t = document.createElement("div");
         t.className = `fc-tile-${k}`;
-        t.addEventListener("mouseenter", () => { node._fc_sheet_hover = [i, k]; fcChooseUpdateSheet(node, i); });
-        t.addEventListener("mouseleave", () => { node._fc_sheet_hover = null; fcChooseUpdateSheet(node, i); });
-        t.style.cssText = `position:relative;width:${colW}px;height:${tileH}px;background:#1a1a1a;border-radius:3px;` +
+        t.dataset.fcI = String(i);
+        t.addEventListener("mouseenter", () => { node._fc_choose_active = i; fcChooseApplyActive(node); });
+        t.addEventListener("mouseleave", () => { node._fc_choose_active = -1; fcChooseApplyActive(node); });
+        t.style.cssText = `position:absolute;top:${top}px;left:${letters.indexOf(k) * (iw + FC_CHOOSE_ROW_GAP)}px;width:${iw}px;height:${ih}px;background:#1a1a1a;border-radius:3px;` +
           `overflow:hidden;box-sizing:border-box;cursor:${e.placeholder ? "default" : "pointer"};` +
           (e.placeholder ? "border:1px dashed #555;" : isMarked ? "outline:5px solid #d93025;outline-offset:-5px;"
             : sel || !e.has_variants ? "outline:5px solid #2ea043;outline-offset:-5px;" : "");
         t.title = v.info || "";
         const img = document.createElement("img");
-        img.style.cssText = "width:100%;height:100%;object-fit:contain;display:block;" +
+        img.style.cssText = "width:100%;height:100%;object-fit:cover;display:block;" +
           (dim ? "opacity:0.35;filter:grayscale(0.8);" : "");
         t.appendChild(img);
         // 119: live middle frame while this segment is rendering (segment_done, per-shot JPEG).
@@ -123,8 +107,9 @@ export function fcChooseRender(node) {
           const lab = document.createElement("div");
           const on = sel || !e.has_variants;
           const no = isMarked || rejected.includes(k);
-          lab.textContent = pending ? `↻ ${e.has_variants ? k.toUpperCase() + " " : ""}new render…` : isMarked ? "✗ REDO" : no ? `✗ ${k.toUpperCase()}`
-            : e.has_variants ? (sel ? `✓ ${k.toUpperCase()}${isAuto && e.auto_strong ? " · AUTO" : ""}` : k.toUpperCase()) : "✓";
+          const tag = `${e.number}${e.has_variants ? k.toUpperCase() : ""}`;   // film number + variant, e.g. "1A"
+          lab.textContent = pending ? `↻ ${tag} new render…` : isMarked ? `✗ ${tag} REDO` : no ? `✗ ${tag}`
+            : e.has_variants ? (sel ? `✓ ${tag}${isAuto && e.auto_strong ? " · AUTO" : ""}` : tag) : `✓ ${tag}`;
           lab.style.cssText = "position:absolute;top:8px;left:8px;padding:3px 10px;border-radius:12px;font:bold 16px sans-serif;" +
             `color:#fff;background:${pending ? "#1f6feb" : no ? "#d93025" : on ? "#2ea043" : "rgba(0,0,0,0.6)"};`;
           t.appendChild(lab);
@@ -203,103 +188,64 @@ export function fcChooseRender(node) {
         t.title = e.placeholder ? "" : (canPick
           ? (sel ? `Hover: play · click: reject ${k.toUpperCase()}` : `Hover: play · click: use ${k.toUpperCase()}`)
           : "Hover: play · click: keep / redo") + (v.info ? "\n" + v.info : "");
-        col.appendChild(t);
-        const st = document.createElement("div");
-        // 75 (user 2026-11-03: „features bigger so you can recognize them“): finding in plain text + color
-        const q = fcChooseQuality(v, e);
-        st.style.cssText = `height:${FC_CHOOSE_STAT_H}px;display:flex;align-items:center;` +
-          `font:bold 13px/${FC_CHOOSE_STAT_H}px sans-serif;white-space:nowrap;` +
-          `overflow:hidden;text-overflow:ellipsis;padding:0 4px;border-radius:3px;color:${q.color};background:${q.bg};`;
-        const stx = document.createElement("span");
-        stx.style.cssText = "flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;";
-        // 119: per-shot render time (⏱ m:ss) from segment_done – live for placeholders,
-        // kept for real entries while _fc_live[i].seconds is known.
-        const liveT = node._fc_live?.[i]?.seconds != null ? `⏱ ${fmtTime(node._fc_live[i].seconds)}` : "";
-        stx.textContent = pending ? (fcRun.running ? (liveT || "waiting for render…") : "queued for re-render")
-          : v.score === undefined ? (e.placeholder ? (fcRun.running ? (liveT || "waiting for render…") : liveT) : "")
-          : (liveT ? `${liveT} · ${q.text}` : q.text);
-        st.appendChild(stx);
-        // 115: "▶ play" – this shot's full video (with sound) in the preview field below
-        if (v.video && !e.placeholder) {
-          const pb = document.createElement("div");
-          pb.textContent = "▶ play";
-          pb.style.cssText = "flex:0 0 auto;padding:0 8px;height:20px;line-height:20px;font:bold 12px sans-serif;" +
-            "color:#fff;background:#1f6feb;border-radius:3px;cursor:pointer;";
-          pb.title = "Play this shot with sound in the Film player below Cut (switches it to Shot)";
-          pb.addEventListener("click", (ev) => {
-            ev.stopPropagation();
-            fcChoosePlay(node, e.number, e.has_variants ? k.toUpperCase() : "", v.video);
-          });
-          st.appendChild(pb);
-        }
-        if (pending) { st.style.color = "#4fc3f7"; st.style.background = "transparent"; }
-        st.title = (e.auto_reason || "") + (v.info ? "\n" + v.info : "");
-        col.appendChild(st);
+        board.appendChild(t);
       }
-      // 2026-11-08: make the seam to the next shot visible – last image of the chosen variant of this shot
-      // next to the first image of the chosen variant of the next one (loop: shot 1). Follows the A/B choice immediately;
-      // the metric comes from the last run (red from JERK_HARD, like the row 78 before).
-      if (!e.placeholder && e.seam_next) {
-        const ni = e.seam_next - 1, ne = entries[ni];
-        const pick = (en, idx) => fcChooseEff(en, choices[idx]);
-        const lastIm = (e[pick(e, i)] || e.a)?.last;
-        const firstIm = ne ? ((ne[pick(ne, ni)] || ne.a)?.still) : null;
-        const bad = !!e.seam_bad;
-        const sr = document.createElement("div");
-        sr.style.cssText = `height:${FC_CHOOSE_SEAM_H}px;display:flex;align-items:center;gap:6px;padding:2px;box-sizing:border-box;` +
-          `border-radius:3px;background:${bad ? "#3a1512" : "#202020"};border:1px solid ${bad ? "#b3261e" : "#333"};`;
-        const thumb = (im) => {
-          const t = document.createElement(im ? "img" : "div");
-          t.style.cssText = "width:70px;height:70px;object-fit:contain;border-radius:2px;background:#111;flex:none;";
-          if (im) t.src = fcChooseStableUrl(im);
-          return t;
-        };
-        const mid = document.createElement("div");
-        mid.style.cssText = `flex:1;min-width:0;text-align:center;font:bold 12px sans-serif;color:${bad ? "#ff8a80" : "#8b949e"};line-height:1.35;`;
-        mid.innerHTML = `seam → Shot ${e.seam_next}<br><span style="font-size:15px">${bad ? "⚠" : "✓"} ${(+e.seam || 0).toFixed(1)}</span>`;
-        sr.title = "Last frame of this shot | first frame of the next shot – the cut the film makes here. " +
-          "Value from the last run (red = hard jump).";
-        sr.appendChild(thumb(lastIm)); sr.appendChild(mid); sr.appendChild(thumb(firstIm));
-        col.appendChild(sr);
-      }
+      // Info box right of the tiles: light, status, length / prompt / play, seam.
+      const ix = letters.length * (iw + FC_CHOOSE_ROW_GAP);
+      const info = document.createElement("div");
+      info.className = "fc-info";
+      info.style.cssText = `position:absolute;top:${top}px;left:${ix}px;width:${FC_CHOOSE_NODE_W - FC_CHOOSE_PAD - ix}px;height:${ih}px;` +
+        "box-sizing:border-box;background:#262626;border:1px solid #4a4a4a;border-radius:5px;padding:6px;" +
+        "display:flex;flex-direction:column;gap:6px;font:12px sans-serif;color:#bbb;overflow:hidden;";
+      const effV = e.placeholder ? {} : (e[eff] || e.a || {});
+      const pendingAny = !e.placeholder && !!node._fc_redo_pending?.[e.number]?.length;
+      const light = isMarked || rejected.length ? "#d93025" : (pendingAny || (e.placeholder && fcRun.running)) ? "#44aaff"
+        : e.placeholder ? "#e6c229" : "#2ea043";
+      const nextNo = e.seam_next || (i + 1 < entries.length ? i + 2 : 1);
+      const hd = document.createElement("div");
+      hd.style.cssText = "display:flex;align-items:center;gap:6px;font:bold 12px sans-serif;color:#ddd;";
+      hd.innerHTML = `<span style="width:10px;height:10px;border-radius:50%;background:${light};flex:none"></span>` +
+        `<span>Film ${e.number} · ${e.number} → ${nextNo}</span>`;
+      const q = e.placeholder ? null : fcChooseQuality(effV, e);
+      const liveT = node._fc_live?.[i]?.seconds != null ? `⏱ ${fmtTime(node._fc_live[i].seconds)}` : "";
+      const stx = document.createElement("div");
+      stx.textContent = isMarked ? "✗ marked – re-render"
+        : pendingAny ? (fcRun.running ? (liveT || "waiting for render…") : "queued for re-render")
+        : e.placeholder ? (fcRun.running ? (liveT || "waiting for render…") : "not rendered yet")
+        : `${e.has_variants ? eff.toUpperCase() + " used · " : ""}${q.text}`;
+      if (q && !isMarked && !pendingAny) stx.style.color = q.color;
+      stx.title = (e.auto_reason || "") + (effV.info ? "\n" + effV.info : "");
+      const mkBtn = (txt, title, fn) => {
+        const b = document.createElement("div");
+        b.className = "fc-keep";
+        b.textContent = txt;
+        b.title = title;
+        b.style.cssText = "padding:0 8px;height:22px;line-height:22px;font:bold 12px sans-serif;color:#ccc;background:#333;" +
+          "border:1px solid #555;border-radius:4px;cursor:pointer;user-select:none;";
+        b.style.opacity = fcRun.running ? "0.35" : "1";
+        b.addEventListener("click", (ev) => { ev.stopPropagation(); if (!fcRun.running) fn(); });
+        return b;
+      };
+      const ctl = document.createElement("div");
+      ctl.style.cssText = "display:flex;gap:6px;align-items:center;flex-wrap:wrap;";
       if (!e.placeholder) {
-        // Button row: ✓ KEEP / ✗ REDO (big) + „✎ prompt" (80: edit the prompt of this transition)
-        const krow = document.createElement("div");
-        krow.style.cssText = `display:flex;gap:${FC_CHOOSE_GAP}px;height:${FC_CHOOSE_BTNROW_H}px;`;
-        const kb = document.createElement("div");
-        kb.className = "fc-keep";
-        kb.textContent = isMarked ? "✗ REDO – click to keep" : "✓ KEEP – click to redo";
-        kb.style.cssText = `flex:1;display:flex;align-items:center;justify-content:center;` +
-          `font:bold 15px sans-serif;color:#fff;border-radius:4px;cursor:pointer;user-select:none;` +
-          `background:${isMarked ? "#d93025" : "#2ea043"};`;
-        kb.style.opacity = fcRun.running ? "0.35" : "1";
-        kb.title = isMarked ? "Marked: re-render this shot with new seeds (RERENDER below)" : "Mark this shot to re-render it with new seeds";
-        kb.addEventListener("click", (ev) => { ev.stopPropagation(); toggleRedo(); });
-        const pb = document.createElement("div");
-        pb.className = "fc-keep";   // greyed out like KEEP/REDO during a run
-        pb.textContent = "✎ prompt";
-        pb.style.cssText = `flex:0 0 auto;min-width:62px;display:flex;align-items:center;justify-content:center;` +
-          `font:bold 12px sans-serif;color:#ccc;background:#333;border:1px solid #555;border-radius:4px;cursor:pointer;user-select:none;`;
-        pb.style.opacity = fcRun.running ? "0.35" : "1";
-        pb.title = "Edit this shot's prompt (its Auto Prompt node) – saving marks ✗ REDO so RERENDER re-renders it";
-        pb.addEventListener("click", (ev) => { ev.stopPropagation(); if (fcRun.running) return; fcChooseEditPrompt(node, col, e, setMarked); });
-        // 82: „⏱ X s“ – length of this shot (entry in shot_seconds or global seconds)
-        const dir = fcChooseDirectorOf(node);
-        const secs = fcShotSecondsOf(dir, e.number);
-        const sb = document.createElement("div");
-        sb.className = "fc-keep";   // greyed out like KEEP/REDO during a run
-        sb.textContent = `⏱ ${secs % 1 === 0 ? secs.toFixed(0) : secs.toFixed(1)} s`;
-        sb.style.cssText = `flex:0 0 auto;min-width:62px;display:flex;align-items:center;justify-content:center;` +
-          `font:bold 12px sans-serif;color:#ccc;background:#333;border:1px solid #555;border-radius:4px;cursor:pointer;user-select:none;`;
-        sb.style.opacity = fcRun.running ? "0.35" : "1";
-        sb.title = "Set this shot's length (0.5–20 s, or 'global' = the Director's 'seconds') – saving marks ✗ REDO so RERENDER re-renders it";
-        sb.addEventListener("click", (ev) => { ev.stopPropagation(); if (fcRun.running) return; fcChooseEditSeconds(node, col, e, setMarked); });
-        krow.appendChild(kb);
-        krow.appendChild(pb);
-        krow.appendChild(sb);
-        col.appendChild(krow);
+        const secs = fcShotSecondsOf(fcChooseDirectorOf(node), e.number);
+        ctl.appendChild(mkBtn(`⏱ ${secs % 1 === 0 ? secs.toFixed(0) : secs.toFixed(1)} s`,
+          "Set this film's length – saving marks it for re-render", () => fcChooseEditSeconds(node, info, e, setMarked)));
+        ctl.appendChild(mkBtn("✎ prompt", "Edit this film's prompt – saving marks it for re-render",
+          () => fcChooseEditPrompt(node, info, e, setMarked)));
+        if (effV.video) ctl.appendChild(mkBtn("▶ play", "Play this film with sound in the Film player",
+          () => fcChoosePlay(node, e.number, e.has_variants ? eff.toUpperCase() : "", effV.video)));
       }
-      row.appendChild(col);
+      info.append(hd, stx, ctl);
+      if (!e.placeholder && e.seam_next) {
+        const sm = document.createElement("div");
+        sm.textContent = `seam → Film ${e.seam_next} ${e.seam_bad ? "⚠" : "✓"} ${(+e.seam || 0).toFixed(1)}`;
+        sm.style.color = e.seam_bad ? "#ff8a80" : "#8b949e";
+        sm.title = "Jump between the last frame of this film and the first frame of the next (last run; red = hard jump).";
+        info.appendChild(sm);
+      }
+      board.appendChild(info);
     });
   }
 
@@ -347,8 +293,8 @@ export function fcChooseRender(node) {
   const sz = fcChooseLayout(node, entries).sheet;
   node._fc_sheet_cells = [];
   if (sz) {
-    const srow = document.createElement("div");
-    srow.style.cssText = `display:flex;gap:${FC_CHOOSE_GAP}px;overflow:hidden;`;
+    const sheetRow = document.createElement("div");
+    sheetRow.style.cssText = `display:flex;gap:${FC_CHOOSE_GAP}px;overflow:hidden;`;
     entries.forEach(() => {
       const cell = document.createElement("div");
       cell.style.cssText = `position:relative;width:${sz[0]}px;height:${sz[1]}px;flex:0 0 ${sz[0]}px;background:#121212;border-radius:3px;overflow:hidden;`;
@@ -358,11 +304,10 @@ export function fcChooseRender(node) {
       lbl.style.cssText = "position:absolute;left:4px;bottom:4px;padding:1px 6px;font:bold 11px sans-serif;color:#ddd;" +
         "background:rgba(0,0,0,0.6);border-radius:3px;pointer-events:none;";
       cell.appendChild(img); cell.appendChild(lbl);
-      srow.appendChild(cell);
+      sheetRow.appendChild(cell);
       node._fc_sheet_cells.push({ img, lbl });
     });
-    el.appendChild(srow);
-    fcChooseUpdateSheet(node);
+    el.appendChild(sheetRow);
   }
 
 
@@ -387,8 +332,8 @@ function fcEyeOverlay(host, { url, variants = null, onUse, onReject }) {
   video.controls = true; video.autoplay = true; video.loop = true; video.muted = true; video.playsInline = true;
   video.style.cssText = "flex:1;width:100%;min-height:0;object-fit:contain;";
   video.src = url;
-  const row = document.createElement("div");
-  row.style.cssText = "display:flex;justify-content:center;gap:8px;padding:8px;flex:0 0 auto;";
+  const btnRow = document.createElement("div");
+  btnRow.style.cssText = "display:flex;justify-content:center;gap:8px;padding:8px;flex:0 0 auto;";
   const mkBtn = (label, title, fn) => {
     const b = document.createElement("div");
     b.textContent = label;
@@ -397,7 +342,7 @@ function fcEyeOverlay(host, { url, variants = null, onUse, onReject }) {
       "font:bold 13px sans-serif;user-select:none;";
     b.title = title;
     b.addEventListener("click", (ev) => { ev.stopPropagation(); fn(); });
-    row.appendChild(b);
+    btnRow.appendChild(b);
     return b;
   };
   const onKey = (ev) => {
@@ -441,7 +386,7 @@ function fcEyeOverlay(host, { url, variants = null, onUse, onReject }) {
   x.title = "Close preview";
   x.addEventListener("click", (ev) => { ev.stopPropagation(); close(); });
   ov.appendChild(video);
-  ov.appendChild(row);
+  ov.appendChild(btnRow);
   ov.appendChild(x);
   ov.addEventListener("click", (ev) => { if (ev.target === ov) close(); });
   document.addEventListener("keydown", onKey);
