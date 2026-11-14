@@ -4,6 +4,12 @@
 // two sides import-free of each other: im_cut.js -> im_sync.js <- im_film.js.
 // This module imports no other im_* file (no import cycle).
 // ---------------------------------------------------------------------------
+// Length in seconds of one analysed shot (properties.im_viz.shots[]): n_out frames at the fps of its frame times.
+export function imvShotDur(sh) {
+  const l = sh?.frames?.[sh.frames.length - 1];
+  return (sh?.n_out || 0) / (l && l.t > 0 ? l.out / l.t : 24);
+}
+
 // Source state: the whole film, or the segment under the mouse in Cut.
 const imSyncState = { src: "film", seg: null };
 

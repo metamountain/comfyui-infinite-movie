@@ -3,7 +3,7 @@ import { api } from "../../scripts/api.js";
 import { fcReviewToast, imFilmDoneNotice } from "./im_common.js";
 import { fcChooseFocus, fcChooseStatus } from "./im_cut_state.js";
 import { imToggleWidget } from "./im_settings.js";
-import { imSyncGet } from "./im_sync.js";
+import { imSyncGet, imvShotDur } from "./im_sync.js";
 // Normalize Time: draw the graph of the last run below the widgets (user 2026-10-26:
 // "must be visualized which normalization takes effect"). Uses the analysis of the last run
 // (POST /infinite_movie/normalize_graph, retime_nodes.py) - no render, no encode.
@@ -211,8 +211,7 @@ function imvEnsure(node) {
 // Player time t (s) -> shot index, frame index k and position 0..1 inside that shot. t runs over the whole film
 // (shots back to back), or over one shot when segIdx (Cut tile index) is given.
 export function imvTimeToFrame(shots, t, segIdx = null) {
-  const fpsOf = (sh) => { const l = sh.frames?.[sh.frames.length - 1]; return l && l.t > 0 ? l.out / l.t : 24; };
-  const dur = (sh) => sh.n_out / fpsOf(sh);
+  const dur = imvShotDur;
   let i = 0, local = Math.max(0, t);
   if (segIdx != null) {
     i = shots.findIndex((s) => s.seg === segIdx + 1);

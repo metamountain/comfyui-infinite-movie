@@ -3,7 +3,7 @@ import { api } from "../../scripts/api.js";
 import { fcReviewToast } from "./im_common.js";
 import { fcRun } from "./im_cut_state.js";
 import { imToggleWidget } from "./im_settings.js";
-import { imvTime } from "./im_sync.js";
+import { imSyncSet, imvSeek, imvShotDur, imvTime } from "./im_sync.js";
 // ---------------------------------------------------------------------------
 // InfiniteMovie.Film (2026-11-03): show the finished film + „Saved: …“ status.
 // Before the run: „Waiting for the film…“; while ComfyUI renders: „Rendering…“.
@@ -22,6 +22,40 @@ const fcFromCut = (node) => {
   const o = fcLinkOrigin(node, "video_path");
   return (o?.comfyClass || o?.type) === "InfiniteMovieChooser";
 };
+const FC_FILM_TL_H = 16;
+const FC_FILM_TL_COLORS = ["#1f6feb", "#8957e5", "#2ea043", "#d29922"];
+// Shot analysis for the timeline: the node's own, else the one of the Cut feeding it.
+const fcFilmViz = (node) => node.properties?.im_viz || fcLinkOrigin(node, "video_path")?.properties?.im_viz || null;
+// Timeline under the video: one numbered band per shot, width = shot length; click jumps the film there.
+function fcFilmTimeline(node) {
+  const tl = node._fc_film_tl, shots = fcFilmViz(node)?.shots || [];
+  const durs = shots.map(imvShotDur), total = durs.reduce((a, b) => a + b, 0);
+  tl.style.visibility = total > 0 ? "visible" : "hidden";
+  const sig = durs.map((d) => d.toFixed(3)).join(",");
+  if (tl.dataset.sig === sig) return;
+  tl.dataset.sig = sig;
+  node._fc_film_tl_total = total;
+  let start = 0;
+  const bands = shots.map((sh, i) => {
+    const b = document.createElement("div"), t0 = start;
+    start += durs[i];
+    b.className = "fc-film-band";
+    b.dataset.t = String(t0);
+    b.textContent = String(sh.seg);
+    b.title = `Shot ${sh.seg} · ${t0.toFixed(1)} s · click: play the film from here`;
+    b.style.cssText = `flex:${durs[i] || 0.001} 1 0;min-width:0;overflow:hidden;background:${FC_FILM_TL_COLORS[i % FC_FILM_TL_COLORS.length]};` +
+      "color:#fff;font:10px sans-serif;line-height:16px;text-align:center;cursor:pointer;opacity:0.8;";
+    b.addEventListener("click", () => {
+      const v = node._fc_film_video, before = v.getAttribute("src");
+      imSyncSet("film", null);   // a single shot is showing -> back to the whole film first
+      if (fcFromCut(node)) { node.properties.im_source = "film"; fcFilmRender(node); }
+      if (v.getAttribute("src") === before && v.readyState >= 1) imvSeek(t0);
+      else v.addEventListener("loadedmetadata", () => imvSeek(t0), { once: true });
+    });
+    return b;
+  });
+  tl.replaceChildren(...bands, node._fc_film_mark);
+}
 // 2026-11-13 (user: "the node looks stupid"): only what is needed – fps only with images, file only without a link.
 function fcFilmWidgets(node) {
   const hide = (name, show) => {
@@ -78,23 +112,32 @@ export function fcFilmRender(node) {
       srcBtns[key] = b; srcBox.appendChild(b);
     }
     bar.appendChild(open); bar.appendChild(status); bar.appendChild(srcBox);
-    el.appendChild(video); el.appendChild(bar);
+    const tl = document.createElement("div");
+    tl.style.cssText = `height:${FC_FILM_TL_H}px;flex:none;display:flex;gap:1px;position:relative;border-radius:3px;overflow:hidden;`;
+    const mark = document.createElement("div");   // play position on the timeline
+    mark.style.cssText = "position:absolute;top:0;bottom:0;width:2px;background:#fff;left:0;pointer-events:none;display:none;";
+    node._fc_film_tl = tl; node._fc_film_mark = mark;
+    el.appendChild(video); el.appendChild(tl); el.appendChild(bar);
     node._fc_film_src_btns = srcBtns; node._fc_film_src_box = srcBox; node._fc_film_open = open;
     node.addDOMWidget("fc_film", "div", el, {
       serialize: false,
-      getMinHeight: () => fcFilmSide(node) + FC_FILM_BAR_H + 4 + 8,
+      getMinHeight: () => fcFilmSide(node) + FC_FILM_TL_H + FC_FILM_BAR_H + 8 + 8,
     }).serialize = false;   // the option alone does not keep it out of widgets_values
     node._fc_film_el = el; node._fc_film_video = video; node._fc_film_status = status;
     // While the video plays, report its time every frame (im_sync.js "imv-time"); a seek reports once.
     const tick = () => {
       if (video.paused || !video.isConnected) { node._fc_film_raf = 0; return; }
       imvTime(video.currentTime, node.id);
+      const total = node._fc_film_tl_total, whole = fcFilmSource(node) === "film" || !fcFromCut(node);
+      mark.style.display = total > 0 && whole ? "" : "none";
+      if (total > 0 && whole) mark.style.left = `${Math.min(100, (video.currentTime / total) * 100)}%`;
       node._fc_film_raf = requestAnimationFrame(tick);
     };
     video.addEventListener("play", () => { if (!node._fc_film_raf) node._fc_film_raf = requestAnimationFrame(tick); });
     video.addEventListener("seeked", () => imvTime(video.currentTime, node.id));
   }
   fcFilmWidgets(node);
+  fcFilmTimeline(node);
   const info = fcFilmCurrentInfo(node);
   const v = node._fc_film_video, s = node._fc_film_status;
   const onCut = fcFromCut(node);
