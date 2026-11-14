@@ -1,6 +1,7 @@
 import { app } from "../../scripts/app.js";
 import { api } from "../../scripts/api.js";
-import { fcClearFilms, fcChooseRedoTokens, fcReviewToast, imEmptyPromptFilms, imFilmInfoText, imPromptRun } from "./im_common.js";
+import { fcClearFilms, fcChooseRedoTokens, fcReviewToast, imEmptyPromptFilms, imFilmCount, imFilmInfoText, imPromptRun, imShotImageCount } from "./im_common.js";
+import { fcFilmShowShot } from "./im_film.js";
 import { fcChooseRender } from "./im_cut.js";
 import { fmtTime, renderEstimate } from "./im_progress.js";
 import { IMV_NODE_W, imvDraw, imvStop } from "./im_viewer.js";
@@ -56,10 +57,9 @@ export function fcChooseFocus(number) {
 // Run state of ComfyUI (for status + greying out), global from the api events.
 export const fcRun = { running: false, node: "", value: 0, max: 0 };
 function fcChooseAll() { return (app.graph?._nodes || []).filter((n) => n.comfyClass === "InfiniteMovieChooser"); }
-function fcChooseRefreshAll() { for (const n of fcChooseAll()) fcChooseRender(n); }
+export function fcChooseRefreshAll() { for (const n of fcChooseAll()) fcChooseRender(n); }
 // Auto layout (web/infinite_movie_layout.js) refreshes Choose BEFORE measuring – otherwise the old width,
 // because Choose otherwise only adapts when drawing (onDrawForeground).
-window.fcChooseRefreshAll = fcChooseRefreshAll;
 api.addEventListener("status", (e) => {
   const busy = (e.detail?.exec_info?.queue_remaining || 0) > 0;
   if (busy !== fcRun.running) { fcRun.running = busy; if (!busy) { fcRun.node = ""; fcRun.max = 0; fcRun.promptOnly = undefined; fcAsmClear(); } fcChooseRefreshAll(); }
@@ -109,17 +109,13 @@ setInterval(() => {
 }, 1000);
 
 // Choose adapts to the film length BEFORE the run. Column count from the connected
-// director (connected images, loop, intro/outro, variants – same counting as
-// total_segments in nodes.py).
+// director (storyboard images, loop, variants – same counting as n_segments in nodes.py).
 function fcChoosePlan(node) {
   const d = fcChooseDirectorOf(node);
   if (!d) return null;
-  const nImg = (d.inputs || []).filter((i) => i.name?.startsWith("images.") && i.link != null).length;
-  if (nImg < 1) return { n: 0, variants: false, director: d, nImg };
-  const wv = (name) => d.widgets?.find((w) => w.name === name)?.value;
-  const loop = !!wv("loop");  // 1 image: open shot, + loop shot (last frame -> image) when loop is on
-  let n = nImg === 1 ? (loop ? 2 : 1) : (loop ? nImg : nImg - 1);
-  return { n, variants: String(wv("variants")) === "2", director: d, nImg };
+  const nImg = imShotImageCount(d);
+  const variants = String(d.widgets?.find((w) => w.name === "variants")?.value) === "2";
+  return { n: imFilmCount(d), variants: nImg > 0 && variants, director: d, nImg };
 }
 
 // Real entries (after the run) or placeholders from the plan; stale entries
@@ -370,6 +366,6 @@ export function fcChoosePlay(node, number, letter, ref) {
   }
   if (!films.length) { fcReviewToast("Connect Cut's video_path to a Film node to play shots there.", "#d93025"); return; }
   const title = `Shot ${number}${letter ? " · " + letter : ""}`;
-  for (const f of films) window.fcFilmShowShot?.(f, { url: fcChooseStableUrl(ref), title });
+  for (const f of films) fcFilmShowShot(f, { url: fcChooseStableUrl(ref), title });
 }
 

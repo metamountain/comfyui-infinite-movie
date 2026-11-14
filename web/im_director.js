@@ -2,6 +2,7 @@ import { app } from "../../scripts/app.js";
 import { fcActive, fcReviewToast, getLink } from "./im_common.js";
 import { imToggleWidget } from "./im_settings.js";
 import { addStoryboard, render as renderStoryboard } from "./im_storyboard.js";
+import { fcWorkflowLayout } from "./infinite_movie_layout.js";
 const slotIndex = (node, name) => (node.inputs || []).findIndex((i) => i.name === name);
 function addLayoutButton(node) {
   if (node.widgets?.find((w) => w.name === "🔗 AUTO LAYOUT")) return;
@@ -49,7 +50,7 @@ function addLayoutButton(node) {
     wireSettingsChain(node);
     // (e) layout of the whole workflow WITHOUT the engine (user 2026-11-03: „exclude the engine, but the rest“),
     // web/infinite_movie_layout.js; fallback the old prompt arrangement. layoutEngines is no longer called.
-    if (window.fcWorkflowLayout) window.fcWorkflowLayout(node);
+    fcWorkflowLayout(node);
     node.setDirtyCanvas?.(true, true);
   });
   // 2026-11-11 (user: "auto layout button really big? 3 rows? it is important"): the core button widget draws with
@@ -214,7 +215,4 @@ app.registerExtension({
     setTimeout(() => hideDataWidgets(node), 0);
   },
 });
-
-// 116a (2026-11-13): the 57b/57b2 load migration (movie -> shots, old pipe type name)
-// was removed without replacement (user decision: no users, no backward compatibility).
 

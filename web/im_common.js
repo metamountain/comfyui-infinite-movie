@@ -76,6 +76,14 @@ export function imShotImageCount(director) {
   return batch ? Math.max(2, shots.length) : shots.filter((x) => x.image).length;
 }
 
+// Films the Director renders: 1 image -> open film (+ the way back with loop), n images -> n-1 (+1 with loop).
+// Same count as n_segments in nodes.py.
+export function imFilmCount(director) {
+  const n = imShotImageCount(director);
+  const loop = !!director?.widgets?.find((w) => w.name === "loop")?.value;
+  return n < 1 ? 0 : n === 1 ? (loop ? 2 : 1) : (loop ? n : n - 1);
+}
+
 // Films of the storyboard without a prompt (image i -> i+1, loop: last -> first), as "1 → 2" labels.
 export function imEmptyPromptFilms(director) {
   const s = imParseStoryboard(director), n = s.length;
@@ -252,7 +260,7 @@ export function wrapQueue() {
     // 2026-11-11: prompt writing renders nothing - and an LLM server must hold the GPU while it writes.
     // The render check would block exactly that.
     const promptOnly = partial && args[2].every((id) => imPromptRun(app.graph?.getNodeById(Number(id))));
-    if (director && !promptOnly && !window.__fc_skip_gpu_preflight) {
+    if (director && !promptOnly) {
       const min = MIN_FREE_MB;   // 74: constant (was the settings widget min_free_mb)
       fcReviewToast("Checking GPU memory ...");
       let res = null;

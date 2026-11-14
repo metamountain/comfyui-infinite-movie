@@ -4,19 +4,19 @@
 // prompts whose image pair changed light up red (edit instead of rewriting everything).
 import { app } from "../../scripts/app.js";
 import { api } from "../../scripts/api.js";
-import { fcQueueFixedSeeds, fcReviewToast } from "./im_common.js";
+import { fcQueueFixedSeeds, fcReviewToast, settingsNodeOf } from "./im_common.js";
 import {
   MAX_IMAGES, emptyEntry, hasFilm, imageUrl, importFolder, isLoop, isStale, pairOf, readSecs, readBoard,
   boardFormat, uploadImage, writeSecs, writeBoard,
 } from "./im_storyboard_io.js";
 
-export const IH = 188, G = 10, P = IH + G, PW = 250, TBH = 66, M = 10;
+export const TILE_H = 188, GAP = 10, ROW = TILE_H + GAP, PROMPT_W = 250, TOOLBAR_H = 66, MARGIN = 10;
 const FLASH = 1200;   // ms, landing glow after a drag or insert
 
 const CSS = `
-.imsb { position:relative; font:12px system-ui,sans-serif; color:#ddd; box-sizing:border-box; padding:0 ${M}px; }
+.imsb { position:relative; font:12px system-ui,sans-serif; color:#ddd; box-sizing:border-box; padding:0 ${MARGIN}px; }
 .imsb * { box-sizing:border-box; }
-.imsb-tb { display:flex; flex-wrap:wrap; gap:6px; height:${TBH}px; align-content:flex-start; }
+.imsb-tb { display:flex; flex-wrap:wrap; gap:6px; height:${TOOLBAR_H}px; align-content:flex-start; }
 .imsb-tb button, .imsb-cnt { height:28px; border-radius:4px; border:1px solid #4a4a4a; background:#2b2b2b; color:#ddd; cursor:pointer; font:600 12px system-ui; padding:0 9px; }
 .imsb-tb button:hover { background:#383838; }
 .imsb-cnt { display:flex; align-items:center; gap:6px; cursor:default; }
@@ -76,15 +76,15 @@ function pickFiles(multiple) {
 export function boardSize(node) {
   const st = node._imsb;
   const n = readBoard(node).length, loop = isLoop(node);
-  const iw = Math.round(IH * st.fmt.w / st.fmt.h);
-  const pw = Math.max(PW, Math.round(node.size[0]) - iw - G - 2 * M);
+  const iw = Math.round(TILE_H * st.fmt.w / st.fmt.h);
+  const pw = Math.max(PROMPT_W, Math.round(node.size[0]) - iw - GAP - 2 * MARGIN);
   const lastFilm = hasFilm({ length: n }, n - 1, loop) ? n - 1 : n - 2;
-  const bottom = Math.max(n * P - G, lastFilm >= 0 ? lastFilm * P + IH / 2 + G / 2 + IH : 0);
-  return { iw, pw, h: bottom, w: iw + G + PW + 2 * M };
+  const bottom = Math.max(n * ROW - GAP, lastFilm >= 0 ? lastFilm * ROW + TILE_H / 2 + GAP / 2 + TILE_H : 0);
+  return { iw, pw, h: bottom, w: iw + GAP + PROMPT_W + 2 * MARGIN };
 }
 
 function signature(node) {
-  const s = node.graph?._nodes?.find((n) => n.comfyClass === "InfiniteMovieSettings" && (n.mode ?? 0) === 0);
+  const s = settingsNodeOf(node);
   const v = (n, k) => n?.widgets?.find((w) => w.name === k)?.value;
   return [v(node, "storyboard"), v(node, "loop"), v(node, "seconds"), v(node, "shot_seconds"), v(s, "aspect"), v(s, "long_side")].join("|");
 }
@@ -185,10 +185,10 @@ function startDrag(node, e, i, tile) {
     tile.classList.add("drag");
     const n = readBoard(node).length;
     const y = (ev.clientY - bd.getBoundingClientRect().top) / scale();
-    gap = Math.max(0, Math.min(n, Math.round(y / P)));
+    gap = Math.max(0, Math.min(n, Math.round(y / ROW)));
     const own = gap === i || gap === i + 1;
     st.gap.style.display = own ? "none" : "block";
-    st.gap.style.top = `${gap * P - G / 2 - 2}px`;
+    st.gap.style.top = `${gap * ROW - GAP / 2 - 2}px`;
   };
   const onUp = () => {
     window.removeEventListener("pointermove", onMove, true);
@@ -204,7 +204,7 @@ function startDrag(node, e, i, tile) {
 function tileEl(node, list, i, iw) {
   const st = node._imsb, s = list[i];
   const t = el("div", "imsb-t" + (s.image ? "" : " empty"));
-  t.style.cssText = `top:${i * P}px;width:${iw}px;height:${IH}px`;
+  t.style.cssText = `top:${i * ROW}px;width:${iw}px;height:${TILE_H}px`;
   t.dataset.i = i;
   if (s.image) {
     const img = el("img");
@@ -238,7 +238,7 @@ function tileEl(node, list, i, iw) {
 function promptEl(node, list, i, iw, pw, secs) {
   const s = list[i], n = list.length, loopEdge = i === n - 1;
   const box = el("div", "imsb-p" + (loopEdge ? " loop" : "") + (isStale(list, i, isLoop(node)) ? " stale" : ""));
-  box.style.cssText = `left:${iw + G}px;top:${i * P + IH / 2 + G / 2}px;height:${IH}px;width:${pw}px`;
+  box.style.cssText = `left:${iw + GAP}px;top:${i * ROW + TILE_H / 2 + GAP / 2}px;height:${TILE_H}px;width:${pw}px`;
   box.dataset.i = i;
   const hd = el("div", "hd");
   hd.appendChild(el("span", null, `${i + 1} → ${loopEdge ? 1 : i + 2}`));
@@ -306,7 +306,7 @@ export function render(node) {
   }
   for (let k = 1; k < list.length && list.length < MAX_IMAGES; k++) {
     const z = el("div", "imsb-ins");
-    z.style.cssText = `top:${k * P - G / 2 - 9}px;width:${iw}px`;
+    z.style.cssText = `top:${k * ROW - GAP / 2 - 9}px;width:${iw}px`;
     z.title = "Insert an image here";
     z.appendChild(el("span", null, "+"));
     z.onpointerdown = (e) => e.stopPropagation();
@@ -364,8 +364,8 @@ export function addStoryboard(node) {
   node._imsb = { root, board, cnt: num, gap: el("div", "imsb-gap"), fmt: { w: 4, h: 5, label: "" }, sig: "" };
   const dw = node.addDOMWidget("im_storyboard", "div", root, {
     serialize: false,
-    getMinHeight: () => TBH + boardSize(node).h + 8,
-    getMaxHeight: () => TBH + boardSize(node).h + 8,
+    getMinHeight: () => TOOLBAR_H + boardSize(node).h + 8,
+    getMaxHeight: () => TOOLBAR_H + boardSize(node).h + 8,
   });
   if (dw) Object.defineProperty(dw, "width", { get: () => node.size[0], set() {}, configurable: true });
   // Changes from outside (loop/seconds widgets, Cut's ⏱, the Settings format, loading a workflow): redraw.

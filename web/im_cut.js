@@ -1,6 +1,6 @@
 import { app } from "../../scripts/app.js";
 import { api } from "../../scripts/api.js";
-import { FC_REVIEW_LINE_COLORS, fcQueueFixedSeeds, fcReviewToast, fcShotSecondsOf, imShotImageCount } from "./im_common.js";
+import { FC_REVIEW_LINE_COLORS, fcQueueFixedSeeds, fcReviewToast, fcShotSecondsOf, imFilmCount } from "./im_common.js";
 import { fcChooseDirectorOf, fcChooseEditPrompt, fcChooseEditSeconds, fcRerenderMarked } from "./im_cut_edit.js";
 import { FC_CHOOSE_BIG_H, FC_CHOOSE_BTNROW_H, FC_CHOOSE_GAP, FC_CHOOSE_HEAD_H, FC_CHOOSE_SEAM_H, FC_CHOOSE_STATUS_H, FC_CHOOSE_STAT_H, fcAsmFocus, fcChooseApplyActive, fcChooseEff, fcChooseEffective, fcChooseEntries, fcChooseFocus, fcChooseGetChoices, fcChooseLayout, fcChoosePick, fcChoosePlay, fcChooseQuality, fcChooseSig, fcChooseStableUrl, fcChooseStatus, fcChooseUpdateSheet, fcChooseWidth, fcRun } from "./im_cut_state.js";
 import { fcDownstreamOutputs } from "./im_film.js";
@@ -472,15 +472,10 @@ app.registerExtension({
     estWidget._fc_est = true;
 
     const refreshEstimate = () => {
-      const val = (n) => node.widgets?.find((w) => w.name === n)?.value;
-      const seconds = Number(val("seconds")) || 2.0;
-      const loop = !!val("loop");
-      const nImg = imShotImageCount(node);
-      const nShots = nImg < 1 ? 0 : nImg === 1 ? (loop ? 2 : 1) : (loop ? nImg : nImg - 1);   // 1 image: open shot (+ return shot)
+      const nShots = imFilmCount(node);
       if (nShots < 1) { estWidget.value = "Film: needs at least 1 image"; node.setDirtyCanvas?.(true, true); return; }
-      const per = String(val("shot_seconds") || "").split(",").map((x) => parseFloat(x) || 0);
       let total = 0;
-      for (let i = 0; i < nShots; i++) total += per[i] > 0 ? per[i] : seconds;
+      for (let i = 1; i <= nShots; i++) total += fcShotSecondsOf(node, i);
       const fps = 24; // LTX
       estWidget.value = `Film: ${nShots} shot${nShots > 1 ? "s" : ""} · ${total.toFixed(1)} s · ~${Math.round(total * fps)} frames`;
       node.setDirtyCanvas?.(true, true);

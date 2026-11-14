@@ -3,7 +3,7 @@
 // Prompt i = film from image i to image i+1 (loop: last -> image 1). pair = the two images the prompt was
 // written for; when it no longer matches the current neighbours the prompt is shown red (stale).
 import { api } from "../../scripts/api.js";
-import { fcParseShotSeconds, fcReviewToast, imParseStoryboard } from "./im_common.js";
+import { fcParseShotSeconds, fcReviewToast, imParseStoryboard, settingsNodeOf } from "./im_common.js";
 import { fcPickFolder, imResolveSize } from "./im_settings.js";
 
 export const MAX_IMAGES = 24;
@@ -97,9 +97,10 @@ export async function importFolder() {
   return j.images || [];
 }
 
-// Film format from the Settings node (user: "format comes from settings"). Ratio only matters for the tiles.
+// Film format from the Settings node in the Director's settings chain (user: "format comes from settings") -
+// the same node the render reads. Not connected -> the render defaults (4:5).
 export function boardFormat(node, firstImg) {
-  const s = node.graph?._nodes?.find((n) => n.comfyClass === "InfiniteMovieSettings" && (n.mode ?? 0) === 0);
+  const s = settingsNodeOf(node);
   const aspect = W(s || {}, "aspect")?.value, long = W(s || {}, "long_side")?.value;
   if (aspect === "from images") {
     const w = firstImg?.naturalWidth, h = firstImg?.naturalHeight;

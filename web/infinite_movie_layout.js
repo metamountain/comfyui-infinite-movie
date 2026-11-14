@@ -1,5 +1,5 @@
 // Infinite Movie · workflow layout. Called from the "🔗 AUTO LAYOUT" button on the Director
-// (web/infinite_movie.js → window.fcWorkflowLayout).
+// (imported by web/im_director.js).
 //
 // User 2026-11-03 ("engine at the very top", "help always in the middle above the fields", "box at the front separately"),
 // 2026-11-13 ("README outside the groups, without a group, Settings 1, engine 0, README as tall as the groups"):
@@ -11,6 +11,7 @@
 // Each help note "Help: N · …" sits on top INSIDE its group "N · …". Notes without a matching group stack on the
 // left like the README. Anchor: x = README note, y = top edge of the engine.
 import { app } from "../../scripts/app.js";
+import { fcChooseRefreshAll } from "./im_cut_state.js";
 import { IMV_H, IMV_MIN_H, imvDraw } from "./im_viewer.js";
 
 const T = 30;        // node title bar
@@ -102,7 +103,7 @@ export function fcWorkflowLayout(director, second = false) {
     if (out && !(out.links || []).length) g.remove(ap);
   }
   // Adapt Choose to the current shot count, then measure.
-  if (window.fcChooseRefreshAll) window.fcChooseRefreshAll();
+  fcChooseRefreshAll();
   const groups = g._groups || [];
   const engines = groups.filter(isEngineGroup);
   // Core nodes NEVER belong to the engine, even if they currently sit over an engine group.
@@ -433,4 +434,3 @@ export function fcWorkflowLayout(director, second = false) {
   if (!second) setTimeout(() => fcWorkflowLayout(director, true), 250);
 }
 
-window.fcWorkflowLayout = fcWorkflowLayout;

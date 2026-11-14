@@ -172,7 +172,6 @@ export function fcPickFolder(start, heading = "Output folder for the finished fi
     go(start || "");
   });
 }
-window.fcPickFolder = fcPickFolder;
 
 // 63 (2026-11-03): Settings › output_folder – the "📂 Choose folder" button opens a
 // native folder dialog on the ComfyUI machine (POST /infinite_movie/choose_folder)

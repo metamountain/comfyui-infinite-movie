@@ -129,7 +129,6 @@ export function fcFilmShowShot(node, shot) {
   node.properties.im_source = "shot";
   fcFilmRender(node);
 }
-window.fcFilmShowShot = fcFilmShowShot;
 
 // Active output nodes (output_node) behind the start nodes, without director/Choose (they only render with Run).
 export function fcDownstreamOutputs(startIds) {
@@ -153,7 +152,6 @@ export function fcDownstreamOutputs(startIds) {
   return out;
 }
 
-window.fcDownstreamOutputs = fcDownstreamOutputs;   // for browser tests
 
 function fcFilmRefreshAll() { for (const n of (app.graph?._nodes || [])) if (n.comfyClass === "InfiniteMovieFilm") fcFilmRender(n); }
 api.addEventListener("status", fcFilmRefreshAll);
