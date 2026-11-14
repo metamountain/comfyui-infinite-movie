@@ -156,6 +156,26 @@ export function fcDownstreamOutputs(startIds) {
 function fcFilmRefreshAll() { for (const n of (app.graph?._nodes || [])) if (n.comfyClass === "InfiniteMovieFilm") fcFilmRender(n); }
 api.addEventListener("status", fcFilmRefreshAll);
 api.addEventListener("executing", () => setTimeout(fcFilmRefreshAll, 0));   // update the running node
+// Sync bus (im_sync.js): "imv-seek" jumps the video to t; "imv-src" switches Film|Shot,
+// only for nodes fed by the Cut (fcFromCut) - other Film nodes keep their own source.
+window.addEventListener("imv-seek", (e) => {
+  const t = e.detail?.t;
+  if (t == null) return;
+  for (const n of (app.graph?._nodes || [])) {
+    if (n.comfyClass !== "InfiniteMovieFilm") continue;
+    const v = n._fc_film_video;
+    if (v) v.currentTime = t;
+  }
+});
+window.addEventListener("imv-src", (e) => {
+  const src = e.detail?.src;
+  for (const n of (app.graph?._nodes || [])) {
+    if (n.comfyClass !== "InfiniteMovieFilm" || !fcFromCut(n)) continue;
+    n.properties = n.properties || {};
+    n.properties.im_source = src === "seg" ? "shot" : "film";   // the existing Film|Shot switch
+    fcFilmRender(n);
+  }
+});
 app.registerExtension({
   name: "InfiniteMovie.Film",
   async beforeRegisterNodeDef(nodeType, nodeData) {

@@ -7,6 +7,7 @@ import { fcDownstreamOutputs } from "./im_film.js";
 import { fmtTime, renderEstimate } from "./im_progress.js";
 import { imToggleWidget } from "./im_settings.js";
 import { imvDraw } from "./im_viewer.js";
+import { imSyncSet } from "./im_sync.js";
 export function fcChooseRender(node) {
   let el = node._fc_choose_el;
   if (!el) {
@@ -89,8 +90,12 @@ export function fcChooseRender(node) {
         const t = document.createElement("div");
         t.className = `fc-tile-${k}`;
         t.dataset.fcI = String(i);
-        t.addEventListener("mouseenter", () => { node._fc_choose_active = i; fcChooseApplyActive(node); });
-        t.addEventListener("mouseleave", () => { node._fc_choose_active = -1; fcChooseApplyActive(node); });
+        t.addEventListener("mouseenter", () => {
+          node._fc_choose_active = i; fcChooseApplyActive(node);
+          if (v.video) fcChoosePlay(node, e.number, e.has_variants ? k.toUpperCase() : "", v.video, true);   // player shows the hovered film
+          imSyncSet("seg", i);
+        });
+        t.addEventListener("mouseleave", () => { node._fc_choose_active = -1; fcChooseApplyActive(node); imSyncSet("film", null); });
         t.style.cssText = `position:absolute;top:${top}px;left:${letters.indexOf(k) * (iw + FC_CHOOSE_ROW_GAP)}px;width:${iw}px;height:${ih}px;background:#1a1a1a;border-radius:3px;` +
           `overflow:hidden;box-sizing:border-box;cursor:${e.placeholder ? "default" : "pointer"};` +
           (e.placeholder ? "border:1px dashed #555;" : isMarked ? "outline:5px solid #d93025;outline-offset:-5px;"

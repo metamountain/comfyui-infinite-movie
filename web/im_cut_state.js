@@ -346,9 +346,8 @@ export function fcChoosePick(node, i, letter) {
   fcChooseRender(node);
 }
 
-// 115 / 2026-11-13 (user: "the play field comes out of Cut; the player below with a switch single shot or whole
-// film"): ▶ play shows the shot in the Film node(s) fed by this Cut (switched to Shot).
-export function fcChoosePlay(node, number, letter, ref) {
+// ▶ play (and tile hover, quiet) shows the film in the Film node(s) fed by this Cut, switched to Shot.
+export function fcChoosePlay(node, number, letter, ref, quiet = false) {
   if (!ref) return;
   const g = node.graph || app.graph;
   const linkOf = (id) => g?.links?.[id] ?? g?.links?.get?.(id);
@@ -357,7 +356,7 @@ export function fcChoosePlay(node, number, letter, ref) {
     const t = g?.getNodeById(linkOf(lid)?.target_id);
     if (t?.comfyClass === "InfiniteMovieFilm") films.push(t);
   }
-  if (!films.length) { fcReviewToast("Connect Cut's video_path to a Film node to play films there.", "#d93025"); return; }
+  if (!films.length) { if (quiet) return; fcReviewToast("Connect Cut's video_path to a Film node to play films there.", "#d93025"); return; }
   const title = `Film ${number}${letter ? " · " + letter : ""}`;
   for (const f of films) fcFilmShowShot(f, { url: fcChooseStableUrl(ref), title });
 }
