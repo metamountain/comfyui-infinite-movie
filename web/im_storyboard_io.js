@@ -1,20 +1,14 @@
-// 124c (2026-11-14): data + I/O of the Director storyboard (web/im_storyboard.js).
-// storyboard widget = JSON list [{image, prompt, own, pair}], image relative to ComfyUI's input folder ("" = empty).
-// Prompt i = film from image i to image i+1 (loop: last -> image 1). pair = the two images the prompt was
-// written for; when it no longer matches the current neighbours the prompt is shown red (stale).
+// Director storyboard <-> widgets, server and Settings (the view is web/im_storyboard.js, the rules
+// web/im_storyboard_model.js). Widget `storyboard` = JSON [{image, prompt, own, pair}], image relative to ComfyUI's
+// input folder ("" = empty); the seconds of each film live in the `shot_seconds` widget (Cut's ⏱ edits it too).
 import { api } from "../../scripts/api.js";
-import { fcParseShotSeconds, fcReviewToast, imParseStoryboard, settingsNodeOf } from "./im_common.js";
+import { fcParseShotSeconds, fcReviewToast, imParseStoryboard, imWidget, settingsNodeOf } from "./im_common.js";
 import { fcPickFolder, imResolveSize } from "./im_settings.js";
-
-export const MAX_IMAGES = 24;
-export const DEFAULT_IMAGES = 4;
-export const emptyEntry = () => ({ image: "", prompt: "", own: false, pair: null });
-
-const W = (node, name) => node.widgets?.find((w) => w.name === name);
+import { DEFAULT_IMAGES, MAX_IMAGES, emptyRow, toRow } from "./im_storyboard_model.js";
 
 function setWidget(node, name, text) {
-  const w = W(node, name);
-  if (!w) return;
+  const w = imWidget(node, name);
+  if (!w || w.value === text) return;
   const old = w.value;
   w.value = text;
   w.callback?.(text);
@@ -22,51 +16,25 @@ function setWidget(node, name, text) {
   node.graph?.incrementVersion?.();
 }
 
-export function readBoard(node) {
-  const list = imParseStoryboard(node).slice(0, MAX_IMAGES).map((e) => ({
-    image: String(e.image || ""), prompt: String(e.prompt || ""), own: !!e.own,
-    pair: Array.isArray(e.pair) && e.pair.length === 2 ? e.pair.map(String) : null,
-  }));
-  if (!list.length) for (let i = 0; i < DEFAULT_IMAGES; i++) list.push(emptyEntry());
-  return list;
+export function readRows(node) {
+  const secs = fcParseShotSeconds(imWidget(node, "shot_seconds")?.value);
+  const rows = imParseStoryboard(node).slice(0, MAX_IMAGES).map((e, i) => toRow(e, secs[i]));
+  return rows.length ? rows : Array.from({ length: DEFAULT_IMAGES }, emptyRow);
 }
 
-export function writeBoard(node, list) {
-  setWidget(node, "storyboard", JSON.stringify(list.slice(0, MAX_IMAGES)));
+export function writeRows(node, rows) {
+  rows = rows.slice(0, MAX_IMAGES);
+  setWidget(node, "storyboard", JSON.stringify(rows.map(({ image, prompt, own, pair }) => ({ image, prompt, own, pair }))));
+  const secs = rows.map((r) => r.sec);
+  while (secs.length && !secs.at(-1)) secs.pop();
+  setWidget(node, "shot_seconds", secs.join(", "));
 }
 
-export const isLoop = (node) => !!W(node, "loop")?.value;
+export const isLoop = (node) => !!imWidget(node, "loop")?.value;
 
-// Current pair of shot i, or null when shot i has no film (last shot without loop, or an empty image).
-export function pairOf(list, i, loop) {
-  const n = list.length;
-  if (i < n - 1 || (loop && n > 1)) {
-    const a = list[i].image, b = list[(i + 1) % n].image;
-    return a && b ? [a, b] : null;
-  }
-  return null;
-}
-
-export const hasFilm = (list, i, loop) => i < list.length - 1 || (loop && list.length > 1);
-
-// Red light: prompt text exists but was written for another pair of images.
-export function isStale(list, i, loop) {
-  const s = list[i];
-  if (!s.prompt.trim()) return false;
-  const p = pairOf(list, i, loop);
-  return !p || !s.pair || s.pair[0] !== p[0] || s.pair[1] !== p[1];
-}
-
-// Seconds per shot: entry in shot_seconds (0 = default) and the default from `seconds`.
-export function readSecs(node) {
-  const g = parseFloat(W(node, "seconds")?.value);
-  return { def: isNaN(g) || g <= 0 ? 1 : g, list: fcParseShotSeconds(W(node, "shot_seconds")?.value) };
-}
-
-export function writeSecs(node, list) {
-  const out = list.map((v) => (v > 0 ? v : 0));
-  while (out.length && out[out.length - 1] === 0) out.pop();
-  setWidget(node, "shot_seconds", out.join(", "));
+export function defaultSeconds(node) {
+  const g = parseFloat(imWidget(node, "seconds")?.value);
+  return g > 0 ? g : 1;
 }
 
 export function imageUrl(name) {
@@ -101,11 +69,10 @@ export async function importFolder() {
 // the same node the render reads. Not connected -> the render defaults (4:5).
 export function boardFormat(node, firstImg) {
   const s = settingsNodeOf(node);
-  const aspect = W(s || {}, "aspect")?.value, long = W(s || {}, "long_side")?.value;
+  const aspect = imWidget(s, "aspect")?.value, long = imWidget(s, "long_side")?.value;
   if (aspect === "from images") {
     const w = firstImg?.naturalWidth, h = firstImg?.naturalHeight;
-    if (w && h) return { w, h, label: `from image 1 · ${w}×${h}` };
-    return { w: 4, h: 5, label: "from image 1" };
+    return w && h ? { w, h, label: `from image 1 · ${w}×${h}` } : { w: 4, h: 5, label: "from image 1" };
   }
   const [w, h] = imResolveSize(aspect || "4:5", long || 960);
   return { w, h, label: `${(/^\d+:\d+/.exec(aspect || "") || ["4:5"])[0]} · ${w}×${h}` };

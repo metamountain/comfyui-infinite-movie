@@ -1,18 +1,19 @@
-// 124c (2026-11-14): Director storyboard - image tiles on the left (one per row, never wrapping), the prompt of the
-// film image i -> i+1 to the right, half a row lower (between the two images). User decisions: tiles exactly as large as a
-// standard Load Image preview (contain-fit into its box), format from Settings; one delete button (image + prompt); a dragged image takes its prompt along,
-// prompts whose image pair changed light up red (edit instead of rewriting everything).
+// Director storyboard view: image tiles on the left (one per row), the prompt of the film image i -> next to the
+// right, half a row lower (between its two images). Rules in im_storyboard_model.js, widgets/server in
+// im_storyboard_io.js. User decisions: tiles as large as a standard Load Image preview, format from Settings; one
+// delete button (image + prompt); a dragged image takes its prompt along, prompts whose images changed glow red.
 import { app } from "../../scripts/app.js";
 import { api } from "../../scripts/api.js";
-import { fcQueueFixedSeeds, fcReviewToast, settingsNodeOf } from "./im_common.js";
+import { fcQueueFixedSeeds, fcReviewToast, imWidget, settingsNodeOf } from "./im_common.js";
 import {
-  MAX_IMAGES, emptyEntry, hasFilm, imageUrl, importFolder, isLoop, isStale, pairOf, readSecs, readBoard,
-  boardFormat, uploadImage, writeSecs, writeBoard,
+  MAX_IMAGES, emptyRow, hasFilm, isStale, moveRow, nextOf, pairOf, samePair,
+} from "./im_storyboard_model.js";
+import {
+  boardFormat, defaultSeconds, imageUrl, importFolder, isLoop, readRows, uploadImage, writeRows,
 } from "./im_storyboard_io.js";
 
 // LI_W x LI_H: preview box of a standard Load Image node (measured 2026-11-14: 16:9 = 283x159, 4:5 = 164x205)
-export const LI_W = 283, LI_H = 205, GAP = 10, PROMPT_W = 250, TOOLBAR_H = 66, MARGIN = 10;
-const FLASH = 1200;   // ms, landing glow after a drag or insert
+const LI_W = 283, LI_H = 205, GAP = 10, PROMPT_W = 250, TOOLBAR_H = 66, MARGIN = 10;
 
 const CSS = `
 .imsb { position:relative; font:12px system-ui,sans-serif; color:#ddd; box-sizing:border-box; padding:0 ${MARGIN}px; }
@@ -27,6 +28,8 @@ const CSS = `
 .imsb-t img { width:100%; height:100%; object-fit:cover; display:block; pointer-events:none; }
 .imsb-t.empty { border:2px dashed #555; display:flex; align-items:center; justify-content:center; color:#888; cursor:pointer; }
 .imsb-t.drag { background:#1f3550; border:3px solid #4af; opacity:.85; }
+.imsb-t.land { animation:imsb-land 1.2s ease-out; }
+@keyframes imsb-land { from { box-shadow:0 0 14px 4px #4af; } to { box-shadow:none; } }
 .imsb-t .no { position:absolute; left:4px; top:4px; background:#000a; border-radius:3px; padding:0 5px; font:700 12px system-ui; }
 .imsb-t .x { position:absolute; right:4px; top:4px; width:22px; height:22px; border-radius:3px; background:#000a; text-align:center; line-height:22px; cursor:pointer; }
 .imsb-t .x:hover { background:#d93025; }
@@ -54,99 +57,79 @@ const CSS = `
 .imsb-gap::before, .imsb-gap::after { content:""; position:absolute; top:-3px; width:10px; height:10px; border-radius:50%; background:#4af; }
 .imsb-gap::before { left:-5px; } .imsb-gap::after { right:-5px; }
 `;
-
-function css() {
-  if (document.getElementById("imsb-css")) return;
-  const s = document.createElement("style");
-  s.id = "imsb-css";
-  s.textContent = CSS;
-  document.head.appendChild(s);
-}
+document.head.appendChild(Object.assign(document.createElement("style"), { textContent: CSS }));
 
 const el = (tag, cls, txt) => { const e = document.createElement(tag); if (cls) e.className = cls; if (txt != null) e.textContent = txt; return e; };
 
 function pickFiles(multiple) {
   return new Promise((resolve) => {
-    const inp = el("input");
-    inp.type = "file"; inp.accept = "image/*"; inp.multiple = multiple;
+    const inp = Object.assign(el("input"), { type: "file", accept: "image/*", multiple });
     inp.onchange = () => resolve([...(inp.files || [])]);
     inp.click();
   });
 }
 
-export function boardSize(node) {
-  const st = node._imsb;
-  const n = readBoard(node).length, loop = isLoop(node);
-  const k = Math.min(LI_W / st.fmt.w, LI_H / st.fmt.h);   // contain-fit, like Load Image
-  const iw = Math.round(st.fmt.w * k), ih = Math.round(st.fmt.h * k), row = ih + GAP;
+// Tile = the film format contain-fitted into the Load Image box; the prompt column fills the rest of the node.
+function boardSize(node, rows, loop) {
+  const { fmt } = node._imsb, n = rows.length;
+  const k = Math.min(LI_W / fmt.w, LI_H / fmt.h);
+  const iw = Math.round(fmt.w * k), ih = Math.round(fmt.h * k), row = ih + GAP;
   const pw = Math.max(PROMPT_W, Math.round(node.size[0]) - iw - GAP - 2 * MARGIN);
-  const lastFilm = hasFilm({ length: n }, n - 1, loop) ? n - 1 : n - 2;
-  const bottom = Math.max(n * row - GAP, lastFilm >= 0 ? lastFilm * row + row / 2 + ih : 0);
-  return { iw, ih, row, pw, h: bottom, w: iw + GAP + PROMPT_W + 2 * MARGIN };
+  const lastFilm = hasFilm(n, n - 1, loop) ? n - 1 : n - 2;   // its prompt box reaches half a row below its image
+  const h = Math.max(n * row - GAP, lastFilm >= 0 ? lastFilm * row + row / 2 + ih : 0);
+  return { iw, ih, row, pw, h, w: iw + GAP + PROMPT_W + 2 * MARGIN };
 }
 
 function signature(node) {
-  const s = settingsNodeOf(node);
-  const v = (n, k) => n?.widgets?.find((w) => w.name === k)?.value;
+  const s = settingsNodeOf(node), v = (n, k) => imWidget(n, k)?.value;
   return [v(node, "storyboard"), v(node, "loop"), v(node, "seconds"), v(node, "shot_seconds"), v(s, "aspect"), v(s, "long_side")].join("|");
 }
 
-function fit(node) {
-  const { w } = boardSize(node);
-  const sz = node.computeSize();
-  node.setSize([Math.max(w, node.size[0] < w ? w : node.size[0]), sz[1]]);
-  node.setDirtyCanvas?.(true, true);
-}
-
-function setList(node, list) { writeBoard(node, list); render(node); }
+function commit(node, rows) { writeRows(node, rows); render(node); }
 
 async function setImage(node, i, file) {
   const name = await uploadImage(file);
   if (!name) return;
-  const list = readBoard(node);
-  list[i].image = name;
-  setList(node, list);
+  const rows = readRows(node);
+  rows[i].image = name;
+  commit(node, rows);
+}
+
+async function pickImage(node, i) {
+  const f = (await pickFiles(false))[0];
+  if (f) setImage(node, i, f);
 }
 
 function move(node, from, gap) {
-  if (gap === from || gap === from + 1) return;
-  const list = readBoard(node), secs = readSecs(node).list;
-  while (secs.length < list.length) secs.push(0);
-  const to = gap > from ? gap - 1 : gap;
-  list.splice(to, 0, list.splice(from, 1)[0]);       // the prompt below travels with its image
-  secs.splice(to, 0, secs.splice(from, 1)[0]);
-  writeSecs(node, secs);
-  node._imsb.flash = { i: to, t0: performance.now() };
-  setList(node, list);
-  setTimeout(() => render(node), FLASH);
+  const rows = readRows(node), to = moveRow(rows, from, gap);
+  if (to < 0) return;
+  node._imsb.land = to;
+  commit(node, rows);
 }
 
-// 2026-11-14 (user: hover on the line between two images shows a plus, click = new image there).
+// User 2026-11-14: hover on the line between two images shows a plus, click = new image there.
 async function insertAt(node, k) {
-  if (readBoard(node).length >= MAX_IMAGES) { fcReviewToast(`Max ${MAX_IMAGES} images`, "#e68929"); return; }
+  if (readRows(node).length >= MAX_IMAGES) { fcReviewToast(`Max ${MAX_IMAGES} images`, "#e68929"); return; }
   const f = (await pickFiles(false))[0];
-  const name = f ? await uploadImage(f) : null;
+  const name = f && await uploadImage(f);
   if (!name) return;
-  const list = readBoard(node), secs = readSecs(node).list;
-  list.splice(k, 0, { ...emptyEntry(), image: name });
-  if (secs.length > k) { secs.splice(k, 0, 0); writeSecs(node, secs); }
-  node._imsb.flash = { i: k, t0: performance.now() };
-  setList(node, list);
-  setTimeout(() => render(node), FLASH);
+  const rows = readRows(node);
+  rows.splice(k, 0, { ...emptyRow(), image: name });
+  node._imsb.land = k;
+  commit(node, rows);
 }
 
 function remove(node, i) {
-  const list = readBoard(node), secs = readSecs(node).list;
-  list.splice(i, 1);
-  if (secs.length > i) { secs.splice(i, 1); writeSecs(node, secs); }
-  setList(node, list.length ? list : [emptyEntry()]);
+  const rows = readRows(node);
+  rows.splice(i, 1);
+  commit(node, rows.length ? rows : [emptyRow()]);
 }
 
-// 124b: prompt writing = partial run of the Director alone with the regen widget set (the Director then only
-// writes prompts, renders nothing); the result comes back as ui.im_prompts (executed event below).
+// Prompt writing = a partial run of the Director alone with its `regen` widget set: it writes the prompts of these
+// rows, renders nothing, and sends them back as ui.im_prompts (received).
 async function regen(node, idx) {
   if (!idx.length) { fcReviewToast("No prompt to write (all are ✎ own)", "#e68929"); return; }
-  const w = node.widgets?.find((x) => x.name === "regen");
+  const w = imWidget(node, "regen");
   if (!w) { fcReviewToast("Director has no regen input - restart ComfyUI", "#d93025"); return; }
   node._imsb.busy = new Set(idx);
   render(node);
@@ -156,62 +139,67 @@ async function regen(node, idx) {
   finally { w.value = ""; }
 }
 
+// A result lands on the row whose current pair is the one it was written for - rows may have moved meanwhile.
 function received(e) {
   const out = e.detail?.output?.im_prompts;
   const node = out && app.graph?.getNodeById?.(String(e.detail.node).split(":")[0]);
   if (!node?._imsb) return;
-  const list = readBoard(node);
+  const rows = readRows(node), loop = isLoop(node);
   for (const r of out) {
-    const s = list[r.i];
-    if (!s) continue;
     if (r.error) { fcReviewToast(`Prompt ${r.i + 1}: ${r.error}`, "#d93025"); continue; }
-    Object.assign(s, { prompt: r.prompt, own: false, pair: r.pair });   // pair = images it was written for
+    const at = (k) => samePair(pairOf(rows, k, loop), r.pair);
+    const k = at(r.i) ? r.i : rows.findIndex((_, j) => at(j));
+    if (k >= 0) Object.assign(rows[k], { prompt: r.prompt, own: false, pair: r.pair });
   }
   node._imsb.busy = null;
-  setList(node, list);
+  commit(node, rows);
 }
 
-// Run over (also on error/cancel): no prompt stays in "writing".
-function finished(e) {
-  if (e.detail != null) return;
-  for (const n of app.graph?._nodes || []) if (n._imsb?.busy) { n._imsb.busy = null; render(n); }
+// "executing" names the running node; null = the run is over (also on error/cancel). Only a run in which the
+// Director itself ran ends its "writing" state - an earlier job finishing does not.
+function executing(e) {
+  const id = e.detail == null ? null : String(e.detail).split(":")[0];
+  for (const n of app.graph?._nodes || []) {
+    const st = n._imsb;
+    if (!st?.busy) continue;
+    if (id === String(n.id)) st.ran = true;
+    else if (id == null && st.ran) { st.busy = null; st.ran = false; render(n); }
+  }
 }
+
+api.addEventListener("executed", received);
+api.addEventListener("executing", executing);
 
 function startDrag(node, e, i, tile) {
-  const st = node._imsb, bd = st.board, x0 = e.clientX, y0 = e.clientY;
+  const st = node._imsb, bd = st.board, x0 = e.clientX, y0 = e.clientY, { row } = st.size;
   let active = false, gap = -1;
-  const { row } = boardSize(node);
   const scale = () => (bd.getBoundingClientRect().height / bd.offsetHeight) || 1;
   const onMove = (ev) => {
     if (!active && Math.hypot(ev.clientX - x0, ev.clientY - y0) < 5) return;
     active = true;
     tile.classList.add("drag");
-    const n = readBoard(node).length;
     const y = (ev.clientY - bd.getBoundingClientRect().top) / scale();
-    gap = Math.max(0, Math.min(n, Math.round(y / row)));
-    const own = gap === i || gap === i + 1;
-    st.gap.style.display = own ? "none" : "block";
+    gap = Math.max(0, Math.min(readRows(node).length, Math.round(y / row)));
+    st.gap.style.display = gap === i || gap === i + 1 ? "none" : "block";
     st.gap.style.top = `${gap * row - GAP / 2 - 2}px`;
   };
-  const onUp = () => {
-    window.removeEventListener("pointermove", onMove, true);
-    window.removeEventListener("pointerup", onUp, true);
+  const end = (drop) => () => {
+    for (const [t, f] of handlers) window.removeEventListener(t, f, true);
     st.gap.style.display = "none";
     tile.classList.remove("drag");
-    if (active && gap >= 0) move(node, i, gap);
+    if (drop && active && gap >= 0) move(node, i, gap);
   };
-  window.addEventListener("pointermove", onMove, true);
-  window.addEventListener("pointerup", onUp, true);
+  const handlers = [["pointermove", onMove], ["pointerup", end(true)], ["pointercancel", end(false)]];
+  for (const [t, f] of handlers) window.addEventListener(t, f, true);
 }
 
-function tileEl(node, list, i, { iw, ih, row }) {
-  const st = node._imsb, s = list[i];
-  const t = el("div", "imsb-t" + (s.image ? "" : " empty"));
+function tileEl(node, rows, i) {
+  const st = node._imsb, r = rows[i], { iw, ih, row } = st.size;
+  const t = el("div", "imsb-t" + (r.image ? "" : " empty") + (st.land === i ? " land" : ""));
   t.style.cssText = `top:${i * row}px;width:${iw}px;height:${ih}px`;
-  t.dataset.i = i;
-  if (s.image) {
+  if (r.image) {
     const img = el("img");
-    img.src = imageUrl(s.image);
+    img.src = imageUrl(r.image);
     img.draggable = false;
     if (i === 0) img.onload = () => {
       const size = `${img.naturalWidth}x${img.naturalHeight}`;
@@ -219,100 +207,80 @@ function tileEl(node, list, i, { iw, ih, row }) {
       st.size0 = size; st.img0 = img;
       if (st.fmt.label.startsWith("from image")) render(node);
     };
-    t.appendChild(img);
     const lb = el("div", "lb");
-    lb.appendChild(el("i", null, st.fmt.label));
-    lb.appendChild(document.createTextNode(s.image.split("/").pop()));
-    t.appendChild(lb);
+    lb.append(el("i", null, st.fmt.label), r.image.split("/").pop());
+    t.append(img, lb);
+    t.onpointerdown = (e) => { if (e.button === 0) { e.stopPropagation(); startDrag(node, e, i, t); } };
+    t.ondblclick = () => pickImage(node, i);
   } else {
     t.appendChild(el("span", null, "+ image – click"));
+    t.onclick = () => pickImage(node, i);
   }
-  t.appendChild(el("div", "no", String(i + 1)));
   const x = el("div", "x", "✕");
-  x.title = "Remove this shot (image + prompt)";
+  x.title = "Remove this image and its prompt";
   x.onpointerdown = (e) => e.stopPropagation();
   x.onclick = (e) => { e.stopPropagation(); remove(node, i); };
-  t.appendChild(x);
-  const fl = st.flash;
-  if (fl && fl.i === i && performance.now() - fl.t0 < FLASH) t.style.boxShadow = "0 0 14px 4px #4af";
-  t.onpointerdown = (e) => { if (e.button === 0 && s.image) { e.stopPropagation(); startDrag(node, e, i, t); } };
-  t.onclick = async () => { if (!s.image) { const f = await pickFiles(false); if (f[0]) setImage(node, i, f[0]); } };
-  t.ondblclick = async () => { const f = await pickFiles(false); if (f[0]) setImage(node, i, f[0]); };
+  t.append(el("div", "no", String(i + 1)), x);
   t.ondragover = (e) => e.preventDefault();
   t.ondrop = (e) => { e.preventDefault(); e.stopPropagation(); const f = e.dataTransfer?.files?.[0]; if (f) setImage(node, i, f); };
   return t;
 }
 
-function promptEl(node, list, i, { iw, ih, row, pw }, secs) {
-  const s = list[i], n = list.length, loopEdge = i === n - 1;
-  const box = el("div", "imsb-p" + (loopEdge ? " loop" : "") + (isStale(list, i, isLoop(node)) ? " stale" : ""));
+function promptEl(node, rows, i, loop) {
+  const st = node._imsb, r = rows[i], n = rows.length, j = nextOf(n, i, loop), { iw, ih, row, pw } = st.size;
+  const box = el("div", "imsb-p" + (j === 0 && n > 1 ? " loop" : "") + (isStale(rows, i, loop) ? " stale" : ""));
   box.style.cssText = `left:${iw + GAP}px;top:${i * row + row / 2}px;height:${ih}px;width:${pw}px`;
-  box.dataset.i = i;
   const hd = el("div", "hd");
-  hd.appendChild(el("span", null, `${i + 1} → ${loopEdge ? 1 : i + 2}`));
-  const badge = () => (s.own ? ["own", "✎ own"] : s.prompt.trim() ? ["llm", "LLM"] : ["", "empty"]);
+  const badge = () => (r.own ? ["own", "✎ own"] : r.prompt.trim() ? ["llm", "LLM"] : ["", "empty"]);
   const bg = el("span", "bg " + badge()[0], badge()[1]);
-  hd.appendChild(bg);
   const red = el("span", "red", "● doesn't fit");
   red.title = "The images around this prompt changed – edit or regenerate it";
-  hd.appendChild(red);
-  const sec = el("label", "sec", "⏱");
-  const inp = el("input");
-  inp.type = "number"; inp.min = "0.5"; inp.max = "20"; inp.step = "0.5";
-  const own = secs.list[i] > 0;
-  inp.value = String(own ? secs.list[i] : secs.def);
-  if (own) inp.className = "own";
+  const def = defaultSeconds(node);
+  const inp = Object.assign(el("input", r.sec ? "own" : null), { type: "number", min: "0.5", max: "20", step: "0.5", value: String(r.sec || def) });
   inp.onchange = () => {
-    const v = parseFloat(inp.value), l = readSecs(node).list;
-    while (l.length <= i) l.push(0);
-    l[i] = !isNaN(v) && v > 0 && v !== secs.def ? Math.min(20, Math.max(0.5, v)) : 0;
-    writeSecs(node, l);
-    render(node);
+    const v = parseFloat(inp.value), now = readRows(node);
+    now[i].sec = v > 0 && v !== def ? Math.min(20, Math.max(0.5, v)) : 0;
+    commit(node, now);
   };
   inp.onkeydown = (e) => { e.stopPropagation(); if (e.key === "Enter") inp.blur(); };
-  sec.appendChild(inp);
-  sec.appendChild(document.createTextNode("s"));
-  hd.appendChild(sec);
-  box.appendChild(hd);
-  const busy = !!node._imsb.busy?.has(i);
-  const ta = el("textarea");
-  ta.value = s.prompt;
-  ta.disabled = busy;
-  ta.placeholder = busy ? "writing…" : "What happens from this image to the next…";
+  const sec = el("label", "sec", "⏱");
+  sec.append(inp, "s");
+  hd.append(el("span", null, `${i + 1} → ${n === 1 ? "open" : j + 1}`), bg, red, sec);
+  const busy = !!st.busy?.has(i);
+  const ta = Object.assign(el("textarea"), { value: r.prompt, disabled: busy,
+    placeholder: busy ? "writing…" : "What happens from this image to the next…" });
   ta.onkeydown = (e) => e.stopPropagation();
   ta.oninput = () => {
-    const l = readBoard(node);
-    l[i].prompt = ta.value; l[i].own = !!ta.value.trim(); l[i].pair = pairOf(l, i, isLoop(node));
-    writeBoard(node, l);
-    node._imsb.sig = signature(node);
-    s.own = l[i].own; s.prompt = ta.value;
-    bg.className = "bg " + badge()[0]; bg.textContent = badge()[1];
+    const now = readRows(node);
+    Object.assign(now[i], { prompt: ta.value, own: !!ta.value.trim(), pair: pairOf(now, i, loop) });
+    writeRows(node, now);
+    Object.assign(r, now[i]);
+    st.sig = signature(node);
+    [bg.className, bg.textContent] = ["bg " + badge()[0], badge()[1]];
     box.classList.remove("stale");
   };
-  box.appendChild(ta);
-  const rg = el("button", "rg", busy ? "… writing" : "↻ Regenerate prompt");
-  rg.disabled = busy;
+  const rg = Object.assign(el("button", "rg", busy ? "… writing" : "↻ Regenerate prompt"), { disabled: busy });
   rg.onclick = () => regen(node, [i]);
-  box.appendChild(rg);
+  box.append(hd, ta, rg);
   return box;
 }
 
 export function render(node) {
   const st = node._imsb;
   if (!st) return;
-  const list = readBoard(node), loop = isLoop(node), secs = readSecs(node);
+  const rows = readRows(node), loop = isLoop(node);
   st.fmt = boardFormat(node, st.img0);
-  const size = boardSize(node), { iw, row, h } = size;
-  st.w = node.size[0];
-  st.cnt.textContent = String(list.length);
+  st.size = boardSize(node, rows, loop);
+  const { iw, row, h, w } = st.size;
+  st.cnt.textContent = String(rows.length);
   st.board.replaceChildren();
   st.board.style.height = `${h}px`;
   st.gap.style.width = `${iw + 8}px`;
-  for (let i = 0; i < list.length; i++) {
-    st.board.appendChild(tileEl(node, list, i, size));
-    if (hasFilm(list, i, loop)) st.board.appendChild(promptEl(node, list, i, size, secs));
+  for (let i = 0; i < rows.length; i++) {
+    st.board.appendChild(tileEl(node, rows, i));
+    if (hasFilm(rows.length, i, loop)) st.board.appendChild(promptEl(node, rows, i, loop));
   }
-  for (let k = 1; k < list.length && list.length < MAX_IMAGES; k++) {
+  for (let k = 1; k < rows.length && rows.length < MAX_IMAGES; k++) {
     const z = el("div", "imsb-ins");
     z.style.cssText = `top:${k * row - GAP / 2 - 9}px;width:${iw}px`;
     z.title = "Insert an image here";
@@ -322,66 +290,53 @@ export function render(node) {
     st.board.appendChild(z);
   }
   st.board.appendChild(st.gap);
+  st.land = -1;
   st.sig = signature(node);
-  fit(node);
+  st.w = node.size[0];
+  node.setSize([Math.max(w, node.size[0]), node.computeSize()[1]]);
+  node.setDirtyCanvas?.(true, true);
 }
 
 export function addStoryboard(node) {
   if (node._imsb) return;
-  css();
-  if (!window.__imsbListen) {
-    window.__imsbListen = true;
-    api.addEventListener("executed", received);
-    api.addEventListener("executing", finished);
-  }
-  const root = el("div", "imsb");
-  const tb = el("div", "imsb-tb");
-  const cnt = el("div", "imsb-cnt");
+  const root = el("div", "imsb"), tb = el("div", "imsb-tb"), cnt = el("div", "imsb-cnt");
   const less = el("b", null, "◀"), num = el("span", null, "4"), more = el("b", null, "▶");
   cnt.append("images", less, num, more);
-  less.onclick = () => { const l = readBoard(node); if (l.length > 1) { l.pop(); setList(node, l); } };
+  less.onclick = () => { const rows = readRows(node); if (rows.length > 1) { rows.pop(); commit(node, rows); } };
   more.onclick = () => {
-    const l = readBoard(node);
-    if (l.length >= MAX_IMAGES) { fcReviewToast(`Max ${MAX_IMAGES} images`, "#e68929"); return; }
-    l.push(emptyEntry()); setList(node, l);
+    const rows = readRows(node);
+    if (rows.length >= MAX_IMAGES) { fcReviewToast(`Max ${MAX_IMAGES} images`, "#e68929"); return; }
+    commit(node, [...rows, emptyRow()]);
   };
-  const replace = (names) => {
-    if (!names?.length) return;
-    writeSecs(node, []);
-    setList(node, names.slice(0, MAX_IMAGES).map((image) => ({ ...emptyEntry(), image })));
-  };
+  const replace = (names) => { if (names?.length) commit(node, names.slice(0, MAX_IMAGES).map((image) => ({ ...emptyRow(), image }))); };
   const bLoad = el("button", null, "📂 Load images…");
   bLoad.onclick = async () => {
-    const files = (await pickFiles(true)).slice(0, MAX_IMAGES);
     const names = [];
-    for (const f of files) { const nm = await uploadImage(f); if (nm) names.push(nm); }
+    for (const f of (await pickFiles(true)).slice(0, MAX_IMAGES)) { const nm = await uploadImage(f); if (nm) names.push(nm); }
     replace(names);
   };
   const bFolder = el("button", null, "🗂 Storyboard folder…");
-  bFolder.title = "Load all images of a folder (sorted by name, max 24) - replaces the storyboard";
+  bFolder.title = `Load all images of a folder (sorted by name, max ${MAX_IMAGES}) - replaces the storyboard`;
   bFolder.onclick = async () => replace(await importFolder());
   const bAll = el("button", null, "✎ Write all prompts");
   bAll.title = "Writes every prompt except the ✎ own ones";
   bAll.onclick = () => {
-    const l = readBoard(node), loop = isLoop(node);
-    regen(node, l.map((s, i) => i).filter((i) => hasFilm(l, i, loop) && !l[i].own));
+    const rows = readRows(node), loop = isLoop(node);
+    regen(node, rows.flatMap((r, i) => (hasFilm(rows.length, i, loop) && !r.own ? [i] : [])));
   };
   tb.append(cnt, bAll, bLoad, bFolder);
   const board = el("div", "imsb-bd");
   root.append(tb, board);
-  node._imsb = { root, board, cnt: num, gap: el("div", "imsb-gap"), fmt: { w: 4, h: 5, label: "" }, sig: "" };
-  const dw = node.addDOMWidget("im_storyboard", "div", root, {
-    serialize: false,
-    getMinHeight: () => TOOLBAR_H + boardSize(node).h + 8,
-    getMaxHeight: () => TOOLBAR_H + boardSize(node).h + 8,
-  });
+  const st = node._imsb = { root, board, cnt: num, gap: el("div", "imsb-gap"), fmt: { w: 4, h: 5, label: "" }, sig: "", land: -1 };
+  const height = () => TOOLBAR_H + (st.size?.h || 0) + 8;
+  const dw = node.addDOMWidget("im_storyboard", "div", root, { serialize: false, getMinHeight: height, getMaxHeight: height });
   dw.serialize = false;   // the option alone does not keep it out of widgets_values (would drop all values on load)
-  if (dw) Object.defineProperty(dw, "width", { get: () => node.size[0], set() {}, configurable: true });
+  Object.defineProperty(dw, "width", { get: () => node.size[0], set() {}, configurable: true });
   // Changes from outside (loop/seconds widgets, Cut's ⏱, the Settings format, loading a workflow): redraw.
-  node._imsb.timer = setInterval(() => {
-    if (!node.graph) { clearInterval(node._imsb.timer); return; }
-    if (document.activeElement?.closest?.(".imsb")) return;    // never redraw while typing
-    if (signature(node) !== node._imsb.sig || Math.abs(node.size[0] - (node._imsb.w || 0)) > 1) render(node);
+  st.timer = setInterval(() => {
+    if (!node.graph) { clearInterval(st.timer); return; }
+    if (document.activeElement?.matches?.(".imsb textarea, .imsb input")) return;   // never redraw while typing
+    if (signature(node) !== st.sig || Math.abs(node.size[0] - (st.w || 0)) > 1) render(node);
   }, 1000);
   render(node);
 }
