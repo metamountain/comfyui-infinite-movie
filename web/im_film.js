@@ -1,7 +1,7 @@
 import { app } from "../../scripts/app.js";
 import { api } from "../../scripts/api.js";
 import { fcReviewToast } from "./im_common.js";
-import { fcRun } from "./im_cut_state.js";
+import { fcRenderLine, fcRun } from "./im_cut_state.js";
 import { imToggleWidget } from "./im_settings.js";
 import { imSyncSet, imvSeek, imvShotDur, imvTime } from "./im_sync.js";
 // ---------------------------------------------------------------------------
@@ -154,7 +154,7 @@ export function fcFilmRender(node) {
   let txt, col = "#aaa";
   if (src === "shot") { txt = `▶ ${node._fc_shot.title} (from Cut)`; col = "#fff"; }
   else if (fcRun.running && filmRuns) { txt = "⏳ Building film…"; col = "#4fc3f7"; }
-  else if (fcRun.running) { txt = `⏳ ${runNode} running` + (info?.exists ? " · last film" : ""); col = "#4fc3f7"; }
+  else if (fcRun.running) { txt = fcRenderLine()?.text || "⏳ Rendering…"; col = "#39ff14"; }
   else if (!info) txt = "No film yet – Run, then RENDER VIDEO";
   else if (!info.exists) { txt = info.status; col = "#e3b341"; }
   else { txt = "✓ " + fcShortStatus(info) + (info.view ? "" : " (outside ComfyUI output – no preview)"); col = "#7ee787"; }
@@ -207,6 +207,7 @@ export function fcDownstreamOutputs(startIds) {
 
 function fcFilmRefreshAll() { for (const n of (app.graph?._nodes || [])) if (n.comfyClass === "InfiniteMovieFilm") fcFilmRender(n); }
 api.addEventListener("status", fcFilmRefreshAll);
+setInterval(() => { if (fcRun.running) fcFilmRefreshAll(); }, 1000);   // render countdown in the status line
 api.addEventListener("executing", () => setTimeout(fcFilmRefreshAll, 0));   // update the running node
 // Sync bus (im_sync.js): "imv-seek" jumps the video to t; "imv-src" switches Film|Shot,
 // only for nodes fed by the Cut (fcFromCut) - other Film nodes keep their own source.

@@ -234,14 +234,11 @@ function fcChooseState(node) {
     return { ...st, text: `Writing prompt (${fcRun.node})… · ${st.text}` };
   }
   if (fcRun.running) {
+    const r = fcRenderLine();
+    if (r) return { text: r.text, tone: "busy", btn: null, frac: r.frac };
     const dir = (app.graph?._nodes || []).find((n) => n.comfyClass === "InfiniteMovieRender" && n._fcProg?.t0 && !n._fcProg.end);
-    const r = dir && renderEstimate(dir);
-    if (r && r.seg >= 0) {
-      const left = isFinite(r.eta) ? ` · ~${fmtTime(r.eta)} left` : " · estimating…";
-      return { text: `Rendering film ${r.seg + 1}/${r.segs} · ${fmtTime(r.el)} elapsed${left}`, tone: "busy", btn: null, frac: r.frac };
-    }
     const p = fcRun.max ? ` · ${fcRun.value}/${fcRun.max}` : "";
-    return { text: `Rendering… please wait (${r?.phase || fcRun.node || "queued"}${p})`, tone: "busy", btn: null };
+    return { text: `Rendering… please wait (${dir?._fcProg?.phase || "queued"}${p})`, tone: "busy", btn: null };
   }
   // 116c2: film build failed (ui["film_error"] from the executed event) -> red status line.
   if (node._fc_film_error) return { text: node._fc_film_error, tone: "err", btn: null };
@@ -274,6 +271,15 @@ function fcChooseUpdateSteps(node) {
     const sep = i < steps.length - 1 ? '<span style="color:#555;margin:0 1px;">\u203A</span>' : "";
     return `<span style="color:${col};font-weight:${fw};">${s.label}</span>${sep}`;
   }).join("");
+}
+
+// Render countdown of the running Director, remaining time first: "⏳ ~2:14 left · film 2/4 · 0:56 elapsed".
+export function fcRenderLine() {
+  const dir = (app.graph?._nodes || []).find((n) => n.comfyClass === "InfiniteMovieRender" && n._fcProg?.t0 && !n._fcProg.end);
+  const r = dir && renderEstimate(dir);
+  if (!r || r.seg < 0) return null;
+  const left = isFinite(r.eta) ? `⏳ ~${fmtTime(r.eta)} left` : "⏳ estimating…";
+  return { text: `${left} · film ${r.seg + 1}/${r.segs} · ${fmtTime(r.el)} elapsed`, frac: r.frac };
 }
 
 function fcChooseStateIdle(node, entries, plan, marked) {

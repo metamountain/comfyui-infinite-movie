@@ -121,8 +121,8 @@ app.registerExtension({
         : p.seg < 0
           ? [`${p.phase || "starting"} … ${fmtTime(el)}`
              + (p.plan?.seg_seconds > 0 ? ` · ~${fmtTime(p.plan.seg_seconds * segs)} for ${segs} shots` : "")]
-          : [`segment ${p.seg + 1}/${segs} · ${frames} frames · step ${p.step}/${p.steps || "?"}`,
-             `${fmtTime(el)} elapsed · ~${fmtTime(eta)} left`];
+          : [`⏳ ${isFinite(eta) ? "~" + fmtTime(eta) + " left" : "estimating…"} · ${Math.round(frac * 100)}%`,
+             `segment ${p.seg + 1}/${segs} · ${frames} frames · step ${p.step}/${p.steps || "?"} · ${fmtTime(el)} elapsed`];
       return { p, lines, frac };
     };
     node.addCustomWidget({
@@ -132,25 +132,29 @@ app.registerExtension({
       serialize: false,
       computeSize(width) {
         const d = progLines(node);
-        return d ? [width, 14 + d.lines.length * 16 + 10] : [0, -4];
+        return d ? [width, 18 + d.lines.length * 16 + 10] : [0, -4];
       },
       draw(ctx, n, width, y) {
         const d = progLines(n);
         if (!d) return;
         const { p, lines, frac } = d;
-        const x = 8, w = width - 16, h = 14 + lines.length * 16;
+        const x = 8, w = width - 16, h = 18 + lines.length * 16, BAR = 12;
         ctx.save();
         ctx.fillStyle = "rgba(0,0,0,0.55)";
         ctx.fillRect(x - 2, y + 2, w + 4, h + 4);
         // 2026-11-05 (user): progress bar at the very bottom, text above it
-        const by = y + 4 + h - 8;
+        const by = y + 4 + h - BAR;
         ctx.fillStyle = "#333";
-        ctx.fillRect(x, by, w, 8);
+        ctx.fillRect(x, by, w, BAR);
         ctx.fillStyle = p.phase === "done" ? "#66bb6a" : "#39ff14";   // user 2026-11-13: rendering bar neon green
-        ctx.fillRect(x, by, w * frac, 8);
-        ctx.fillStyle = "#ddd";
-        ctx.font = "12px sans-serif";
-        lines.forEach((t, i) => ctx.fillText(t, x, y + 16 + i * 16));
+        ctx.fillRect(x, by, w * frac, BAR);
+        // first line (countdown) bold neon while rendering, the details below in grey
+        lines.forEach((t, i) => {
+          const lead = i === 0 && p.phase !== "done";
+          ctx.fillStyle = lead ? "#39ff14" : "#ddd";
+          ctx.font = lead ? "bold 14px sans-serif" : "12px sans-serif";
+          ctx.fillText(t, x, y + 16 + i * 16);
+        });
         ctx.restore();
         if (p.phase !== "done") n.setDirtyCanvas(true, false); // keep the clock running
       },

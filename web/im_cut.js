@@ -253,9 +253,10 @@ export function fcChooseRender(node) {
   status.style.cssText = `height:${FC_CHOOSE_STATUS_H}px;display:flex;align-items:center;padding:0 8px;background:#202020;` +
     "border-radius:3px;font:13px sans-serif;white-space:nowrap;overflow:hidden;";
   const steps = document.createElement("div");
-  steps.style.cssText = "display:flex;align-items:center;gap:2px;font-size:11px;flex-shrink:0;";
+  // dark pill: the step labels stay readable on the neon progress fill behind them
+  steps.style.cssText = "display:flex;align-items:center;gap:2px;font-size:11px;flex-shrink:0;background:rgba(20,20,20,0.85);padding:2px 6px;border-radius:3px;";
   const statusText = document.createElement("div");
-  statusText.style.cssText = "margin-left:8px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1;min-width:0;";
+  statusText.style.cssText = "margin-left:8px;font-weight:bold;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1;min-width:0;";
   status.appendChild(steps);
   status.appendChild(statusText);
   el.appendChild(status);
