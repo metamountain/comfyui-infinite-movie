@@ -6,7 +6,6 @@ import { FC_CHOOSE_BIG_H, FC_CHOOSE_GAP, FC_CHOOSE_NODE_W, FC_CHOOSE_PAD, FC_CHO
 import { fcDownstreamOutputs } from "./im_film.js";
 import { fmtTime, renderEstimate } from "./im_progress.js";
 import { imToggleWidget } from "./im_settings.js";
-import { imvDraw } from "./im_viewer.js";
 import { imSyncSet } from "./im_sync.js";
 export function fcChooseRender(node) {
   let el = node._fc_choose_el;
@@ -38,10 +37,6 @@ export function fcChooseRender(node) {
       new MutationObserver(unclip).observe(w, { attributes: true, attributeFilter: ["style"] });
     }, 0);
   }
-  // 116c2: the shot-analysis viewer sits BELOW the play field – DOM widgets stack in
-  // node.widgets order, so imvEnsure (via imvDraw) must run AFTER the fc_choose widget
-  // exists, not in onNodeCreated (that would put the viewer above the play field).
-  imvDraw(node);
   const entries = fcChooseEntries(node);
   const sig = fcChooseSig(entries);
   node._fc_choose_sig = sig;

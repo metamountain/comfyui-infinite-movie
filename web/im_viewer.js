@@ -18,12 +18,11 @@ function viewUrl(im) {
 // Tabs Graph | Timeline | Heatmap | Frames; Frames with slider, ▶ and Onion Skin (3 ghosts, in the browser
 // computed). Data: ui.im_viz from retime_nodes._viz_shot/_viz_timeline (temp folder, max. 64 frames per shot).
 const IMV_TABS = ["Graph", "Timeline", "Heatmap", "Frames", "Particles", "Sheet"];
-// 116c2: tabs per node – Assemble keeps Graph/Timeline (before/after re-timing comparison),
-// Cut (Chooser) shows the shot analysis Heatmap/Frames/Particles/Sheet (its im_viz has
-// timeline: null, no graph). Start tab = first entry. Code assuming Graph/Timeline never
-// runs in Cut because those tabs do not exist there.
+// Tabs per node – Assemble keeps Graph/Timeline (before/after re-timing comparison); the Film node fed by Cut shows
+// Cut's shot analysis Heatmap/Frames/Particles/Sheet (that im_viz has timeline: null, no graph). Start tab = first entry.
+const imvIsFilm = (node) => node?.comfyClass === "InfiniteMovieFilm";
 function imvTabs(node) {
-  if (node?.comfyClass === "InfiniteMovieChooser") return ["Heatmap", "Frames", "Particles", "Sheet"];
+  if (imvIsFilm(node) || node?.comfyClass === "InfiniteMovieChooser") return ["Heatmap", "Frames", "Particles", "Sheet"];
   return IMV_TABS;
 }
 // Particle color by speed (same scale as the heatmap, without the nearly black end)
@@ -95,6 +94,7 @@ export const IMV_W = 480, IMV_H = 480, IMV_NODE_W = IMV_W + 24;
 // With imv_h the area is a SQUARE (height = width), not as tall as the node.
 export const IMV_MIN_H = 200;
 function imvArea(node) {
+  if (imvIsFilm(node)) { const w = Math.round((node.size?.[0] || IMV_NODE_W) - 20); return [w, w]; }   // square as wide as the player
   const h = Number(node?.properties?.imv_h);
   if (!(h >= IMV_MIN_H)) return [IMV_W, IMV_H];
   const w = Math.max(IMV_W, Math.round((node.size?.[0] || IMV_NODE_W) - 24));
@@ -200,6 +200,13 @@ function imvEnsure(node) {
   // fixed height: area 480×480 + 4 rows (22+22+22+14) + 4 gaps -> does not jump on tab switch.
   // +20: the frontend subtracts 10 px margin top/bottom from the widget (el = height - 20); without the 20 the
   // slider and info row would stick out below the frame (user 2026-11-09 "don't fit in frame").
+  if (imvIsFilm(node) && node._fc_film_el) {
+    // Film node: the analysis sits in the player's widget, above the video; the Film widget's min height adds hostH.
+    el.style.flex = "none";
+    node._fc_film_el.prepend(el);
+    st.hostH = () => imvArea(node)[1] + 96 + 4;
+    return st;
+  }
   node.addDOMWidget("im_viz", "div", el, {
     serialize: false,
     getMinHeight: () => imvArea(node)[1] + 96 + 20,
@@ -245,6 +252,7 @@ window.addEventListener("imv-time", (e) => {
 });
 
 export function imvDraw(node) {
+  if (imvIsFilm(node) && !node._fc_film_el) return;   // the player widget (its host) does not exist yet
   const st = imvEnsure(node);
   const v = node.properties?.im_viz;
   const shots = v?.shots || [];
@@ -463,12 +471,15 @@ app.registerExtension({
         if (fi0) { node._fc_film_done = fi0; imFilmDoneNotice(node, fi0); }
         return;
       }
+      // Cut's shot analysis is shown by the Film node(s) Cut feeds (above their player), Cut keeps a copy.
       const viz = d.output?.im_viz?.[0];
+      const films = imvCutFilms(node);
       if (viz) {
-        node.properties = node.properties || {};
-        node.properties.im_viz = viz;   // survives reloading the page (files until ComfyUI restart)
-        const st = imvEnsure(node);
-        st.liveTimeline = null; st.k = 0; imvStop(st);
+        for (const n of [node, ...films]) {
+          n.properties = n.properties || {};
+          n.properties.im_viz = viz;   // survives reloading the page (files until ComfyUI restart)
+        }
+        for (const f of films) { const st = imvEnsure(f); st.liveTimeline = null; st.k = 0; imvStop(st); }
       }
       // 116c2: film build failed (review_nodes.py:724 ui["film_error"]) -> red Cut status + toast.
       const fe = d.output?.film_error?.[0];
@@ -482,11 +493,25 @@ app.registerExtension({
       // ui["film_info"] from Cut (review_nodes.py) and Even Motion (retime_nodes.py).
       const fi = d.output?.film_info?.[0];
       if (fi && !fe) { node._fc_film_done = fi; imFilmDoneNotice(node, fi); }
-      imvDraw(node);
+      for (const f of films) if (f.properties?.im_viz) imvDraw(f);
       fcChooseStatus(node);
     });
   },
+  // A saved Film node brings its analysis along (properties.im_viz); draw it once its player widget exists.
+  loadedGraphNode(node) {
+    if (imvIsFilm(node) && node.properties?.im_viz) setTimeout(() => imvDraw(node), 0);
+  },
 });
+
+// Film nodes fed by this Cut (its video_path output).
+function imvCutFilms(cut) {
+  const g = cut.graph || app.graph, out = [];
+  for (const o of cut.outputs || []) for (const lid of o.links || []) {
+    const t = g?.getNodeById((g.links?.[lid] ?? g.links?.get?.(lid))?.target_id);
+    if (imvIsFilm(t)) out.push(t);
+  }
+  return out;
+}
 
 // 57d: the Assemble `loop` widget is hidden as long as `sync` is connected
 // (the value then comes from the pipe; in Python sync["loop"] wins).

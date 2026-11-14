@@ -246,6 +246,12 @@ export function fcWorkflowLayout(director, second = false) {
   }
   // Cut: the preview sits at the right edge of the double-width group
   if (row[CUT][0]) for (const f of cutFilms) f.pos = [row[CUT][0].pos[0] + sizes[CUT][0] - PAD - f.size[0], f.pos[1]];
+  // A single Film player beside Cut (analysis above the video) is vertically centred on Cut
+  if (cut.length && cutFilms.length === 1) {
+    const f = cutFilms[0], c = cut[0];
+    f.size = [f.size[0], f.computeSize()[1]];
+    f.pos = [f.pos[0], c.pos[1] + Math.max(0, Math.round((c.size[1] - f.size[1]) / 2))];
+  }
   // Group height from the real content: groups 1-3 keep the full row height, groups 4-6 share one lower height
   // (the smallest that fits all three).
   const bottom123 = Math.max(...row.slice(0, 3).flatMap(([, ns]) => ns.map((n) => n.pos[1] + n.size[1])));
@@ -276,14 +282,7 @@ export function fcWorkflowLayout(director, second = false) {
     if (c._imv) imvDraw(c);
   }
   // Film player(s) of 6 and 7 sit at the bottom edge of their group (user: "films at the bottom"); 6 is 1-3 tall, 7 is 4-6 tall
-  for (const [fs, hh] of [[cutFilms, H123], [asmFilms, H456]]) { let b = Y + hh - PAD; for (const f of [...fs].reverse()) { f.pos = [f.pos[0], b - f.size[1]]; b -= T + f.size[1] + NGAP; } }
-  // user 2026-11-13 ("5 Cut: don't fix the height of the preview, min square"): a single preview beside Cut spans
-  // from Cut's top to the group bottom; the square stays its minimum
-  if (cut.length && cutFilms.length === 1) {
-    const f = cutFilms[0], top = cut[0].pos[1];
-    f.size = [f.size[0], Math.max(f.computeSize()[1], Y + H123 - PAD - top)];
-    f.pos = [f.pos[0], top];
-  }
+  for (const [fs, hh] of [[cutFilms.length === 1 && cut.length ? [] : cutFilms, H123], [asmFilms, H456]]) { let b = Y + hh - PAD; for (const f of [...fs].reverse()) { f.pos = [f.pos[0], b - f.size[1]]; b -= T + f.size[1] + NGAP; } }
   // user 2026-11-13 ("never collapse the graph, always open"): Even Motion reaches down to its Film player, so its
   // analysis graph (image preview below the widgets) always has room inside group 7 - also before the first run
   for (const a of asm) {

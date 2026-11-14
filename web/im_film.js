@@ -121,7 +121,7 @@ export function fcFilmRender(node) {
     node._fc_film_src_btns = srcBtns; node._fc_film_src_box = srcBox; node._fc_film_open = open;
     node.addDOMWidget("fc_film", "div", el, {
       serialize: false,
-      getMinHeight: () => fcFilmSide(node) + FC_FILM_TL_H + FC_FILM_BAR_H + 8 + 8,
+      getMinHeight: () => (node._imv?.hostH?.() || 0) + fcFilmSide(node) + FC_FILM_TL_H + FC_FILM_BAR_H + 8 + 8,
     }).serialize = false;   // the option alone does not keep it out of widgets_values
     node._fc_film_el = el; node._fc_film_video = video; node._fc_film_status = status;
     // While the video plays, report its time every frame (im_sync.js "imv-time"); a seek reports once.
