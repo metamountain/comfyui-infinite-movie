@@ -1,6 +1,6 @@
 // 124c (2026-11-14): Director storyboard - image tiles on the left (one per row, never wrapping), the prompt of the
-// film image i -> i+1 to the right, half a row lower (between the two images). User decisions: tile height constant
-// 188, width from the Settings format; one delete button (image + prompt); a dragged image takes its prompt along,
+// film image i -> i+1 to the right, half a row lower (between the two images). User decisions: tiles exactly as large as a
+// standard Load Image preview (contain-fit into its box), format from Settings; one delete button (image + prompt); a dragged image takes its prompt along,
 // prompts whose image pair changed light up red (edit instead of rewriting everything).
 import { app } from "../../scripts/app.js";
 import { api } from "../../scripts/api.js";
@@ -10,7 +10,8 @@ import {
   boardFormat, uploadImage, writeSecs, writeBoard,
 } from "./im_storyboard_io.js";
 
-export const TILE_H = 188, GAP = 10, ROW = TILE_H + GAP, PROMPT_W = 250, TOOLBAR_H = 66, MARGIN = 10;
+// LI_W x LI_H: preview box of a standard Load Image node (measured 2026-11-14: 16:9 = 283x159, 4:5 = 164x205)
+export const LI_W = 283, LI_H = 205, GAP = 10, PROMPT_W = 250, TOOLBAR_H = 66, MARGIN = 10;
 const FLASH = 1200;   // ms, landing glow after a drag or insert
 
 const CSS = `
@@ -76,11 +77,12 @@ function pickFiles(multiple) {
 export function boardSize(node) {
   const st = node._imsb;
   const n = readBoard(node).length, loop = isLoop(node);
-  const iw = Math.round(TILE_H * st.fmt.w / st.fmt.h);
+  const k = Math.min(LI_W / st.fmt.w, LI_H / st.fmt.h);   // contain-fit, like Load Image
+  const iw = Math.round(st.fmt.w * k), ih = Math.round(st.fmt.h * k), row = ih + GAP;
   const pw = Math.max(PROMPT_W, Math.round(node.size[0]) - iw - GAP - 2 * MARGIN);
   const lastFilm = hasFilm({ length: n }, n - 1, loop) ? n - 1 : n - 2;
-  const bottom = Math.max(n * ROW - GAP, lastFilm >= 0 ? lastFilm * ROW + TILE_H / 2 + GAP / 2 + TILE_H : 0);
-  return { iw, pw, h: bottom, w: iw + GAP + PROMPT_W + 2 * MARGIN };
+  const bottom = Math.max(n * row - GAP, lastFilm >= 0 ? lastFilm * row + row / 2 + ih : 0);
+  return { iw, ih, row, pw, h: bottom, w: iw + GAP + PROMPT_W + 2 * MARGIN };
 }
 
 function signature(node) {
@@ -178,6 +180,7 @@ function finished(e) {
 function startDrag(node, e, i, tile) {
   const st = node._imsb, bd = st.board, x0 = e.clientX, y0 = e.clientY;
   let active = false, gap = -1;
+  const { row } = boardSize(node);
   const scale = () => (bd.getBoundingClientRect().height / bd.offsetHeight) || 1;
   const onMove = (ev) => {
     if (!active && Math.hypot(ev.clientX - x0, ev.clientY - y0) < 5) return;
@@ -185,10 +188,10 @@ function startDrag(node, e, i, tile) {
     tile.classList.add("drag");
     const n = readBoard(node).length;
     const y = (ev.clientY - bd.getBoundingClientRect().top) / scale();
-    gap = Math.max(0, Math.min(n, Math.round(y / ROW)));
+    gap = Math.max(0, Math.min(n, Math.round(y / row)));
     const own = gap === i || gap === i + 1;
     st.gap.style.display = own ? "none" : "block";
-    st.gap.style.top = `${gap * ROW - GAP / 2 - 2}px`;
+    st.gap.style.top = `${gap * row - GAP / 2 - 2}px`;
   };
   const onUp = () => {
     window.removeEventListener("pointermove", onMove, true);
@@ -201,16 +204,21 @@ function startDrag(node, e, i, tile) {
   window.addEventListener("pointerup", onUp, true);
 }
 
-function tileEl(node, list, i, iw) {
+function tileEl(node, list, i, { iw, ih, row }) {
   const st = node._imsb, s = list[i];
   const t = el("div", "imsb-t" + (s.image ? "" : " empty"));
-  t.style.cssText = `top:${i * ROW}px;width:${iw}px;height:${TILE_H}px`;
+  t.style.cssText = `top:${i * row}px;width:${iw}px;height:${ih}px`;
   t.dataset.i = i;
   if (s.image) {
     const img = el("img");
     img.src = imageUrl(s.image);
     img.draggable = false;
-    if (i === 0) img.onload = () => { st.img0 = img; if (st.fmt.label.startsWith("from image")) render(node); };
+    if (i === 0) img.onload = () => {
+      const size = `${img.naturalWidth}x${img.naturalHeight}`;
+      if (size === st.size0) return;   // a new <img> per render - without this check "from images" renders forever
+      st.size0 = size; st.img0 = img;
+      if (st.fmt.label.startsWith("from image")) render(node);
+    };
     t.appendChild(img);
     const lb = el("div", "lb");
     lb.appendChild(el("i", null, st.fmt.label));
@@ -235,10 +243,10 @@ function tileEl(node, list, i, iw) {
   return t;
 }
 
-function promptEl(node, list, i, iw, pw, secs) {
+function promptEl(node, list, i, { iw, ih, row, pw }, secs) {
   const s = list[i], n = list.length, loopEdge = i === n - 1;
   const box = el("div", "imsb-p" + (loopEdge ? " loop" : "") + (isStale(list, i, isLoop(node)) ? " stale" : ""));
-  box.style.cssText = `left:${iw + GAP}px;top:${i * ROW + TILE_H / 2 + GAP / 2}px;height:${TILE_H}px;width:${pw}px`;
+  box.style.cssText = `left:${iw + GAP}px;top:${i * row + row / 2}px;height:${ih}px;width:${pw}px`;
   box.dataset.i = i;
   const hd = el("div", "hd");
   hd.appendChild(el("span", null, `${i + 1} → ${loopEdge ? 1 : i + 2}`));
@@ -294,19 +302,19 @@ export function render(node) {
   if (!st) return;
   const list = readBoard(node), loop = isLoop(node), secs = readSecs(node);
   st.fmt = boardFormat(node, st.img0);
-  const { iw, pw, h } = boardSize(node);
+  const size = boardSize(node), { iw, row, h } = size;
   st.w = node.size[0];
   st.cnt.textContent = String(list.length);
   st.board.replaceChildren();
   st.board.style.height = `${h}px`;
   st.gap.style.width = `${iw + 8}px`;
   for (let i = 0; i < list.length; i++) {
-    st.board.appendChild(tileEl(node, list, i, iw));
-    if (hasFilm(list, i, loop)) st.board.appendChild(promptEl(node, list, i, iw, pw, secs));
+    st.board.appendChild(tileEl(node, list, i, size));
+    if (hasFilm(list, i, loop)) st.board.appendChild(promptEl(node, list, i, size, secs));
   }
   for (let k = 1; k < list.length && list.length < MAX_IMAGES; k++) {
     const z = el("div", "imsb-ins");
-    z.style.cssText = `top:${k * ROW - GAP / 2 - 9}px;width:${iw}px`;
+    z.style.cssText = `top:${k * row - GAP / 2 - 9}px;width:${iw}px`;
     z.title = "Insert an image here";
     z.appendChild(el("span", null, "+"));
     z.onpointerdown = (e) => e.stopPropagation();
