@@ -44,9 +44,9 @@ def segment_path_b(output_dir, index):
     return os.path.join(output_dir, f"seg_{index:03d}_b.mp4")
 
 
-def _segment_plan(n_images: int, loop: bool, scene_lengths: list, length: int) -> list:
+def _segment_plan(n_images: int, loop: bool, frames: list, length: int) -> list:
     """Ordered films as (start_idx, end_idx, seg_length, kind); kind 'scene', 'loop' or 'open'. Film k is
-    scene_lengths[k] frames long (missing = length) - the loop film too (storyboard ⏱ on the last row).
+    frames[k] frames long (missing = length) - the loop film too (storyboard ⏱ on the last row).
 
     One image without loop = an 'open' film: start image + prompt, no end image (end_idx None).
     One image + loop = two passes (user 2026-11-09): the open film, then one from its LAST FRAME back to the
@@ -56,7 +56,7 @@ def _segment_plan(n_images: int, loop: bool, scene_lengths: list, length: int) -
         ends = [(0, None, "open")] + ([(None, 0, "loop")] if loop else [])
     else:
         ends = [(i, i + 1, "scene") for i in range(n_images - 1)] + ([(n_images - 1, 0, "loop")] if loop else [])
-    return [(a, b, scene_lengths[k] if k < len(scene_lengths) else length, kind) for k, (a, b, kind) in enumerate(ends)]
+    return [(a, b, frames[k] if k < len(frames) else length, kind) for k, (a, b, kind) in enumerate(ends)]
 
 
 PRESET_CONFIGS = {
@@ -791,13 +791,12 @@ def build_expansion_graph(unique_id: str, preset: str,
                           seed: int, width: int, height: int, length: int,
                           loop: bool,
                           output_dir: str,
-                          film_name: str,
+                          frames: list[int],
                           seed_bumps: dict | None = None,
                           model_inputs: dict | None = None,
                           template: dict | None = None,
                           cfg: dict | None = None,
-                          scene_seconds: list | None = None,
-                           variants: int = 1) -> dict:
+                           variants: int = 1) -> tuple[dict, bool]:
     """Build the full expansion graph for InfiniteMovieRender.
 
     Args:
@@ -805,14 +804,14 @@ def build_expansion_graph(unique_id: str, preset: str,
         preset: a label (the family name) used in the segment key.
         images: list of image tensors (each a torch tensor, HWC or CHW as
             produced by the image loader / preprocessing).
-        prompts: one prompt per transition (len == len(images) if loop else
-            len(images) - 1). The caller pads/repeats as needed.
+        prompts: one prompt per film (len == the number of films); film k renders with prompts[k].
         seed: base seed (per-segment seed = seed + segment_index
             + 1000 * seed_bumps.get(segment_number, 0)).
-        width, height, length: render size / frame count.
+        width, height, length: render size / default frame count (fallback for a missing per-film length).
         loop: whether to add the closing N->1 segment.
         output_dir: directory for segment files (also the film save_folder).
-        film_name: name of the final film (without extension, the save_name).
+        frames: one frame count per film (already on the engine's (mod*n+1) grid);
+            film k renders frames[k] frames long.
         seed_bumps: {segment number (1-based): bump count} from InfiniteMovieRender.reseed;
             each bump adds 1000 to that segment's seed, the others keep theirs.
 
@@ -824,7 +823,8 @@ def build_expansion_graph(unique_id: str, preset: str,
     the visible Cut / Even Motion nodes read the segments from the sync pipe.
 
     Returns:
-        The expansion graph dict (same format as GraphBuilder.finalize()).
+        The expansion graph dict (same format as GraphBuilder.finalize()) and
+        renders: True when at least one film is rendered (not reused from disk).
 
     template/cfg (Auftrag 57e): the engine graph extracted from the workflow
     (engine_to_template) and the cfg derived from it. No load_template /
@@ -835,10 +835,7 @@ def build_expansion_graph(unique_id: str, preset: str,
 
     n_images = len(images)
     # --- Per-segment graphs ---
-    # Auftrag 41A: per-scene lengths (n_scenes entries)
-    from .shot_utils import _scene_frames
-    scene_lengths = _scene_frames(scene_seconds or [], cfg["fps"], cfg["length_mod"], length)
-    plan = _segment_plan(n_images, loop, scene_lengths, length)
+    plan = _segment_plan(n_images, loop, frames, length)
     n_segments = len(plan)
     if n_segments < 1:
         raise ValueError("InfiniteMovieRender needs at least 1 image.")
@@ -846,6 +843,7 @@ def build_expansion_graph(unique_id: str, preset: str,
     graph: dict = {}
     save_ids: list[str] = []      # Variant A save nodes (the collector links to these)
     save_ids_b: list[str] = []    # Variant B save nodes (Auftrag 61, only when variants >= 2)
+    renders = False                # True when at least one film is rendered (not reused from disk)
 
     prev_key, prev_save, prev_path = None, None, None   # previous segment (variant A)
     for i, (start_idx, end_idx, seg_length, kind) in enumerate(plan):
@@ -862,10 +860,7 @@ def build_expansion_graph(unique_id: str, preset: str,
                 start_value = _last_frame_tensor(prev_path)
         else:
             start_value = images[start_idx]
-        if kind == "loop":
-            seg_prompt = prompts[-1] if prompts else ""
-        else:  # scene (start_idx == scene index)
-            seg_prompt = prompts[start_idx] if start_idx < len(prompts) else (prompts[-1] if prompts else "")
+        seg_prompt = prompts[i]
         _b = seed_bumps or {}
         seg_seed = seed + i + 1000 * (_b.get(i + 1, 0) + _b.get(f"{i + 1}a", 0))
         # Variant B: as before seg_seed + 500, but only its own bumps ("2b") - "2a" leaves B unchanged
@@ -907,6 +902,7 @@ def build_expansion_graph(unique_id: str, preset: str,
                 width=width, height=height, length=seg_length,
                 model_inputs=model_inputs,
             )
+            renders = True
             # Add the segment to the graph, then fill in the save path / index.
             graph.update(seg_a)
             graph[save_id_a]["inputs"]["path"] = segment_path(output_dir, i)
@@ -932,6 +928,7 @@ def build_expansion_graph(unique_id: str, preset: str,
                     width=width, height=height, length=seg_length,
                     model_inputs=model_inputs,
                 )
+                renders = True
                 graph.update(seg_b)
                 graph[save_id_b]["inputs"]["path"] = segment_path_b(output_dir, i)
                 graph[save_id_b]["inputs"]["index"] = i
@@ -960,4 +957,4 @@ def build_expansion_graph(unique_id: str, preset: str,
     graph[collector_id] = {"class_type": "InfiniteMovieSegmentPaths",
                            "inputs": collector_inputs}
 
-    return graph
+    return graph, renders

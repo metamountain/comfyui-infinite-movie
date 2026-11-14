@@ -26,13 +26,12 @@ import torch
 from comfy_api.latest import io
 
 from . import vram
-from .expansion import build_expansion_graph, segment_path, segment_path_b
+from .expansion import build_expansion_graph, engine_to_template, segment_path, segment_path_b
 from .media import (_count_frames, _encode_dir_to_mp4, _ffmpeg, _no_window, _segment_is_complete, _write_audio_to_wav, _write_frames_to_dir)
-from .shot_utils import (_clean_prompt,
-                           _parse_reseed, _parse_shot_seconds, _scene_frames, _seconds_to_frames,
-                           _snap_length, center_crop_resize)
+from .shot_utils import (_clean_prompt, _parse_reseed, _parse_shot_seconds, _scene_frames, _seconds_to_frames,
+                           center_crop_resize)
 # settings_nodes imports only .vram + lazy .autoprompt - no cycle
-from .settings_nodes import SETTINGS, get_setting, chain_settings, ASPECT_FROM_IMAGES, resolve_ratio
+from .settings_nodes import SETTINGS, get_setting, chain_settings, ASPECT_FROM_IMAGES, film_folder, resolve_ratio
 
 from . import storyboard as _storyboard
 
@@ -42,10 +41,10 @@ SYNC = io.Custom("SYNC")
 
 # ---------------------------------------------------------------------------
 # 88: per-segment timing marks. InfiniteMovieRender stamps the wall-clock start
-# (keyed by its own unique_id) right before building the expansion; each
-# InfiniteMovieSegmentSave measures the time since the previous mark of the same
-# render and appends one line to the timings JSONL (timing.py). Reused segments
-# (PrimitiveString) never run SegmentSave, so they are not logged (intended).
+# (keyed by its own unique_id) after the GPU wait, only when something renders;
+# each InfiniteMovieSegmentSave measures the time since the previous mark of the
+# same render and appends one line to the timings JSONL (timing.py). Reused
+# segments (PrimitiveString) never run SegmentSave, so they are not logged (intended).
 # ---------------------------------------------------------------------------
 
 _SEG_MARK: dict = {}   # render unique_id (str) -> time.time() of last mark
@@ -315,12 +314,10 @@ class InfiniteMovieRender(io.ComfyNode):
             from .director_prompts import parse_indices, write_prompts
             return io.NodeOutput(None, ui={"im_prompts": write_prompts(board, parse_indices(regen), loop, settings)})
 
-        from .expansion import engine_to_template
-        from .settings_nodes import film_folder
         uid = cls.hidden.unique_id
         template, cfg = engine_to_template(getattr(cls.hidden, "dynprompt", None), uid)
         cfg = dict(cfg, audio=bool(get_setting(settings, "audio")))
-        preset = cfg.get("preset", "ltx25_flf2v")
+        preset = cfg["preset"]
         _display_memory(cls, "before")
 
         raw = _storyboard.images_from_batch(images) if images is not None else _storyboard.load_images(board)
@@ -329,34 +326,37 @@ class InfiniteMovieRender(io.ComfyNode):
         width, height = _film_size(settings, cfg, raw[0])
         tensors = [torch.from_numpy(np.ascontiguousarray(center_crop_resize(im, width, height))).unsqueeze(0).float() / 255.0
                    for im in raw[:_storyboard.MAX_IMAGES]]
-        length = _snap_length(_seconds_to_frames(seconds, cfg["fps"], cfg["length_mod"]), cfg["length_mod"])
-        n_films = _storyboard.film_count(len(tensors), loop)
+        # _seconds_to_frames already lands on the engine's (mod*n+1) grid - no extra snap.
+        length = _seconds_to_frames(seconds, cfg["fps"], cfg["length_mod"])
+        n = len(tensors)
+        n_films = _storyboard.film_count(n, loop)
         prompts = [_clean_prompt(p) for p in _storyboard.prompt_list(board, n_films)]
         film_seconds = _parse_shot_seconds(shot_seconds)
         own = _scene_frames(film_seconds, cfg["fps"], cfg["length_mod"], length)
-        frames = [own[k] if k < len(own) else length for k in range(n_films)]
+        # Film k takes the length of its row (storyboard.row_of); the way back of a
+        # single image belongs to that image, so both films share the one row.
+        frames = [own[_storyboard.row_of(n, k)] if _storyboard.row_of(n, k) < len(own) else length for k in range(n_films)]
         variants = 2 if str(variants) == "2" else 1
         name = _resolve_film_name(settings)
-        output_dir = os.path.join(film_folder(settings), "cache_movies", name)
+        folder = film_folder(settings)
+        output_dir = os.path.join(folder, "cache_movies", name)
         os.makedirs(output_dir, exist_ok=True)
         print(f"[InfiniteMovie] {n_films} films, {width}x{height}, {length} frames ({seconds:g} s), "
               f"own lengths {film_seconds or '-'}, variants {variants}, preset {preset}, out {output_dir}")
         for k, p in enumerate(prompts):
             print(f"[InfiniteMovie] film {k + 1} prompt: {p[:80]}")
 
-        _SEG_MARK[str(uid)] = time.time()   # each SegmentSave measures the time since the previous mark
-        _SEG_META[str(uid)] = {"width": width, "height": height, "length": length, "preset": preset, "variants": variants}
-        graph = build_expansion_graph(
+        graph, renders = build_expansion_graph(
             unique_id=uid, preset=preset, images=tensors, prompts=prompts, seed=seed,
-            width=width, height=height, length=length, loop=loop, output_dir=output_dir, film_name=name,
-            seed_bumps=_parse_reseed(reseed), template=template, cfg=cfg,
-            scene_seconds=film_seconds or None, variants=variants)
+            width=width, height=height, length=length, loop=loop, output_dir=output_dir,
+            frames=frames, seed_bumps=_parse_reseed(reseed), template=template, cfg=cfg,
+            variants=variants)
         # GPU only when something renders (all films reused -> no waiting, no unloading)
-        cheap = {"PrimitiveString", "InfiniteMovieSegmentPaths", "InfiniteMovieShotsOut"}
-        if any(v.get("class_type") not in cheap for v in graph.values()):
+        if renders:
             vram.wait_acquire(min_free_mb=get_setting(settings, "min_free_mb"),
                               timeout_s=get_setting(settings, "acquire_timeout_s"))
             _SEG_MARK[str(uid)] = time.time()   # the GPU wait is not part of the first film's time
+            _SEG_META[str(uid)] = {"width": width, "height": height, "length": length, "preset": preset, "variants": variants}
             _send_render_plan(_display_node_id(cls) or uid, n_films, width, height, length, preset)
         else:
             print("[InfiniteMovie] all films reused -> no GPU acquire")
@@ -365,7 +365,7 @@ class InfiniteMovieRender(io.ComfyNode):
         paths = [segment_path(output_dir, k) for k in range(n_films)]
         sync = {
             "segments": paths,
-            "save_folder": film_folder(settings),
+            "save_folder": folder,
             "save_name": name,
             "fps": cfg.get("fps", 24.0),
             "loop": loop,
