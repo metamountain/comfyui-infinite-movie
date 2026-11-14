@@ -12,7 +12,6 @@ from __future__ import annotations
 import hashlib
 import json
 import os
-import re
 import subprocess
 import time
 
@@ -20,37 +19,7 @@ import numpy as np
 
 from comfy_api.latest import io
 
-from .media import _ffmpeg, _input_videos, _no_window
-
-
-
-
-def _probe(path: str) -> dict:
-    """Duration, size, fps from ffmpeg -i (like post_nodes._probe_fps/_probe_size)."""
-    try:
-        err = subprocess.run([_ffmpeg(), "-hide_banner", "-i", path], capture_output=True, text=True,
-                             timeout=30, **_no_window()).stderr
-    except Exception:  # noqa: BLE001
-        return {}
-    out = {}
-    m = re.search(r"Duration: (\d+):(\d+):(\d+(?:\.\d+)?)", err)
-    if m:
-        out["seconds"] = int(m.group(1)) * 3600 + int(m.group(2)) * 60 + float(m.group(3))
-    m = re.search(r"Video:.*?(\d{2,5})x(\d{2,5})", err)
-    if m:
-        out["size"] = f"{m.group(1)}×{m.group(2)}"
-    m = re.search(r"(\d+(?:\.\d+)?) fps", err)
-    if m:
-        out["fps"] = float(m.group(1))
-    return out
-
-
-def _inside(ap: str, base: str) -> bool:
-    """ap inside base (case-insensitive); False on different drives (commonpath raises)."""
-    try:
-        return os.path.commonpath([base, ap]).lower() == base.lower()
-    except ValueError:
-        return False
+from .media import _ffmpeg, _input_videos, _inside, _no_window, probe
 
 
 def film_info(path: str) -> dict:
@@ -62,7 +31,16 @@ def film_info(path: str) -> dict:
     st = os.stat(path)
     info["mb"] = round(st.st_size / 1e6, 1)
     info["saved_at"] = time.strftime("%H:%M:%S", time.localtime(st.st_mtime))
-    info.update(_probe(path))
+    try:
+        p = probe(path)
+        if p["duration"]:
+            info["seconds"] = p["duration"]
+        if p["width"] and p["height"]:
+            info["size"] = f"{p['width']}×{p['height']}"
+        if p["fps"]:
+            info["fps"] = p["fps"]
+    except Exception:  # noqa: BLE001
+        pass
     try:
         import folder_paths
         ap = os.path.abspath(path)

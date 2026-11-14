@@ -21,9 +21,8 @@ from comfy_api.latest import io
 
 from . import vram
 from .chunk_upscale_nodes import (_read_virtual, _resolve_source, output_with_preview, stream_chunks)
-from .media import _count_frames, _probe_size
+from .media import _count_frames, _probe_size, probe
 from .nodes import _send_progress
-from .post_nodes import _probe_fps
 
 KEYFRAME_INTERVAL = 15     # comfy.ldm.wan.model_vsr.RELAY_KEYFRAME_INTERVAL: every 15th frame goes through the model
 RAM_FACTOR = 2.0           # bytes in RAM per decoded float32 value incl. headroom (VAE decodes into one preallocated buffer)
@@ -164,7 +163,7 @@ class InfiniteMovieRelayVSRUpscale(io.ComfyNode):
         n_src = _count_frames(src)
         if n_src <= 0:
             raise ValueError(f"RelayVSR Upscale: keine Frames in {src}")
-        fps = _probe_fps(src)
+        fps = probe(src)["fps"] or 24.0
         sw, sh = _probe_size(src)
         factor = model_factor(model)
         mw, mh, tw, th = output_size(sw, sh, factor, int(longest_side))

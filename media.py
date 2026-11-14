@@ -59,11 +59,34 @@ def _ffmpeg() -> str:
 def _no_window() -> dict:
     """57e: subprocess kwargs so that ffmpeg/ffprobe under Windows opens NO
     console window (CREATE_NO_WINDOW = 0x08000000). Empty on POSIX.
-    Single definition - post_nodes.py and retime_nodes.py import it
-    from here (nodes.py is the base, imported by both)."""
+    Single definition - the *_nodes.py modules import it from here."""
     if os.name == "nt":
         return {"creationflags": 0x08000000}
     return {}
+
+
+def _inside(path: str, root: str) -> bool:
+    """True if path lies inside root (case-insensitive, same drive)."""
+    try:
+        a, r = os.path.realpath(os.path.abspath(path)), os.path.realpath(os.path.abspath(root))
+        return os.path.commonpath([a.lower(), r.lower()]) == r.lower()
+    except ValueError:  # other drive
+        return False
+
+
+def probe(path: str) -> dict:
+    """fps, width, height, duration (s) of the first video stream from ONE
+    `ffmpeg -hide_banner -i` banner read (imageio_ffmpeg ships no ffprobe);
+    0 where a value cannot be read. Raises on ffmpeg failure (callers catch)."""
+    err = subprocess.run([_ffmpeg(), "-hide_banner", "-i", path],
+                         capture_output=True, text=True, timeout=30, **_no_window()).stderr
+    m = re.search(r"Video:.*?(\d{2,5})x(\d{2,5})", err)
+    d = re.search(r"Duration: (\d+):(\d+):([\d.]+)", err)
+    r = re.search(r"Video:.*?([\d.]+) fps", err)
+    return {"width": int(m.group(1)) if m else 0,
+            "height": int(m.group(2)) if m else 0,
+            "duration": (int(d.group(1)) * 3600 + int(d.group(2)) * 60 + float(d.group(3))) if d else 0.0,
+            "fps": float(r.group(1)) if r else 0.0}
 
 
 # ---------------------------------------------------------------------------
@@ -167,18 +190,16 @@ def _encode_dir_to_mp4(frame_dir: str, out_path: str, fps: int, audio_wav: str |
 
 def _video_fps(video_path: str) -> str:
     """Frame rate of the first video stream as an ffmpeg rate string ('24', '16', '24000/1001').
-    Read from the ffmpeg banner (imageio_ffmpeg ships no ffprobe); '24' if it cannot be read."""
+    Read via probe(); '24' if it cannot be read."""
     from fractions import Fraction
     try:
-        err = subprocess.run([_ffmpeg(), "-hide_banner", "-i", video_path],
-                             capture_output=True, text=True, timeout=30, **_no_window()).stderr
-        m = re.search(r"Video:.*?([\d.]+) fps", err)
-        if m:
-            fr = Fraction(m.group(1)).limit_denominator(1001)
-            return str(fr.numerator) if fr.denominator == 1 else f"{fr.numerator}/{fr.denominator}"
+        fps = probe(video_path)["fps"]
     except Exception:  # noqa: BLE001
-        pass
-    return "24"
+        return "24"
+    if fps <= 0:
+        return "24"
+    fr = Fraction(fps).limit_denominator(1001)
+    return str(fr.numerator) if fr.denominator == 1 else f"{fr.numerator}/{fr.denominator}"
 
 
 def _count_frames(video_path: str) -> int:
@@ -310,13 +331,11 @@ def _unique_output_path(folder: str, name: str, ext: str = ".mp4") -> str:
 
 
 def _probe_size(video_path: str) -> tuple[int, int]:
-    """Probe the video size (width, height) via ffprobe (ffmpeg -i stderr)."""
-    ff = _ffmpeg()
-    r = subprocess.run([ff, "-i", video_path], capture_output=True, text=True, **_no_window())
-    m = re.search(r"(\d{2,5})x(\d{2,5})", r.stderr or "")
-    if not m:
+    """Probe the video size (width, height) via probe(); raises if unreadable."""
+    size = probe(video_path)
+    if not size["width"] or not size["height"]:
         raise ValueError(f"could not probe size of {video_path}")
-    return int(m.group(1)), int(m.group(2))
+    return size["width"], size["height"]
 
 
 # ---------------------------------------------------------------------------

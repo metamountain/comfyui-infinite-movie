@@ -23,7 +23,7 @@ import numpy as np
 
 from comfy_api.latest import io
 
-from .media import _count_frames, _ffmpeg, _motion_check, _no_window, _run_ffmpeg_to
+from .media import _count_frames, _ffmpeg, _inside, _motion_check, _no_window, _run_ffmpeg_to
 from .nodes import SYNC
 # Settings come inside sync (2026-11-13); settings_nodes only imports .vram at module level -> no cycle.
 from .settings_nodes import get_setting
@@ -368,15 +368,6 @@ def _short_err(what: str, e: Exception) -> str:
     msg = str(e).strip().splitlines()
     print(f"[InfiniteMovieChooser] {what} failed: {e!r}")
     return f"{what} failed: {(msg[-1] if msg else type(e).__name__)[:120]}"
-
-
-def _inside(path: str, root: str) -> bool:
-    """True if path lies inside root (case-insensitive, same drive)."""
-    try:
-        a, r = os.path.realpath(os.path.abspath(path)), os.path.realpath(os.path.abspath(root))
-        return os.path.commonpath([a.lower(), r.lower()]) == r.lower()
-    except ValueError:  # other drive
-        return False
 
 
 def _video_ref(path: str, choose_dir: str, subfolder: str, name: str) -> dict | None:

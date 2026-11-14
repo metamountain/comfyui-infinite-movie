@@ -78,7 +78,7 @@ def own_reserved_mb() -> int:
         import torch
         if torch.cuda.is_available():
             return int(torch.cuda.memory_reserved() // (1024 * 1024))
-    except Exception:  # noqa: BLE001 – ohne torch/CUDA
+    except Exception:  # noqa: BLE001 - without torch/CUDA
         pass
     return 0
 

@@ -30,9 +30,8 @@ import torch
 from comfy_api.latest import io, ui
 
 from . import vram
-from .media import _count_frames, _ffmpeg, _no_window, _probe_size
+from .media import _count_frames, _ffmpeg, _no_window, _probe_size, probe
 from .nodes import _send_progress
-from .post_nodes import _probe_fps
 from .upscale_universal.upscale_crop_universal import _scale_for, _snap as _snap_mult
 
 DEFAULT_SIGMAS = "0.421875, 0.0"   # refine 1:1; ic-lora: "0.725, 0.421875, 0.0"
@@ -139,7 +138,7 @@ def _read_virtual(src: str, start: int, count: int, w: int, h: int, n_src: int, 
 def _encoder(path: str, w: int, h: int, fps: float, crf: int) -> subprocess.Popen:
     return subprocess.Popen([_ffmpeg(), "-y", "-v", "error", "-f", "rawvideo", "-pix_fmt", "rgb24",
                              "-s", f"{w}x{h}", "-r", f"{fps:g}", "-i", "-", "-c:v", "libx264",
-                             "-crf", str(int(crf)), "-pix_fmt", "yuv420p", "-color_primaries", "bt709",
+                             "-crf", str(crf), "-pix_fmt", "yuv420p", "-color_primaries", "bt709",
                              "-color_trc", "bt709", "-colorspace", "bt709", path],
                             stdin=subprocess.PIPE, **_no_window())
 
@@ -163,7 +162,7 @@ def _upscale_chunk(frames: np.ndarray, model, vae, positive, negative, ldf: floa
             positive=positive, negative=negative, vae=vae, latent=latent, image=pixels, frame_idx=0, strength=1.0,
             latent_downscale_factor=float(ldf), crop="disabled", use_tiled_encode=False, tile_size=256,
             tile_overlap=64, use_streaming=False, tile_frames=0).args
-    else:   # refine 1:1: nur Rauschen drauf und wenige Schritte zurück (kein IC-LoRA-Guide)
+    else:   # refine 1:1: noise only, few steps back (no IC-LoRA guide)
         pos, neg, lat = positive, negative, latent
     guider = CFGGuider.execute(model=model, positive=pos, negative=neg, cfg=1.0).args[0]
     sampler = comfy.samplers.sampler_object("euler")
@@ -403,7 +402,7 @@ class InfiniteMovieLTXRefine(io.ComfyNode):
         n_src = _count_frames(src)
         if n_src <= 0:
             raise ValueError(f"LTX Refine: keine Frames in {src}")
-        fps = _probe_fps(src)
+        fps = probe(src)["fps"] or 24.0
         sw, sh = _probe_size(src)
         tw, th = target_size(sw, sh, target_mode, scale_factor, scale_percent, shortest_side, longest_side,
                              megapixels, multiple_of)

@@ -26,7 +26,6 @@ def _import_node_list(mod: str, attr: str) -> list:
 
 
 # 57a: every import except .nodes is guarded.
-_POST_NODE_LIST = _import_node_list("post_nodes", "POST_NODE_LIST")
 _AUTOPROMPT_NODE_LIST = _import_node_list("autoprompt", "AUTOPROMPT_NODE_LIST")
 # 75: ghost_nodes.py moved to tools/ghost_check.py (nodes unregistered).
 _RETIME_NODE_LIST = _import_node_list("retime_nodes", "RETIME_NODE_LIST")
@@ -103,10 +102,7 @@ _register_upscale_universal_copy()
 
 class InfiniteMovieExtension(ComfyExtension):
     async def get_node_list(self):
-        # 57c2: v1 InfiniteMovieAutoPrompt (post_nodes.py) removed - the active
-        # auto prompt is InfiniteMovieAutoPromptV2 (autoprompt.py, same node_id).
-        # POST_NODE_LIST only contains the (new) upscale.
-        return (NODE_LIST + _POST_NODE_LIST + _AUTOPROMPT_NODE_LIST +
+        return (NODE_LIST + _AUTOPROMPT_NODE_LIST +
                 _RETIME_NODE_LIST + _REVIEW_NODE_LIST + _ENGINE_NODE_LIST +
                 _SETTINGS_NODE_LIST + _CHUNK_UPSCALE_NODE_LIST + _RELAYVSR_NODE_LIST + _LLM_NODE_LIST + _AUDIO_NODE_LIST + _FILM_NODE_LIST +
                 _GIF_NODE_LIST + _LOOP_NODE_LIST)

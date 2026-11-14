@@ -23,7 +23,7 @@ import time
 
 from comfy_api.latest import io, ui
 
-from .post_nodes import _clean_prompt
+from .shot_utils import _clean_prompt
 # Settings: lazy import in the methods (.settings_nodes imports .autoprompt lazily – avoid a cycle).
 
 PARTICLES = ("snow", "rain", "leaves", "petals", "sparks", "dust", "confetti")

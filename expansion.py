@@ -792,7 +792,6 @@ def build_expansion_graph(unique_id: str, preset: str,
                           loop: bool,
                           output_dir: str,
                           film_name: str,
-                          acquire_kwargs: dict | None = None,   # unused - goes with the tests after 127b
                           seed_bumps: dict | None = None,
                           model_inputs: dict | None = None,
                           template: dict | None = None,

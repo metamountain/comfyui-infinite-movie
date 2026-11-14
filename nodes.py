@@ -30,7 +30,7 @@ from .expansion import build_expansion_graph, segment_path, segment_path_b
 from .media import (_count_frames, _encode_dir_to_mp4, _ffmpeg, _no_window, _segment_is_complete, _write_audio_to_wav, _write_frames_to_dir)
 from .shot_utils import (_clean_prompt,
                            _parse_reseed, _parse_shot_seconds, _scene_frames, _seconds_to_frames,
-                           _snap_length, _to_numpy_image, center_crop_resize)  # _to_numpy_image: test_misc (after 127b)
+                           _snap_length, center_crop_resize)
 # settings_nodes imports only .vram + lazy .autoprompt - no cycle
 from .settings_nodes import SETTINGS, get_setting, chain_settings, ASPECT_FROM_IMAGES, resolve_ratio
 

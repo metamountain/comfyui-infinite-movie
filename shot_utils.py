@@ -5,7 +5,6 @@ NOT import .nodes or .media (no cycle); it only needs numpy/torch + stdlib.
 """
 from __future__ import annotations
 
-import json
 import math
 import re
 
@@ -64,43 +63,25 @@ def center_crop_resize(img: np.ndarray, width: int, height: int) -> np.ndarray:
     return np.asarray(pil)
 
 
-def _collect_images(images) -> list[np.ndarray]:
-    """Collect images from the Autogrow inputs (2026-11-04: folder input removed).
-
-    The Autogrow input arrives at execute() as a DICT keyed by slot name
-    (image_0, image_1, ...) - see comfy_api/latest/_io.py build_nested_inputs
-    (line 2095) and the core usage in comfy_api_nodes/nodes_bfl.py:1038
-    (`(images or {}).values()`). A plain list is also accepted (direct calls
-    from the offline test).
-    """
-    if isinstance(images, dict):
-        tensors = [v for v in images.values() if v is not None]
-    else:
-        tensors = [t for t in (images or []) if t is not None]
-    if not tensors:
-        raise ValueError("InfiniteMovieRender: no images provided (connect images)")
-    return [_to_numpy_image(t) for t in tensors]
-
-
 def _clean_prompt(text: str, max_words: int = 350) -> str:
-    """Clean an LLM-generated prompt: remove think blocks, Markdown, and
-    truncate to max_words at a word boundary."""
-    import re
+    """Clean an LLM-generated prompt: remove think blocks, quotes, Markdown,
+    collapse whitespace, and truncate to max_words at a word boundary."""
     # Remove <think>...</think> blocks and stray tags (case-insensitive). 2026-11-13: the old pattern had no angle
     # brackets: "<think>x</think>Prompt" became "<>Prompt", and plain text between a word "think" and a later
     # "/think" was cut out.
-    text = re.sub(r"<think>.*?</think>", "", text, flags=re.DOTALL | re.IGNORECASE)
+    text = re.sub(r"<think>.*?</think>", "", text or "", flags=re.DOTALL | re.IGNORECASE)
     text = re.sub(r"</?think>", "", text, flags=re.IGNORECASE)
-    # Remove Markdown formatting: **bold**, *italic*, # headers, `code`.
+    # Remove quotes and Markdown formatting: **bold**, *italic*, # headers, `code`.
+    text = text.replace('"', "")
     text = re.sub(r"\*\*(.*?)\*\*", r"\1", text)
     text = re.sub(r"\*(.*?)\*", r"\1", text)
     text = re.sub(r"^#{1,6}\s*", "", text, flags=re.MULTILINE)
     text = re.sub(r"`(.*?)`", r"\1", text)
-    # Truncate to max_words at a word boundary.
+    # Collapse whitespace, truncate to max_words at a word boundary.
     words = text.split()
     if len(words) > max_words:
-        text = " ".join(words[:max_words])
-    return text.strip()
+        words = words[:max_words]
+    return " ".join(words).strip()
 
 
 def _parse_reseed(text: str) -> dict:

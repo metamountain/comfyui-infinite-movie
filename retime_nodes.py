@@ -23,7 +23,7 @@ from comfy_api.latest import io
 from . import vram
 # 75: _input_videos moved from ghost_nodes.py to nodes.py
 from .nodes import SYNC
-from .media import _input_videos, _probe_size
+from .media import _count_frames, _input_videos, _probe_size, probe
 from .nodes import _send_progress
 from .media import _ffmpeg, _has_audio_stream, _no_window, _run_ffmpeg_to, _video_fps
 # 57d: SETTINGS pipe + get_setting (no cycle: settings_nodes -> .vram + lazy .autoprompt).
@@ -34,13 +34,10 @@ _W, _H = 96, 120   # analysis size
 
 def _read_rgb(path: str) -> tuple[np.ndarray, int, int]:
     """All frames of ONE segment as uint8 [N,H,W,3] (a segment is short; a whole film is not loaded)."""
-    out = subprocess.run([_ffmpeg(), "-hide_banner", "-i", path], capture_output=True, text=True,
-                         **_no_window()).stderr
-    import re
-    m = re.search(r"Video:.*?(\d{2,5})x(\d{2,5})", out)
-    if not m:
+    p = probe(path)
+    w, h = p["width"], p["height"]
+    if not w or not h:
         raise ValueError(f"Normalize Time: cannot read {path}")
-    w, h = int(m.group(1)), int(m.group(2))
     raw = subprocess.run([_ffmpeg(), "-v", "error", "-i", path, "-f", "rawvideo", "-pix_fmt", "rgb24", "-"],
                          capture_output=True, **_no_window()).stdout
     return np.frombuffer(raw, np.uint8).reshape(-1, h, w, 3), w, h
@@ -227,6 +224,53 @@ def rife_passes(interpolate: str, stretch: float, retime: bool) -> int:
     return 2 if stretch > 1.001 else 1
 
 
+def _rife_x2(src: str, dst: str, fps: float, chunk: int = 96) -> None:
+    """RIFE x2 via the installed 'RIFE VFI' node (comfyui-frame-interpolation),
+    in chunks (RAM), chunks overlap by one frame so no transition is lost."""
+    import nodes as comfy_nodes
+    from PIL import Image
+
+    rife_cls = comfy_nodes.NODE_CLASS_MAPPINGS.get("RIFE VFI")
+    if rife_cls is None:
+        raise ValueError("InfiniteMovieAssemble: 'RIFE VFI' node not installed (comfyui-frame-interpolation)")
+    w, h = _probe_size(src)
+    n = _count_frames(src)
+    with tempfile.TemporaryDirectory(prefix="infinite_movie_finish_") as tmp:
+        raw = subprocess.Popen([_ffmpeg(), "-v", "error", "-i", src, "-f", "rawvideo", "-pix_fmt", "rgb24", "-"],
+                               stdout=subprocess.PIPE, **_no_window())
+        frame_bytes = w * h * 3
+        out_idx = 0
+        prev_last = None
+        done = 0
+        while done < n:
+            buf = []
+            if prev_last is not None:
+                buf.append(prev_last)
+            while len(buf) < chunk + (1 if prev_last is not None else 0):
+                b = raw.stdout.read(frame_bytes)
+                if len(b) < frame_bytes:
+                    break
+                buf.append(np.frombuffer(b, np.uint8).reshape(h, w, 3))
+                done += 1
+            if len(buf) < 2:
+                break
+            t = torch.from_numpy(np.stack(buf)).float() / 255.0
+            res = rife_cls().vfi("rife49.pth", t, multiplier=2, fast_mode=True, ensemble=True)[0]
+            frames = res if prev_last is None else res[1:]  # first frame = previous chunk's last
+            for f in frames:
+                Image.fromarray((f.clamp(0, 1).numpy() * 255).astype(np.uint8)).save(
+                    os.path.join(tmp, f"{out_idx:06d}.png"), compress_level=1)
+                out_idx += 1
+            prev_last = buf[-1]
+            if done >= n:
+                break
+        raw.stdout.close()
+        raw.wait()
+        subprocess.run([_ffmpeg(), "-y", "-v", "error", "-framerate", f"{fps * 2:g}",
+                        "-i", os.path.join(tmp, "%06d.png"), "-c:v", "libx264", "-crf", "12",
+                        "-pix_fmt", "yuv420p", dst], check=True, **_no_window())
+
+
 class InfiniteMovieAssemble(io.ComfyNode):
     @classmethod
     def define_schema(cls):
@@ -358,7 +402,6 @@ class InfiniteMovieAssemble(io.ComfyNode):
         fps_in = fps_f
         if passes:
             # RIFE x2 (twice for x4) per segment; picking then happens on the dense frames
-            from .post_nodes import _rife_x2
             times = passes
             vram.wait_acquire(min_free_mb=8000, timeout_s=3600)
             try:

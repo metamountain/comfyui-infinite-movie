@@ -19,14 +19,13 @@ import glob
 import hashlib
 import json
 import os
-import re
 import shutil
 import subprocess
 import time
 
 from comfy_api.latest import io
 
-from .media import _ffmpeg, _input_videos, _no_window
+from .media import _ffmpeg, _input_videos, _inside, _no_window, probe
 
 FORMATS = ["GIF", "WebP (animated, smaller)"]
 CROPS = {"none": None, "1:1": (1, 1), "4:5": (4, 5), "9:16": (9, 16), "16:9": (16, 9)}
@@ -199,14 +198,6 @@ def comfy_dirs() -> list:
         return []
 
 
-def _inside(path: str, root: str) -> bool:
-    try:
-        a, r = os.path.realpath(os.path.abspath(path)), os.path.realpath(os.path.abspath(root))
-        return os.path.commonpath([a.lower(), r.lower()]) == r.lower()
-    except ValueError:  # other drive
-        return False
-
-
 def allowed_source(path: str, dirs=None, extra=()) -> bool:
     """True only for existing files inside the ComfyUI folders or registered last-run sources."""
     if not path or not os.path.isfile(path):
@@ -215,18 +206,6 @@ def allowed_source(path: str, dirs=None, extra=()) -> bool:
     if any(real == os.path.realpath(os.path.abspath(e)).lower() for e in extra):
         return True
     return any(_inside(path, d) for d in (comfy_dirs() if dirs is None else dirs))
-
-
-def _probe(ff: str, path: str) -> dict:
-    """Width, height, duration (s), fps from the ffmpeg output; missing values 0."""
-    err = subprocess.run([ff, "-hide_banner", "-i", path], capture_output=True, text=True, timeout=30,
-                         **_no_window()).stderr
-    m = re.search(r"Video:.*?(\d{2,5})x(\d{2,5})", err)
-    d = re.search(r"Duration: (\d+):(\d+):([\d.]+)", err)
-    r = re.search(r"Video:.*?([\d.]+) fps", err)
-    return {"w": int(m.group(1)) if m else 0, "h": int(m.group(2)) if m else 0,
-            "dur": (int(d.group(1)) * 3600 + int(d.group(2)) * 60 + float(d.group(3))) if d else 0.0,
-            "fps": float(r.group(1)) if r else 0.0}
 
 
 def anim_info(path: str, fps: float = 0.0) -> dict:
@@ -387,7 +366,7 @@ def loader_fps(prompt, uid: str) -> float:
         if v and not os.path.isfile(v):
             import folder_paths
             v = folder_paths.get_annotated_filepath(v)
-        fps = _probe(_ffmpeg(), v)["fps"] if v and os.path.isfile(v) else 0.0
+        fps = probe(v)["fps"] if v and os.path.isfile(v) else 0.0
         return fps / nth if fps else 0.0
     except Exception:  # noqa: BLE001 – unknown loader layout -> fall back to 24
         return 0.0
@@ -488,7 +467,7 @@ class InfiniteMovieGif(io.ComfyNode):
             _LAST_SOURCE[uid] = os.path.abspath(src)
         p = gif_params(format=format, long_side=long_side, crop=crop, speed=speed, fps=fps, start=start, end=end,
                        direction=direction, colors=colors, dither=dither, palette=palette,
-                       quality=quality, src_fps=_probe(_ffmpeg(), src)["fps"])
+                       quality=quality, src_fps=probe(src)["fps"])
         full = os.path.join(_tmp_dir(), f"run_{uid or 'x'}{_ext(p)}")
         info, note = render_fit(src, full, p, max_mb)
         text = describe(info, note)
@@ -545,7 +524,7 @@ def gif_preview(body: dict) -> dict:
     src = preview_source(body)
     if not src:
         return {"ok": False, "message": NO_SOURCE}
-    srcinfo = _probe(_ffmpeg(), src)
+    srcinfo = probe(src)
     p = _request_params(body, src, srcinfo)
     full = dict(p)
     p["long_side"] = min(p["long_side"] or PREVIEW_LONG, PREVIEW_LONG)
@@ -560,7 +539,7 @@ def gif_preview(body: dict) -> dict:
         prune_previews(tmp)
     # Estimate of the full size: area x frame rate x duration compared to the preview
     est = None
-    dur_src = srcinfo.get("dur") or 0.0
+    dur_src = srcinfo.get("duration") or 0.0
     end = min(full["end"], dur_src) if (full["end"] and dur_src) else (full["end"] or dur_src)
     span = max(end - full["start"], 0.0)
     speed, boom = full["speed"], 2 if full["direction"] == "boomerang" else 1
@@ -571,9 +550,9 @@ def gif_preview(body: dict) -> dict:
     rate = out_fps(full)
     f_full = rate or min(full["fps"] or 24.0, fps_cap(full) or 999)
     dur_full = span / speed * boom
-    if info.get("w") and info.get("h") and srcinfo.get("w") and span and info.get("frames"):
+    if info.get("w") and info.get("h") and srcinfo.get("width") and span and info.get("frames"):
         # size ≈ preview bytes per frame × area ratio × frames of the full version
-        L = full["long_side"] or max(srcinfo["w"], srcinfo["h"])
+        L = full["long_side"] or max(srcinfo["width"], srcinfo["height"])
         scale = L / max(info["w"], info["h"])
         est = int(info["bytes"] / info["frames"] * scale * scale * dur_full * f_full)
     rel = os.path.relpath(out, folder_paths.get_temp_directory())
@@ -604,7 +583,7 @@ def gif_save(body: dict, local: bool) -> dict:
     src = preview_source(body)
     if not src:
         return {"ok": False, "message": NO_SOURCE}
-    p = _request_params(body, src, _probe(_ffmpeg(), src))
+    p = _request_params(body, src, probe(src))
     ext = _ext(p)
     name = str(body.get("save_as") or "").strip().strip('"')
     try:
