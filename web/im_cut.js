@@ -1,6 +1,6 @@
 import { app } from "../../scripts/app.js";
 import { api } from "../../scripts/api.js";
-import { FC_REVIEW_LINE_COLORS, IMG, fcQueueFixedSeeds, fcReviewToast, fcShotSecondsOf } from "./im_common.js";
+import { FC_REVIEW_LINE_COLORS, fcQueueFixedSeeds, fcReviewToast, fcShotSecondsOf, imShotImageCount } from "./im_common.js";
 import { fcChooseDirectorOf, fcChooseEditPrompt, fcChooseEditSeconds, fcRerenderMarked } from "./im_cut_edit.js";
 import { FC_CHOOSE_BIG_H, FC_CHOOSE_BTNROW_H, FC_CHOOSE_GAP, FC_CHOOSE_HEAD_H, FC_CHOOSE_SEAM_H, FC_CHOOSE_STATUS_H, FC_CHOOSE_STAT_H, fcAsmFocus, fcChooseApplyActive, fcChooseEff, fcChooseEffective, fcChooseEntries, fcChooseFocus, fcChooseGetChoices, fcChooseLayout, fcChoosePick, fcChoosePlay, fcChooseQuality, fcChooseSig, fcChooseStableUrl, fcChooseStatus, fcChooseUpdateSheet, fcChooseWidth, fcRun } from "./im_cut_state.js";
 import { fcDownstreamOutputs } from "./im_film.js";
@@ -475,7 +475,7 @@ app.registerExtension({
       const val = (n) => node.widgets?.find((w) => w.name === n)?.value;
       const seconds = Number(val("seconds")) || 2.0;
       const loop = !!val("loop");
-      const nImg = (node.inputs || []).filter((i) => i.name?.startsWith(IMG) && i.link != null).length;
+      const nImg = imShotImageCount(node);
       const nShots = nImg < 1 ? 0 : nImg === 1 ? (loop ? 2 : 1) : (loop ? nImg : nImg - 1);   // 1 image: open shot (+ return shot)
       if (nShots < 1) { estWidget.value = "Film: needs at least 1 image"; node.setDirtyCanvas?.(true, true); return; }
       const per = String(val("shot_seconds") || "").split(",").map((x) => parseFloat(x) || 0);
@@ -486,7 +486,7 @@ app.registerExtension({
       node.setDirtyCanvas?.(true, true);
     };
 
-    for (const wn of ["seconds", "loop", "shot_seconds"]) {
+    for (const wn of ["seconds", "loop", "shot_seconds", "shots"]) {
       const w = node.widgets?.find((x) => x.name === wn);
       if (!w) continue;
       const origCb = w.callback;

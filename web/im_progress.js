@@ -1,6 +1,6 @@
 import { app } from "../../scripts/app.js";
 import { api } from "../../scripts/api.js";
-import { IMG } from "./im_common.js";
+import { imShotImageCount } from "./im_common.js";
 import { imvFixWidth } from "./im_viewer.js";
 // Render progress on the film chain render node (user 2026-10-26: "Film x Frame ... time estimate until end").
 // Reads the events of the expanded segment nodes (IDs "<render>_s<i>_...", display_node = render node):
@@ -17,7 +17,7 @@ function chainInfo(node) {
   // 2026-11-10: plan from the server (infinite_movie.render_plan: real shot count, frames on the engine grid)
   const plan = node._fcProg?.plan;
   if (plan) return { segs: plan.segments, frames: plan.frames };
-  const imgs = (node.inputs || []).filter((i) => i.name?.startsWith(IMG) && i.link != null).length;
+  const imgs = imShotImageCount(node);
   const get = (n) => node.widgets?.find((w) => w.name === n)?.value;
   const segs = imgs === 1 ? (get("loop") ? 2 : 1) : get("loop") ? imgs : Math.max(imgs - 1, 0);
   const frames = Math.round(Number(get("seconds") || 1) * 24) + 1;

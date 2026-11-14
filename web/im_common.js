@@ -26,46 +26,11 @@ import { imToggleWidget } from "./im_settings.js";
   }, { passive: true });
 }
 
-export const IMG = "images.image";
-export const PR = "shot_prompts.prompt";
 // 74: GPU pre-check – min_free_mb is a constant (Python: MIN_FREE_MB), GPU handover fixed.
 const MIN_FREE_MB = 20000;
 
-export function slotKey(name) {
-  if (name?.startsWith(IMG)) return [parseInt(name.slice(IMG.length), 10), 0];
-  if (name?.startsWith(PR)) return [parseInt(name.slice(PR.length), 10), 1];
-  return null;
-}
-
-// Muted/bypassed LoadImage nodes do not count towards the chain (user 2026-11-04: "only 1 of 7 images
-// used"): Ctrl+M on an image removes it from the film, its Auto Prompts get muted along with it and
-// keep their text; un-muting restores everything.
+// Node active = not muted/bypassed.
 export const fcActive = (n) => (n?.mode ?? 0) === 0;
-
-// 2026-11-08 (user: „input images not working if wired via preview image or upscale universal“): the image source of the
-// chain is EVERY node connected via an IMAGE output (Load Image, Upscale Crop Universal,
-// Assemble › last_frame …), not just LoadImage. Order by the root of the image chain (first node without
-// IMAGE input, usually the Load Image) – this keeps the old order "Load Image id ascending".
-export const fcImgLink = (g, l) => !!l && (l.type === "IMAGE"
-  || g.getNodeById(l.origin_id)?.outputs?.[l.origin_slot]?.type === "IMAGE");
-export function fcImgRoot(g, n, depth = 0) {
-  const inp = (n?.inputs || []).find((i) => i.type === "IMAGE" && i.link != null);
-  if (!inp || depth > 20) return n;
-  const l = getLink(g, inp.link);
-  const o = l && g.getNodeById(l.origin_id);
-  return o ? fcImgRoot(g, o, depth + 1) : n;
-}
-// 2026-11-11 (user: "insert an image later / swap images"): sort key = root.properties.im_order (saved with the
-// workflow), fallback the root id. ▲▼ swap two keys, ➕ insert gives the new image a key between its neighbours.
-export function fcOrderKey(g, n) {
-  const r = fcImgRoot(g, n);
-  const k = r?.properties?.im_order;
-  // node ids are strings in the current frontend ("70") – always compare numbers
-  return k != null && Number.isFinite(Number(k)) ? Number(k) : Number(r.id);
-}
-export const fcImgOrder = (g) => (a, b) => (fcOrderKey(g, a) - fcOrderKey(g, b)) || (a.id - b.id);
-// Image source active = itself and the root of its image chain not muted/bypassed
-export const fcImgActive = (g, n) => fcActive(n) && fcActive(fcImgRoot(g, n));
 
 export function getLink(graph, id) {
   const links = graph?.links;
@@ -96,24 +61,12 @@ export function fcShotSecondsOf(director, shotNumber) {
   return entry > 0 ? entry : global;
 }
 
-export function interleave(node) {
-  const slots = (node.inputs || []).filter((inp) => slotKey(inp.name));
-  // last wired image loops back to image 1 when "loop" is on
-  const nImg = slots.filter((inp) => slotKey(inp.name)[1] === 0 && inp.link != null).length;
-  const loop = node.widgets?.find((w) => w.name === "loop")?.value;
-  // 82: per-shot seconds from the 'shot_seconds' widget (instead of scene_seconds.*)
-  const shotSecs = fcParseShotSeconds(node.widgets?.find((w) => w.name === "shot_seconds")?.value);
-  for (const inp of slots) {
-    const [i, kind] = slotKey(inp.name);
-    const to = loop && nImg > 1 && i + 1 >= nImg ? 1 : i + 2;
-    let label = kind === 0 ? `image ${i + 1}` : `prompt ${i + 1} → ${to}`;
-    // Append per-shot seconds if set
-    if (kind === 1 && shotSecs[i] > 0) {
-      label += ` (${shotSecs[i].toFixed(1)}s)`;
-    }
-    inp.label = label;
-  }
-  node.setDirtyCanvas?.(true, true);
+// 124c: number of film images - storyboard entries with an image, or (images batch linked) at least 2.
+export function imShotImageCount(director) {
+  let shots = [];
+  try { shots = JSON.parse(director?.widgets?.find((w) => w.name === "shots")?.value || "[]"); } catch { shots = []; }
+  const batch = (director?.inputs || []).some((i) => i.name === "images" && i.link != null);
+  return batch ? Math.max(2, shots.length) : shots.filter((x) => x?.image).length;
 }
 
 // Auto Prompt · Regenerate (2026-11-03): the prompt is created IN ComfyUI with the local model from

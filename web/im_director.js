@@ -1,13 +1,11 @@
 import { app } from "../../scripts/app.js";
-import { IMG, fcActive, fcReviewToast, getLink, interleave } from "./im_common.js";
-import { addImageCounter, addImageLayers } from "./im_images.js";
-import { _fcSetupWidgetHooks, addPromptForNewImage, layoutPrompts, pruneStaleInputs, reconcileChain, removeStaleModeAPs, slotIndex } from "./im_prompts.js";
+import { fcActive, fcReviewToast, getLink } from "./im_common.js";
 import { imToggleWidget } from "./im_settings.js";
+import { addShotsBoard, render as renderShots } from "./im_shots.js";
+const slotIndex = (node, name) => (node.inputs || []).findIndex((i) => i.name === name);
 function addLayoutButton(node) {
   if (node.widgets?.find((w) => w.name === "🔗 AUTO LAYOUT")) return;
   const w = node.addWidget("button", "🔗 AUTO LAYOUT", null, () => {
-    // (a) check the prompt chain
-    reconcileChain(node);
     // (b) sync: Director → Cut → Even Motion, each only if the input is free (116, 2026-11-13).
     // By TYPE: the output name is the display name ("sync ▶ Cut"), not "sync".
     const assemble = node.graph?._nodes?.find((n) => n.comfyClass === "InfiniteMovieAssemble");
@@ -52,7 +50,6 @@ function addLayoutButton(node) {
     // (e) layout of the whole workflow WITHOUT the engine (user 2026-11-03: „exclude the engine, but the rest“),
     // web/infinite_movie_layout.js; fallback the old prompt arrangement. layoutEngines is no longer called.
     if (window.fcWorkflowLayout) window.fcWorkflowLayout(node);
-    else layoutPrompts(node);
     node.setDirtyCanvas?.(true, true);
   });
   // 2026-11-11 (user: "auto layout button really big? 3 rows? it is important"): the core button widget draws with
@@ -173,6 +170,12 @@ export function wireSettingsChain(director) {
   return true;
 }
 
+// 124c: shots (JSON) and shot_seconds are edited in the storyboard - hidden as widgets.
+function hideDataWidgets(node) {
+  for (const k of ["shots", "shot_seconds"]) imToggleWidget(node.widgets?.find((w) => w.name === k), false);
+  node.setSize([node.size[0], node.computeSize()[1]]);
+}
+
 app.registerExtension({
   name: "InfiniteMovie.InterleavedPrompts",
   async beforeRegisterNodeDef(nodeType, nodeData) {
@@ -193,15 +196,10 @@ app.registerExtension({
       }
       setTimeout(() => {
         try {
-          pruneStaleInputs(this);
-          reconcileChain(this);
-          interleave(this);
-          _fcSetupWidgetHooks(this);
           addLayoutButton(this);
-          addImageCounter(this);
-          addImageLayers(this);
-          // 82: shot_seconds is edited in Choose (⏱) – hidden in the node.
-          imToggleWidget(this.widgets?.find((w) => w.name === "shot_seconds"), false);
+          addShotsBoard(this);
+          renderShots(this);
+          hideDataWidgets(this);
           this.setSize([this.size[0], this.computeSize()[1]]);
           this._fcReady = true;
         } catch (e) { console.error("[InfiniteMovie] onConfigure error:", e); }
@@ -209,66 +207,11 @@ app.registerExtension({
       return r;
     };
   },
-  setup() {
-    // Mute/bypass of a LoadImage (Ctrl+M/B sets node.mode directly, no event) -> reconcile.
-    let fcModeSig = "";
-    setInterval(() => {
-      const gr = app.graph;
-      if (!gr?._nodes) return;
-      const sig = gr._nodes.filter((n) => (n.outputs || []).some((o) => o.type === "IMAGE"))
-        .map((n) => n.id + ":" + (n.mode ?? 0)).join(",");
-      if (sig === fcModeSig) return;
-      const first = fcModeSig === "";
-      fcModeSig = sig;
-      if (first) return;                      // on load, onConfigure does the reconcile
-      for (const n of gr._nodes) {
-        if (n.comfyClass === "InfiniteMovieRender" && n._fcReady) {
-          reconcileChain(n);
-          removeStaleModeAPs(n);
-          gr.setDirtyCanvas?.(true, true);
-        }
-      }
-    }, 400);
-    // Parity after manual deletion (user 2026-10-28: "when I delete them manually, they
-    // get replaced automatically"): removed AutoPrompt/LoadImage nodes trigger the reconcile.
-    const g = app.graph;
-    if (g && !g._fcRemovedWrapped) {
-      g._fcRemovedWrapped = true;
-      const orig = g.onNodeRemoved;
-      g.onNodeRemoved = function (node, ...rest) {
-        const r = orig?.apply(this, [node, ...rest]);
-        if (node && (node.comfyClass === "InfiniteMovieAutoPrompt" || (node.outputs || []).some((o) => o.type === "IMAGE"))) {
-          for (const n of this._nodes || []) {
-            if (n.comfyClass === "InfiniteMovieRender") {
-              clearTimeout(n._fcRecT);
-              n._fcRecT = setTimeout(() => reconcileChain(n), 120);
-            }
-          }
-        }
-        return r;
-      };
-    }
-  },
   nodeCreated(node) {
     if (node.comfyClass !== "InfiniteMovieRender") return;
     addLayoutButton(node);
-    addImageCounter(node);
-    addImageLayers(node);
-    // 82: shot_seconds is edited in Choose (⏱) – hidden in the node.
-    setTimeout(() => {
-      imToggleWidget(node.widgets?.find((w) => w.name === "shot_seconds"), false);
-      node.setSize([node.size[0], node.computeSize()[1]]);
-    }, 0);
-    const onConn = node.onConnectionsChange;
-    node.onConnectionsChange = function (type, slot, connected, ...rest) {
-      const r = onConn?.apply(this, [type, slot, connected, ...rest]);
-      const name = this.inputs?.[slot]?.name;
-      if (this._fcReady && connected && type === (globalThis.LiteGraph?.INPUT ?? 1) && name?.startsWith(IMG)) {
-        setTimeout(() => addPromptForNewImage(this, name), 0);
-      }
-      setTimeout(() => interleave(this), 0);
-      return r;
-    };
+    addShotsBoard(node);
+    setTimeout(() => hideDataWidgets(node), 0);
   },
 });
 
