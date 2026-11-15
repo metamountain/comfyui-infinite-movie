@@ -9,7 +9,7 @@ import { app } from "../../scripts/app.js";
 import { api } from "../../scripts/api.js";
 import { fcQueueFixedSeeds, fcReviewToast, imWidget, settingsNodeOf } from "./im_common.js";
 import {
-  MAX_IMAGES, boardGeometry, boxHeight, emptyRow, hasFilm, isCut, isStale, moveRow, nextOf, pairOf, samePair,
+  MAX_IMAGES, boardGeometry, emptyRow, hasFilm, isCut, isStale, moveRow, nextOf, pairOf, samePair,
 } from "./im_storyboard_model.js";
 import {
   boardFormat, defaultSeconds, imageUrl, isLoop, readRows, uploadImage, writeRows,
@@ -50,8 +50,6 @@ const CSS = `
 .imsb-p .sec input { width:46px; background:#1b1b1b; color:#ddd; border:1px solid #444; border-radius:3px; font:13px system-ui; padding:2px 3px; }
 .imsb-p .sec input.own { color:#e6c229; font-weight:700; border-color:#e6c229; }
 .imsb-p textarea { flex:1; resize:none; background:#1b1b1b; color:#ddd; border:1px solid #444; border-radius:3px; font:12px system-ui; padding:4px; }
-.imsb-p .hd { cursor:ns-resize; }
-.imsb-p.lift { box-shadow:0 0 0 2px #000, 0 6px 16px #000a; z-index:4; }
 .imsb-p .hd input { cursor:auto; }
 .imsb-p .ct { cursor:pointer; padding:1px 5px; border-radius:3px; color:#aaa; font:700 15px system-ui; }
 .imsb-p .ct.busy { cursor:progress; color:#666; }
@@ -197,39 +195,6 @@ function remove(node, i) {
   commit(node, rows.length ? rows : [emptyRow()]);
 }
 
-// Prompt header drag (user 2026-11-15: "add drag again"): the box snaps live to one of its two slots - next to its
-// image (cut, film ends open) or between its image and the next (transition) - and stays where it is dropped. The box
-// above shortens live, as it will after the drop.
-function dragPrompt(node, e, i, box) {
-  const st = node._imsb, bd = st.board, { row, ih } = st.size, y0 = e.clientY, top0 = parseFloat(box.style.top);
-  const lo = st.size.cells.img[i], hi = lo + row / 2;
-  const prev = !readRows(node)[i - 1]?.cut ? st.boxes?.[i - 1] : null;   // a transition box right above
-  const scale = () => (bd.getBoundingClientRect().height / bd.offsetHeight) || 1;
-  // Down past the middle to the next image = cut as well (user 2026-11-15): the box shows next to image i+1 with the
-  // line above it while dragging; dropped, it sits next to its own image (same cut, the line stays put).
-  const below = i + 1 < (st.size.cells.img.length || 0);
-  let cut = top0 < lo + row / 4;
-  box.classList.add("lift");
-  const onMove = (ev) => {
-    const y = top0 + (ev.clientY - y0) / scale(), down = below && y > hi + row / 4;
-    cut = y < lo + row / 4 || down;
-    box.style.top = `${down ? lo + row : cut ? lo : hi}px`;
-    box.classList.toggle("cut", cut);
-    if (prev) { prev.style.height = `${boxHeight(row, ih, cut)}px`; prev.classList.toggle("short", cut); }
-  };
-  const end = () => {
-    window.removeEventListener("pointermove", onMove, true);
-    window.removeEventListener("pointerup", end, true);
-    window.removeEventListener("pointercancel", end, true);
-    box.classList.remove("lift");
-    setCut(node, i, cut);
-    render(node);
-  };
-  window.addEventListener("pointermove", onMove, true);
-  window.addEventListener("pointerup", end, true);
-  window.addEventListener("pointercancel", end, true);
-}
-
 // One wording for every cut toggle (prompt header and hover strip): what a click does now.
 const cutTitle = (on, film, next) => (on
   ? `Remove cut: film ${film} goes to image ${next} again`
@@ -349,8 +314,6 @@ function promptEl(node, rows, i, loop) {
   const st = node._imsb, r = rows[i], n = rows.length, j = nextOf(n, i, loop), { iw, ih, row, pw } = st.size;
   const cut = isCut(rows, i, loop);
   const box = el("div", "imsb-p" + (j === 0 && n > 1 && !cut ? " loop" : "") + (isStale(rows, i, loop) ? " stale" : "") + (cut ? " cut" : ""));
-  const short = st.size.cells.short[i];   // the cut box below sits next to its image: this one ends where it starts
-  if (short) box.classList.add("short");
   box.style.cssText = `left:${iw + GAP}px;top:${st.size.cells.box[i]}px;height:${st.size.heights[i]}px;width:${pw}px`;
   const hd = el("div", "hd");
   const badge = () => (r.own ? ["own", "✎ manual"] : r.prompt.trim() ? ["llm", "LLM"] : ["none", ""]);   // no prompt: no badge
@@ -373,12 +336,6 @@ function promptEl(node, rows, i, loop) {
     ct.onpointerdown = (e) => e.stopPropagation();
     ct.onclick = (e) => { e.stopPropagation(); setCut(node, i, !cut); };
     hd.insertBefore(ct, sec);
-    hd.title = "Drag: up next to the image (or down to the next image) = cut (film ends open) · between the images = transition";
-    hd.onpointerdown = (e) => {
-      if (e.button !== 0 || e.target.closest("input, .ct, .lamp")) return;
-      e.stopPropagation();
-      dragPrompt(node, e, i, box);
-    };
   }
   const busy = !!st.busy?.has(i);
   const ta = Object.assign(el("textarea"), { value: r.prompt, disabled: busy,

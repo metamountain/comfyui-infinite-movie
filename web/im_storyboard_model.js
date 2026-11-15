@@ -18,36 +18,33 @@ export const filmCount = (n, loop) => (n < 1 ? 0 : n === 1 ? (loop ? 2 : 1) : lo
 // A cut film can only exist with more than one image (a single image is open anyway).
 export const isCut = (rows, i, loop) => rows.length > 1 && hasFilm(rows.length, i, loop) && !!rows[i].cut;
 
-// Cell layout: the images stay one stack (user 2026-11-15). A prompt box sits between its image and the next
-// (img[i] + row/2); the box of a cut film sits next to its own image (img[i]) and the transition box above it ends
-// where it starts (short[i]: half height). A cut is only drawn: a thin black line in the gap below its image
-// (cut[i] = y of the gap's middle) - no storyboard row of its own, film numbers / seconds / seeds never shift.
-// Cut mirrors box[], short[] and cut[].
+// Cell layout (user 2026-11-15): every prompt is one film = one Cut row, every box sits between its image and the
+// next (img[i] + row/2) with the same height. A cut opens half a row: the images after it move down by row/2, so the
+// cut film's box ends above the black line (cut[i] = y of the gap's middle) and the next image starts below it - no
+// storyboard row of its own, film numbers / seconds / seeds never shift. Cut mirrors box[] and cut[].
 export function cellTops(rows, loop, row, gapPx = 10) {
-  const n = rows.length, img = [], box = [], cut = [], short = [];
+  const n = rows.length, img = [], box = [], cut = [];
+  let y = 0;
   for (let i = 0; i < n; i++) {
     const c = isCut(rows, i, loop);
-    img.push(i * row);
-    box.push(hasFilm(n, i, loop) ? img[i] + (c ? 0 : row / 2) : null);
-    cut.push(c ? img[i] + row - gapPx / 2 : null);
-    short.push(hasFilm(n, i, loop) && !c && i + 1 < n && isCut(rows, i + 1, loop));
+    img.push(y);
+    box.push(hasFilm(n, i, loop) ? y + row / 2 : null);
+    y += c ? row * 1.5 : row;
+    cut.push(c ? y - gapPx / 2 : null);
   }
-  return { img, box, cut, short, end: n * row };
+  return { img, box, cut, end: y };
 }
 
 // One height system for the Director and Cut (user 2026-11-15): the tile = the film format contain-fitted into the
-// Load Image box, row = tile + gap, every prompt box / Cut row at tops[i] with heights[i] (half a row above a cut).
+// Load Image box, row = tile + gap, every prompt box / Cut row at tops[i], one height ih.
 export const TILE_W = 283, TILE_H = 205, ROW_GAP = 10;
-// Flat formats get taller tiles: half a row must hold a prompt box (header + 2 text lines) above a cut.
-export const MIN_TILE_H = 160;
 export function boardGeometry(fmt, rows, loop) {
-  const k = Math.max(Math.min(TILE_W / fmt.w, TILE_H / fmt.h), MIN_TILE_H / fmt.h);
+  const k = Math.min(TILE_W / fmt.w, TILE_H / fmt.h);
   const iw = Math.round(fmt.w * k), ih = Math.round(fmt.h * k), row = ih + ROW_GAP;
   const cells = cellTops(rows, loop, row, ROW_GAP);
-  const heights = cells.box.map((t, i) => (t == null ? null : boxHeight(row, ih, cells.short[i])));
+  const heights = cells.box.map((t) => (t == null ? null : ih));
   return { iw, ih, row, cells, tops: cells.box, heights };
 }
-export const boxHeight = (row, ih, short) => (short ? row / 2 - ROW_GAP : ih);
 
 export function pairOf(rows, i, loop) {
   const j = nextOf(rows.length, i, loop);

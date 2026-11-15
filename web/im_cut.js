@@ -59,7 +59,7 @@ export function fcChooseRender(node) {
     const sb = imParseStoryboard(fcChooseDirectorOf(node));
     const isCut = (e, i) => (sb.length > 1 ? !!sb[i]?.cut : !!e.cut);
     entries.forEach((e, i) => {
-      const top = tops[i], rh = heights[i];   // = the Director's prompt box i (a cut box sits next to its image)
+      const top = tops[i], rh = heights[i];   // = the Director's prompt box i
       const cut = isCut(e, i);
       if (cut) {
         // the Director's cut line, mirrored: thin black line in the gap below this film's row
