@@ -35,6 +35,7 @@ const CSS = `
 .imsb-wp button:hover { background:#383838; }
 .imsb-t { position:absolute; left:0; border-radius:5px; background:#222; border:1px solid #4a4a4a; overflow:hidden; cursor:grab; user-select:none; }
 .imsb-t img { width:100%; height:100%; object-fit:cover; display:block; pointer-events:none; }
+.imsb-t.ph { background:#5a5a5a; }
 .imsb-t.empty { border:2px dashed #555; display:flex; align-items:center; justify-content:center; color:#888; cursor:pointer; }
 .imsb-t.drag { background:#1f3550; border:3px solid #4af; opacity:.85; }
 .imsb-t.land { animation:imsb-land 1.2s ease-out; }
@@ -308,6 +309,8 @@ function tileEl(node, rows, i) {
     };
     const lb = el("div", "lb");
     const file = r.image.split("/").pop();
+    // user 2026-11-15: placeholders (empty / inherit) grey instead of black
+    if (isEmptyImage(file) || isInheritImage(file)) { t.classList.add("ph"); img.style.visibility = "hidden"; }
     lb.append(el("i", null, st.fmt.label), isEmptyImage(file) ? "empty" : isInheritImage(file) ? "inherit: last frame of the film before" : file);
     t.append(img, lb);
     t.onpointerdown = (e) => { if (e.button === 0) { e.stopPropagation(); startDrag(node, e, i, t); } };
