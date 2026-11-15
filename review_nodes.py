@@ -542,6 +542,17 @@ def _parse_choices(choices: str, n: int) -> list[str]:
     return result
 
 
+def _output_used(prompt, node_id, slot: int) -> bool:
+    """True if some node in the queued prompt takes output `slot` of node `node_id` (links are [id, slot])."""
+    if not isinstance(prompt, dict):
+        return False
+    for n in prompt.values():
+        for v in (n.get("inputs") or {}).values() if isinstance(n, dict) else ():
+            if isinstance(v, list) and len(v) == 2 and str(v[0]) == str(node_id) and v[1] == slot:
+                return True
+    return False
+
+
 class InfiniteMovieChooser(io.ComfyNode):
     @classmethod
     def define_schema(cls):
@@ -581,6 +592,11 @@ class InfiniteMovieChooser(io.ComfyNode):
                 io.Image.Output("first_frame",
                                 tooltip="The first frame of the finished film as IMAGE - e.g. to render a lead-in "
                                         "that ends where the film starts, or to loop a follow-up back to the start."),
+                io.Image.Output("images",
+                                tooltip="All frames of the finished film as IMAGE batch - e.g. into VHS Video Combine "
+                                        "(with frame_rate). Only read when this output is connected: a long film "
+                                        "needs a lot of RAM (about 4 bytes per pixel per frame)."),
+                io.Float.Output("frame_rate", tooltip="Frames per second of the finished film (for VHS Video Combine)."),
             ],
             hidden=[io.Hidden.unique_id, io.Hidden.prompt, io.Hidden.extra_pnginfo],
         )
@@ -704,6 +720,7 @@ class InfiniteMovieChooser(io.ComfyNode):
         last = None
         first = None
         film_ref = None
+        _total, _fps = 0, 0.0
         ui = {"infinite_movie_choose": entries}
         try:
             film_path, _check, _total, _fps = _concat_segments(
@@ -773,7 +790,16 @@ class InfiniteMovieChooser(io.ComfyNode):
         # 116c1: viewer data for the frontend (display: 116c2)
         ui["im_viz"] = [{"shots": viz_shots, "timeline": None,
                          "subfolder": subfolder.replace(os.sep, "/")}]
-        return io.NodeOutput(out_sync, film_path, last, first, ui=ui)
+        images = None
+        if film_path and _output_used(getattr(getattr(cls, "hidden", None), "prompt", None), unique_id, 4):
+            try:
+                from .media import film_frames
+                images = film_frames(film_path, int(_total or 0), disk_dir=choose_dir)
+            except Exception as e:  # noqa: BLE001
+                from .media import warn_ui
+                warn_ui(str(e) if isinstance(e, MemoryError) else f"images output: {e}")   # the film itself is fine
+                print(f"[InfiniteMovieChooser] images output failed: {e}")
+        return io.NodeOutput(out_sync, film_path, last, first, images, float(_fps or fps), ui=ui)
 
 
 REVIEW_NODE_LIST = [InfiniteMovieChooser]

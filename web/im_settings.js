@@ -356,6 +356,12 @@ app.registerExtension({
   },
 });
 
+// Server warnings (media.warn_ui, e.g. the images output cached on disk because RAM is short): amber toast, 10 s
+api.addEventListener("infinite_movie.warning", (e) => {
+  const text = String(e.detail?.text || "");
+  if (text) fcReviewToast("⚠ " + text, "#9a6700", 10000);
+});
+
 // 2026-11-11: the plan from the server -> every Story Mode node (text box ④ + properties, saved with the workflow)
 api.addEventListener("infinite_movie.storyboard", (e) => {
   const text = String(e.detail?.text || "") + (e.detail?.cached ? "\n\n(from cache - same images, story and instruction)" : "");

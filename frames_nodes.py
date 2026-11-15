@@ -65,13 +65,22 @@ def _output_connected(dynprompt, node_id: str, slot: int) -> bool:
     return False
 
 
+def _frames_cache_dir():
+    """ComfyUI's temp folder for the disk fallback of alloc_frames (None without ComfyUI: no fallback)."""
+    try:
+        import folder_paths
+        return os.path.join(folder_paths.get_temp_directory(), "infinite_movie_frames")
+    except Exception:  # noqa: BLE001
+        return None
+
+
 def _collect_frames_tensor(path: str, width: int, height: int,
                            max_images_gb: float = 0.0) -> "torch.Tensor":
     """Read ALL frames from a single video file into one IMAGE tensor (B,H,W,C).
 
     Frames are read chunk by chunk (ffmpeg rawvideo pipe) into a pre-allocated
     tensor (no list-concat). RAM estimate: frames*H*W*3*4 bytes (float32);
-    above 8 GB the output is float16. Logs the estimate (Auftrag 30, RAM-Schutz).
+    above half the free RAM it is cached on disk (alloc_frames). Logs the estimate (Auftrag 30, RAM-Schutz).
 
     max_images_gb (Auftrag 39D): if > 0 and the estimated RAM usage exceeds
     this limit, raise a RuntimeError with the estimated size.
@@ -86,12 +95,10 @@ def _collect_frames_tensor(path: str, width: int, height: int,
             f"images output would need ~{est_gb:.1f} GB but max_images_gb is "
             f"{max_images_gb:.1f} GB. Reduce the number of frames, the resolution, "
             f"or increase max_images_gb.")
-    use_f16 = est > 8 * 1024 ** 3
-    print(f"[InfiniteMovie] images output: {n} frames ({width}x{height}), "
-          f"~{est_gb:.1f} GB float32"
-          + (" -> using float16 (> 8 GB)" if use_f16 else ""))
-    dtype = torch.float16 if use_f16 else torch.float32
-    out = torch.empty(n, height, width, 3, dtype=dtype)
+    print(f"[InfiniteMovie] images output: {n} frames ({width}x{height}), ~{est_gb:.1f} GB float32")
+    from .media import alloc_frames
+    dtype = torch.float32
+    out = alloc_frames(n, height, width, _frames_cache_dir())   # RAM guard + disk fallback (one copy, media.py)
     ff = _ffmpeg()
     frame_bytes = width * height * 3
     proc = subprocess.Popen(
@@ -130,7 +137,7 @@ class InfiniteMovieFramesCollect(io.ComfyNode):
     batch. Added to the InfiniteMovieRender expansion only when the `images` output is
     connected, so it never runs for nothing. Frames are read chunk by chunk
     (ffmpeg rawvideo pipe), but the final batch is held in RAM:
-    frames*H*W*3*4 bytes (float32) - above 8 GB the output is float16."""
+    frames*H*W*3*4 bytes (float32) - above half the free RAM cached on disk (alloc_frames)."""
 
     @classmethod
     def define_schema(cls):
@@ -142,7 +149,7 @@ class InfiniteMovieFramesCollect(io.ComfyNode):
             description="Reads the segment mp4s in order, removes the seam duplicates (same convention as "
                         "InfiniteMovieAssemble) and returns all film frames as one IMAGE batch. Internal node: InfiniteMovieRender "
                         "adds it to the expansion only when its `images` output is connected. The whole batch "
-                        "is held in RAM (float32, float16 above 8 GB).",
+                        "is held in RAM (float32; above half the free RAM cached on disk).",
             is_output_node=True,
             inputs=[
                 io.String.Input("paths", multiline=True,
@@ -187,11 +194,10 @@ class InfiniteMovieFramesCollect(io.ComfyNode):
                 f"InfiniteMovieFramesCollect: images output would need ~{est_gb:.1f} GB but "
                 f"max_images_gb is {max_images_gb:.1f} GB. Reduce the number of frames, the "
                 f"resolution, or increase max_images_gb.")
-        use_f16 = est > 8 * 1024 ** 3
-        print(f"[InfiniteMovieFramesCollect] {total} frames ({width}x{height}), ~{est_gb:.1f} GB float32"
-              + (" -> using float16 (> 8 GB)" if use_f16 else ""))
-        dtype = torch.float16 if use_f16 else torch.float32
-        out = torch.empty(total, height, width, 3, dtype=dtype)
+        print(f"[InfiniteMovieFramesCollect] {total} frames ({width}x{height}), ~{est_gb:.1f} GB float32")
+        from .media import alloc_frames
+        dtype = torch.float32
+        out = alloc_frames(total, height, width, _frames_cache_dir(), "Frames Collect")   # RAM guard + disk fallback
         ff = _ffmpeg()
         frame_bytes = width * height * 3
         i = 0

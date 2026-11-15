@@ -77,7 +77,9 @@ def write_prompts(board, indices, loop, settings) -> list[dict]:
     if isinstance(llm, dict) and llm.get("story_mode") and len(filled) >= 2:
         import folder_paths
         from .llm_nodes import storyboard
-        plan = storyboard(llm, [folder_paths.get_annotated_filepath(board[k]["image"]) for k in filled], loop, llm.get("story"))
+        cuts = [m for m, k in enumerate(filled) if board[k].get("cut") and n > 1]   # cut films: planned as open ends
+        plan = storyboard(llm, [folder_paths.get_annotated_filepath(board[k]["image"]) for k in filled], loop,
+                          llm.get("story"), cuts=cuts)
 
     out = []
     for i in indices:

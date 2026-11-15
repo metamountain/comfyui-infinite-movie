@@ -329,14 +329,14 @@ export function imFilmDoneNotice(node, fi) {
   else fcReviewToast(`🎬 ${what}: ${imFilmInfoText(fi)}`, "#1a7f37");
 }
 
-export function fcReviewToast(msg, color) {
+export function fcReviewToast(msg, color, ms = 3500) {
   const t = document.createElement("div");
   t.textContent = msg;
   t.style.cssText = `position:fixed;bottom:24px;left:50%;transform:translateX(-50%);` +
     `background:${color || "#2ea043"};color:#fff;padding:8px 18px;border-radius:4px;` +
     `z-index:9999;font-size:13px;box-shadow:0 2px 8px rgba(0,0,0,0.4);`;
   document.body.appendChild(t);
-  setTimeout(() => t.remove(), 3500);
+  setTimeout(() => t.remove(), ms);
 }
 
 // Task 61: SHARED logic for "Rerender marked" (review AND chooser node).

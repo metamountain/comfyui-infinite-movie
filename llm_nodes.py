@@ -201,21 +201,26 @@ STORYBOARD_SYSTEM = (
     "{schema}\nPositive words only, never mention images or frames.")
 
 
-def storyboard_schema(n: int, total: int | None = None) -> str:
+def _shot_to(k: int, total: int, cuts=()) -> str:
+    """Where shot k goes: 'image k+2', or for a cut film (ends open, hard cut follows) an open end."""
+    return "an open end - a hard cut follows" if k in cuts else f"image {(k + 1) % total + 1}"
+
+
+def storyboard_schema(n: int, total: int | None = None, cuts=()) -> str:
     """Fixed JSON template with one named field per shot (a list made the 27B model put all beats into one string)."""
     # Each placeholder names its transition: with plain "<one sentence>" the 27B model described image k instead of
     # image k -> k+1 (beats shifted by one, test 2026-11-11).
     total = total or n
-    fields = ", ".join(f'"shot_{k + 1}": "<what happens from image {k + 1} to image {(k + 1) % total + 1}>"'
+    fields = ", ".join(f'"shot_{k + 1}": "<what happens from image {k + 1} to {_shot_to(k, total, cuts)}>"'
                        for k in range(n))
     return '{"arc": "<2-3 sentences>", ' + fields + "}"
 
 
-def storyboard_system(text, n: int, total: int, loop: bool) -> str:
+def storyboard_system(text, n: int, total: int, loop: bool, cuts=()) -> str:
     """Storyboard system prompt from the (editable) text: {loop} and {schema} are filled in; without {schema} the
     JSON template is appended, so an edited text can never break the parsing."""
     text = str(text or "").strip() or STORYBOARD_SYSTEM
-    schema = storyboard_schema(n, total)
+    schema = storyboard_schema(n, total, cuts)
     text = text.replace("{loop}", ", the last shot returns to image 1" if loop else "")
     if "{schema}" in text:
         return text.replace("{schema}", schema)
@@ -244,7 +249,7 @@ def parse_storyboard(text: str, n: int):
     return {"arc": str(d.get("arc") or "").strip(), "shots": shots[:n]}
 
 
-def storyboard(cfg: dict, files: list, loop: bool, story: str, seed: int = 0, cache_dir=None, ask=None):
+def storyboard(cfg: dict, files: list, loop: bool, story: str, seed: int = 0, cache_dir=None, ask=None, cuts=()):
     """Arc + one beat per shot for the whole film, cached by images (path, size, mtime) + red thread + model.
     ask(cfg, text, files, system, max_tokens) is swappable for tests."""
     import hashlib
@@ -253,7 +258,8 @@ def storyboard(cfg: dict, files: list, loop: bool, story: str, seed: int = 0, ca
     if n < 1:
         return None
     stat = [(f, os.path.getsize(f), int(os.path.getmtime(f))) for f in files]
-    key = hashlib.sha1(json.dumps([stat, loop, str(story or ""), cfg.get("model"), _endpoint(cfg),
+    cuts = sorted(int(k) for k in cuts or ())   # shots that end open (Director storyboard cut)
+    key = hashlib.sha1(json.dumps([stat, loop, cuts, str(story or ""), cfg.get("model"), _endpoint(cfg),
                                    str(cfg.get("storyboard_instruction") or "")]).encode()).hexdigest()[:16]
     if cache_dir is None:
         try:
@@ -269,8 +275,8 @@ def storyboard(cfg: dict, files: list, loop: bool, story: str, seed: int = 0, ca
             sb = json.load(f)
         announce_storyboard(sb, cached=True)
         return sb
-    system = red_thread(storyboard_system(cfg.get("storyboard_instruction"), n, len(files), loop), story)
-    lines = "\n".join(f"Shot {k + 1}: image {k + 1} -> image {(k + 1) % len(files) + 1}" for k in range(n))
+    system = red_thread(storyboard_system(cfg.get("storyboard_instruction"), n, len(files), loop, cuts), story)
+    lines = "\n".join(f"Shot {k + 1}: image {k + 1} -> {_shot_to(k, len(files), cuts)}" for k in range(n))
     ask = ask or (lambda c, t, fs, sy, mt: llm_gen(c, t, fs, sy, mt, 0.7, seed))
     raw = ask(cfg, f"{len(files)} key images in film order.\n{lines}\nJSON:", files, system, 250 * n + 300)
     sb = parse_storyboard(raw, n)

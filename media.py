@@ -345,6 +345,75 @@ def _probe_size(video_path: str) -> tuple[int, int]:
     return size["width"], size["height"]
 
 
+def warn_ui(text: str) -> None:
+    """Amber toast in the browser (event infinite_movie.warning) + console line; silent without ComfyUI (tests)."""
+    print(f"[InfiniteMovie] WARNING: {text}")
+    try:
+        from server import PromptServer
+        if PromptServer.instance is not None:
+            PromptServer.instance.send_sync("infinite_movie.warning", {"text": text})
+    except Exception:  # noqa: BLE001
+        pass
+
+
+def alloc_frames(n: int, h: int, w: int, disk_dir: str | None = None, what: str = "images output"):
+    """The one RAM guard for every IMAGE batch read from a video (user 2026-11-15: an optional output must never
+    crash the machine). float32 = 12 bytes per pixel and frame. Up to half the free RAM: a normal tensor. Above:
+    a memory-mapped file in disk_dir/frames_cache (the OS pages frames in as the next node reads them) with a
+    warning; no disk_dir / not enough disk space: MemoryError before anything is allocated."""
+    n = max(1, int(n))
+    need = n * h * w * 3 * 4
+    try:
+        import psutil
+        free = psutil.virtual_memory().available
+    except Exception:  # noqa: BLE001
+        free = 0
+    if not free or need <= free // 2:
+        return torch.empty((n, h, w, 3), dtype=torch.float32)
+    gb = lambda b: f"{b / 2**30:.1f} GB"  # noqa: E731
+    if not disk_dir or shutil.disk_usage(disk_dir).free < need * 1.2:
+        raise MemoryError(f"{what} skipped: {n} frames need {gb(need)}, only {gb(free)} RAM free and not enough "
+                          "disk space. Load the film from video_path instead (e.g. VHS Load Video).")
+    import time
+    cdir = os.path.join(disk_dir, "frames_cache")
+    os.makedirs(cdir, exist_ok=True)
+    for f in os.listdir(cdir):   # older caches; a file still mapped (Windows) stays until a later run
+        try:
+            os.remove(os.path.join(cdir, f))
+        except OSError:
+            pass
+    mm = np.memmap(os.path.join(cdir, f"frames_{int(time.time() * 1000)}.f32"), dtype=np.float32, mode="w+",
+                   shape=(n, h, w, 3))
+    warn_ui(f"{what}: {n} frames need {gb(need)}, more than half the free RAM ({gb(free)}) - cached on disk "
+            f"({cdir}). Slower; for long films prefer video_path.")
+    return torch.from_numpy(mm)
+
+
+def film_frames(video_path: str, n_hint: int = 0, disk_dir: str | None = None):
+    """All frames of a film as IMAGE [N, H, W, 3] (float 0..1), e.g. for VHS Video Combine. Streams the rawvideo
+    from ffmpeg frame by frame into one tensor from alloc_frames (RAM guard, disk fallback)."""
+    w, h = _probe_size(video_path)
+    size = w * h * 3
+    n = max(n_hint, _count_frames(video_path))
+    out = alloc_frames(n, h, w, disk_dir)
+    proc = subprocess.Popen([_ffmpeg(), "-v", "error", "-i", video_path, "-map", "0:v:0", "-f", "rawvideo",
+                             "-pix_fmt", "rgb24", "-"], stdout=subprocess.PIPE, **_no_window())
+    got = 0
+    try:
+        while got < out.shape[0]:
+            buf = proc.stdout.read(size)
+            if len(buf) < size:
+                break
+            out[got] = torch.from_numpy(np.frombuffer(buf, dtype=np.uint8).reshape(h, w, 3)).float().div_(255.0)
+            got += 1
+    finally:
+        proc.stdout.close()
+        proc.wait()
+    if not got:
+        raise RuntimeError(f"could not read the frames of {video_path}")
+    return out[:got]
+
+
 # ---------------------------------------------------------------------------
 # Shared: _concat_segments (extracted from InfiniteMovieAssemble, Auftrag 32)
 # ---------------------------------------------------------------------------
