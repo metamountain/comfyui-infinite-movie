@@ -131,6 +131,7 @@ app.registerExtension({
       const { segs, frames, el, frac, eta } = renderEstimate(n);
       const lines = p.phase === "done"
         ? [`done: ${segs} × ${frames} frames in ${fmtTime(el)}`]
+        : p.phase === "cancelled" ? [`cancelled after ${fmtTime(el)}${p.seg >= 0 ? ` · segment ${p.seg + 1}/${segs}` : ""}`]
         : p.seg < 0
           ? [`${p.phase || "starting"} … ${fmtTime(el)}`
              + (p.plan?.seg_seconds > 0 ? ` · ~${fmtTime(p.plan.seg_seconds * segs)} for ${segs} shots` : "")]
@@ -159,17 +160,17 @@ app.registerExtension({
         const by = y + 4 + h - BAR;
         ctx.fillStyle = "#333";
         ctx.fillRect(x, by, w, BAR);
-        ctx.fillStyle = p.phase === "done" ? "#66bb6a" : "#39ff14";   // user 2026-11-13: rendering bar neon green
+        ctx.fillStyle = p.phase === "done" ? "#66bb6a" : p.phase === "cancelled" ? "#777" : "#39ff14";   // user 2026-11-13: rendering bar neon green
         ctx.fillRect(x, by, w * frac, BAR);
         // first line (countdown) bold neon while rendering, the details below in grey
         lines.forEach((t, i) => {
-          const lead = i === 0 && p.phase !== "done";
+          const lead = i === 0 && !p.end;
           ctx.fillStyle = lead ? "#39ff14" : "#ddd";
           ctx.font = lead ? "bold 14px sans-serif" : "12px sans-serif";
           ctx.fillText(t, x, y + 16 + i * 16);
         });
         ctx.restore();
-        if (p.phase !== "done") n.setDirtyCanvas(true, false); // keep the clock running
+        if (!p.end) n.setDirtyCanvas(true, false); // keep the clock running
       },
     });
   },
