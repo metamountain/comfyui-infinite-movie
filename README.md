@@ -1,5 +1,7 @@
 
-# Infinite Movie (ComfyUI) 
+# Infinite Movie (ComfyUI) — beta
+
+> **Beta.** Things still change from day to day. Please tell me what works, what breaks and what you miss: [open an issue](https://github.com/metamountain/comfyui-infinite-movie/issues) — every bit of feedback helps.
 
 
 <p align="center"><img src="assets/a4_nosun.gif" width="320" alt="Four seasons in one film: summer, autumn, winter, spring"></p>
