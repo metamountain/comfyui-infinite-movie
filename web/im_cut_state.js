@@ -147,7 +147,7 @@ export function fcChooseLayout(node, entries) {
   const g = boardGeometry(fmt, sb, !!dir?.widgets?.find((w) => w.name === "loop")?.value), { iw, ih, row } = g;
   // entry -> its film id (number - 1); the way back of a single image has no box of its own: below it
   const tops = entries.map((e, i) => g.tops[(e.number || i + 1) - 1] ?? i * row + row / 2);
-  const heights = entries.map(() => ih);
+  const heights = entries.map((e, i) => g.heights[(e.number || i + 1) - 1] ?? ih);   // shorter next to an empty frame
   const boardH = entries.length ? Math.max(...tops.map((t, i) => t + heights[i])) : 0;
   // 2026-11-13: no play field in Cut any more – the analysis viewer is its own widget (im_viz) below this one.
   const domH = (node._imHead || 0) + boardH + FC_CHOOSE_GAP + FC_CHOOSE_STATUS_H + FC_CHOOSE_GAP + FC_CHOOSE_BIG_H + 8;

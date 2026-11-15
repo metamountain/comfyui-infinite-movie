@@ -275,7 +275,7 @@ function startDrag(node, e, i, tile) {
     active = true;
     tile.classList.add("drag");
     const y = (ev.clientY - bd.getBoundingClientRect().top) / scale();
-    gap = st.size.cells.img.filter((t) => t + st.size.ih / 2 < y).length;   // gap k = above image k (n = below the last)
+    gap = st.size.cells.img.filter((t, k) => t + st.size.cells.hts[k] / 2 < y).length;   // gap k = above image k (n = below the last)
     st.gap.style.display = gap === i || gap === i + 1 ? "none" : "block";
     st.gap.style.top = `${gapTop(st, gap) - 2}px`;
   };
@@ -292,7 +292,7 @@ function startDrag(node, e, i, tile) {
 function tileEl(node, rows, i) {
   const st = node._imsb, r = rows[i], { iw, ih, row } = st.size;
   const t = el("div", "imsb-t" + (r.image ? "" : " empty") + (st.land === i ? " land" : ""));
-  t.style.cssText = `top:${st.size.cells.img[i]}px;width:${iw}px;height:${ih}px`;
+  t.style.cssText = `top:${st.size.cells.img[i]}px;width:${iw}px;height:${st.size.cells.hts[i]}px`;   // empty frame: half
   if (r.image) {
     const img = el("img");
     img.src = imageUrl(r.image);
@@ -489,7 +489,7 @@ export function render(node) {
       z.appendChild(b);
     };
     // user 2026-11-15: no cut button - a film into nothing is an empty (black) frame; only an old cut can be removed
-    if (add) btn("ed", "▢ empty", "Insert an empty (black) frame here: the film before ends in it, the next starts from it",
+    if (add) btn("ed", "▢ empty", "Insert an empty frame here (placeholder, no image): the film before runs into it, the next one starts from it",
       () => insertAt(node, k, true));
     if (on) btn("uncut", "uncut", cutTitle(true, k, nextOf(rows.length, k - 1, loop) + 1), () => setCut(node, k - 1, false));
     st.board.appendChild(z);

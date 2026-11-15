@@ -31,19 +31,30 @@ export const filmRows = (rows, loop) => {
   });
 };
 
-// Cell layout (user 2026-11-15): every prompt is one film = one Cut row, every box sits between its image and the
-// next (img[i] + row/2) with the same height. A cut row has no box ("2 and 4 away"): a film into nothing is a black
-// frame (▢), not a cut. The cut is ONE black line through both columns in the gap below image i (cut[i]); it crosses
-// no box. Film ids / seconds / seeds never shift. Cut mirrors box[], cut[].
+// An empty (black) frame of the Director UI (same rule as im_storyboard_io.isEmptyImage / storyboard.is_empty_image).
+const isEmptyName = (name) => /^empty_\d+x\d+\.png$/.test(String(name || "").split("/").pop());
+
+// Cell layout (user 2026-11-15): every prompt is one film = one Cut row, every box runs from the middle of its image
+// to the middle of the next. An empty (black) frame is HALF a row tall ("fits exactly in between, less space"), so
+// the boxes next to it are shorter. A cut row has no box; the cut is ONE black line through both columns in the gap
+// below image i (cut[i]). hts[i] = the tile height, bh[i] = the box height. Film ids / seconds / seeds never shift.
 export function cellTops(rows, loop, row, gapPx = 10) {
-  const n = rows.length, img = [], box = [], cut = [];
+  const n = rows.length, img = [], h = [], box = [], bh = [], cut = [];
+  let y = 0;
   for (let i = 0; i < n; i++) {
-    const c = isCut(rows, i, loop);
-    img.push(i * row);
-    box.push(hasFilm(n, i, loop) && !c ? img[i] + row / 2 : null);
-    cut.push(c ? img[i] + row - gapPx / 2 : null);
+    h.push(n > 1 && isEmptyName(rows[i].image) ? row / 2 : row);
+    img.push(y);
+    y += h[i];
   }
-  return { img, box, cut, cutBox: cut, end: n * row };
+  for (let i = 0; i < n; i++) {
+    const c = isCut(rows, i, loop), j = nextOf(n, i, loop), film = hasFilm(n, i, loop) && !c;
+    const top = img[i] + h[i] / 2;
+    box.push(film ? top : null);
+    // to the middle of the next tile; the loop film (last -> first) and a single image keep a whole row
+    bh.push(film ? (j === i + 1 ? img[j] + h[j] / 2 - top : row) - gapPx : null);
+    cut.push(c ? img[i] + h[i] - gapPx / 2 : null);
+  }
+  return { img, hts: h.map((x) => x - gapPx), box, bh, cut, cutBox: cut, end: y };
 }
 
 // One height system for the Director and Cut (user 2026-11-15): the tile = the film format contain-fitted into the
@@ -53,7 +64,7 @@ export function boardGeometry(fmt, rows, loop) {
   const k = Math.min(TILE_W / fmt.w, TILE_H / fmt.h);
   const iw = Math.round(fmt.w * k), ih = Math.round(fmt.h * k), row = ih + ROW_GAP;
   const cells = cellTops(rows, loop, row, ROW_GAP);
-  const heights = cells.box.map((t) => (t == null ? null : ih));
+  const heights = cells.bh;
   return { iw, ih, row, cells, tops: cells.box, heights };
 }
 
