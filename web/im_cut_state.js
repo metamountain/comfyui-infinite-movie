@@ -12,7 +12,6 @@ import { imParseStoryboard } from "./im_common.js";
 // 124d: one row per film (mirror of the Director's prompt boxes): tile box 283×205 scaled to the
 // connected Director's format, rows staggered half a row, node width fixed 672.
 export const FC_CHOOSE_ROW_GAP = 10;
-export const FC_CHOOSE_INFO_W = 200;   // info column right of the tiles: as wide as its text (user 2026-11-15)
 export const FC_CHOOSE_GAP = 4;
 export const FC_CHOOSE_PAD = 20;     // DOM widget margin left+right in the node
 // Effective choice of a shot: A/B from the widget only counts if the shot has both variants (otherwise after
@@ -152,10 +151,11 @@ export function fcChooseLayout(node, entries) {
   return { iw, ih, row, boardH, domH, tops, heights, cutY: g.cells.cut };
 }
 
-// Node width = tiles (A, and B with variants) + the narrow info column; at least as wide as the analysis viewer below.
+// Node width = tiles (A, and B with variants) + the info column, as wide as one tile (user 2026-11-15); at least as
+// wide as the analysis viewer below.
 export function fcChooseWidth(node, entries) {
   const { iw } = fcChooseLayout(node, entries), cols = entries.some((e) => e.has_variants) ? 2 : 1;
-  return Math.max(IMV_NODE_W, FC_CHOOSE_PAD + cols * (iw + FC_CHOOSE_ROW_GAP) + FC_CHOOSE_INFO_W);
+  return Math.max(IMV_NODE_W, FC_CHOOSE_PAD + cols * (iw + FC_CHOOSE_ROW_GAP) + iw);
 }
 
 export function fcChooseStableUrl(im) {

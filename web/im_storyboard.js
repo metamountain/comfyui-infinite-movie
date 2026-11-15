@@ -14,6 +14,7 @@ import {
 import {
   boardFormat, defaultSeconds, imageUrl, isLoop, readRows, uploadImage, writeRows,
 } from "./im_storyboard_io.js";
+import { PP_CSS } from "./im_prompt_progress.js";
 
 // Tile = preview box of a standard Load Image node (TILE_W x TILE_H in im_storyboard_model.js, shared with Cut)
 const GAP = 10, PROMPT_W = 250, TOOLBAR_H = 66, MARGIN = 10;
@@ -85,7 +86,7 @@ const CSS = `
 .imsb-gap::before, .imsb-gap::after { content:""; position:absolute; top:-3px; width:10px; height:10px; border-radius:50%; background:#4af; }
 .imsb-gap::before { left:-5px; } .imsb-gap::after { right:-5px; }
 `;
-document.head.appendChild(Object.assign(document.createElement("style"), { textContent: CSS }));
+document.head.appendChild(Object.assign(document.createElement("style"), { textContent: CSS + PP_CSS }));
 
 const el = (tag, cls, txt) => { const e = document.createElement(tag); if (cls) e.className = cls; if (txt != null) e.textContent = txt; return e; };
 
@@ -509,10 +510,12 @@ export function addStoryboard(node) {
     const rows = readRows(node), loop = isLoop(node);
     regen(node, rows.flatMap((r, i) => (pairOf(rows, i, loop) && !r.own ? [i] : [])));
   };
-  tb.append(cnt, bAll, bLoad);
+  const pbar = el("div", "imsb-pp");   // prompt writing progress (im_prompt_progress.js)
+  pbar.appendChild(el("span"));
+  tb.append(cnt, bAll, bLoad, pbar);
   const board = el("div", "imsb-bd");
   root.append(tb, board);
-  const st = node._imsb = { root, board, cnt: num, gap: el("div", "imsb-gap"), fmt: { w: 4, h: 5, label: "" }, sig: "", land: -1 };
+  const st = node._imsb = { root, board, pbar, cnt: num, gap: el("div", "imsb-gap"), fmt: { w: 4, h: 5, label: "" }, sig: "", land: -1 };
   const height = () => TOOLBAR_H + (st.size?.h || 0) + 8;
   const dw = node.addDOMWidget("im_storyboard", "div", root, { serialize: false, getMinHeight: height, getMaxHeight: height });
   dw.serialize = false;   // the option alone does not keep it out of widgets_values (would drop all values on load)

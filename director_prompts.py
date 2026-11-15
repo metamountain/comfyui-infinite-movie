@@ -52,7 +52,32 @@ def parse_indices(text) -> list[int]:
     return [int(i) for i in data if isinstance(i, int) and not isinstance(i, bool)] if isinstance(data, list) else []
 
 
-def write_prompts(board, indices, loop, settings) -> list[dict]:
+# Progress of prompt writing (user 2026-11-15): event infinite_movie.prompt_progress to the Director's storyboard bar.
+# Durations are logged in timing.py (kind "story_plan" per image, "prompt" per film, preset = model) and the next
+# estimate is their median - the more runs, the better the estimate. Fallbacks before the first measurement.
+PLAN_FALLBACK_S, PROMPT_FALLBACK_S = 8.0, 20.0   # story plan per image, one prompt
+
+
+def _estimates(model: str, n_images: int) -> tuple[float, float]:
+    from . import timing
+    plan = timing.estimate("story_plan", 1000, 1000, max(1, n_images), preset=model)
+    one = timing.estimate("prompt", 1000, 1000, 1, preset=model)
+    return (max(1.0, plan["seconds"]) if plan else PLAN_FALLBACK_S * max(1, n_images),
+            max(1.0, one["seconds"]) if one else PROMPT_FALLBACK_S)
+
+
+def _progress(node_id, **data) -> None:
+    if node_id is None:
+        return
+    try:
+        from server import PromptServer
+        if PromptServer.instance is not None:
+            PromptServer.instance.send_sync("infinite_movie.prompt_progress", {"node": str(node_id), **data})
+    except Exception:  # noqa: BLE001 - without ComfyUI (tests)
+        pass
+
+
+def write_prompts(board, indices, loop, settings, node_id=None) -> list[dict]:
     """The prompts of the rows ``indices`` (storyboard.parse rows): ``{"i", "prompt", "pair"}`` per film, or
     ``{"i", "error"}`` when its images are missing or the generation fails - the other rows still run. Rows that
     start no film (the last one without loop) are left out. Only the images of these films are loaded."""
@@ -71,22 +96,34 @@ def write_prompts(board, indices, loop, settings) -> list[dict]:
             images[k] = sb.load_image(board[k]["image"])
         return images[k]
 
-    # Story mode: one plan for the whole film (arc + a beat per image), each film then gets its own beat.
+    from . import timing
+    films = [i for i in indices if 0 <= i < n and sb.next_of(n, i, loop) >= 0]
     filled = [k for k, row in enumerate(board) if row["image"]]
+    model = str(cfg["model_name"] or "")
+    planning = isinstance(llm, dict) and bool(llm.get("story_mode")) and len(filled) >= 2
+    est_plan, est_prompt = _estimates(model, len(filled))
+    _progress(node_id, phase="start", n=len(films), plan=planning, est_plan=round(est_plan, 1), est_prompt=round(est_prompt, 1))
+
+    # Story mode: one plan for the whole film (arc + a beat per image), each film then gets its own beat.
     plan = None
-    if isinstance(llm, dict) and llm.get("story_mode") and len(filled) >= 2:
+    if planning:
+        t0 = time.time()
         import folder_paths
         from .llm_nodes import storyboard
         cuts = [m for m, k in enumerate(filled) if board[k].get("cut") and n > 1]   # cut films: planned as open ends
         plan = storyboard(llm, [folder_paths.get_annotated_filepath(board[k]["image"]) for k in filled], loop,
                           llm.get("story"), cuts=cuts)
+        dt = time.time() - t0
+        if dt > 1.5:   # below: the plan came from the cache - no measurement
+            timing.record("story_plan", 1000, 1000, len(filled), round(dt, 2), preset=model)
+        _progress(node_id, phase="plan_done", seconds=round(dt, 1))
 
     out = []
-    for i in indices:
-        j = sb.next_of(n, i, loop) if 0 <= i < n else -1
-        if j < 0:
-            continue
+    for k, i in enumerate(films):
+        j = sb.next_of(n, i, loop)
         row = board[i]
+        _progress(node_id, phase="prompt", k=k, i=i)
+        t0 = time.time()
         # First -> Open (cut): the prompt is written from the start image alone as an OPEN shot (image_to None:
         # "no fixed last frame, one clear change"). The same image twice would read as a single-image loop.
         cut = bool(row.get("cut")) and n > 1
@@ -100,6 +137,9 @@ def write_prompts(board, indices, loop, settings) -> list[dict]:
                 camera=cfg["camera"], instruction=cfg["instruction"], max_words=cfg["max_words"],
                 seed=int(time.time()) % 2**31, load=cfg["load"], gen=cfg["gen"], context=context)
             out.append({"i": i, "prompt": text, "pair": [row["image"], "open" if cut else board[j]["image"]]})
+            timing.record("prompt", 1000, 1000, 1, round(time.time() - t0, 2), preset=model)
         except Exception as e:  # noqa: BLE001 - one broken film must not stop the others
             out.append({"i": i, "error": str(e)})
+        _progress(node_id, phase="prompt_done", k=k + 1, i=i, seconds=round(time.time() - t0, 1))
+    _progress(node_id, phase="done")
     return out

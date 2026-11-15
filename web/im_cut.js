@@ -211,7 +211,7 @@ export function fcChooseRender(node) {
       const ix = letters.length * (iw + FC_CHOOSE_ROW_GAP);
       const info = document.createElement("div");
       info.className = "fc-info";
-      info.style.cssText = `position:absolute;top:${top}px;left:${ix}px;width:${nodeW - FC_CHOOSE_PAD - ix}px;height:${rh}px;` +
+      info.style.cssText = `position:absolute;top:${top}px;left:${ix}px;width:${iw}px;height:${rh}px;` +
         "box-sizing:border-box;background:#262626;border:1px solid #4a4a4a;border-radius:5px;padding:6px;" +
         "display:flex;flex-direction:column;gap:6px;font:12px sans-serif;color:#bbb;overflow:hidden;";
       const effV = e.placeholder ? {} : (e[eff] || e.a || {});

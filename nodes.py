@@ -311,7 +311,8 @@ class InfiniteMovieRender(io.ComfyNode):
         board = _storyboard.parse(storyboard)
         if str(regen).strip():   # ↻ Regenerate / ✎ Write all: write these prompts, render nothing
             from .director_prompts import parse_indices, write_prompts
-            return io.NodeOutput(None, ui={"im_prompts": write_prompts(board, parse_indices(regen), loop, settings)})
+            return io.NodeOutput(None, ui={"im_prompts": write_prompts(board, parse_indices(regen), loop, settings,
+                                                                       node_id=getattr(getattr(cls, "hidden", None), "unique_id", None))})
 
         uid = cls.hidden.unique_id
         template, cfg = engine_to_template(getattr(cls.hidden, "dynprompt", None), uid)

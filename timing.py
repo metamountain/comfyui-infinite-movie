@@ -41,7 +41,7 @@ def timings_path(path: str | None = None) -> str:
     """Path of the timings JSONL file. Override with path= (tests, backfill)."""
     if path:
         return path
-    return os.path.join(_user_dir(), _FILENAME)
+    return os.environ.get("IM_TIMINGS_PATH") or os.path.join(_user_dir(), _FILENAME)   # env: tests never touch the real log
 
 
 def _mpx_frames(width: int, height: int, frames: int) -> float:
