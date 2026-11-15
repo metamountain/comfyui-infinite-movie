@@ -84,7 +84,7 @@ export function imEmptyPromptFilms(director) {
   const rows = imParseStoryboard(director), n = rows.length, loop = !!imWidget(director, "loop")?.value;
   return rows.flatMap((r, i) => {
     const j = nextOf(n, i, loop);
-    return j >= 0 && !isCut(rows, i, loop) && !String(r.prompt || "").trim() ? [`${i + 1} → ${n === 1 ? "open" : j + 1}`] : [];
+    return j >= 0 && !isCut(rows, i, loop) && !String(r.prompt || "").trim() ? [`${i + 1} → ${n === 1 ? "∅" : j + 1}`] : [];
   });
 }
 
