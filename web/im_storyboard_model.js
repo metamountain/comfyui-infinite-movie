@@ -18,17 +18,21 @@ export const filmCount = (n, loop) => (n < 1 ? 0 : n === 1 ? (loop ? 2 : 1) : lo
 // A cut film can only exist with more than one image (a single image is open anyway).
 export const isCut = (rows, i, loop) => rows.length > 1 && hasFilm(rows.length, i, loop) && !!rows[i].cut;
 
-// Cell layout: the images stay one stack (user 2026-11-15), every prompt box sits between its image and the next
-// (img[i] + row/2). A cut is only drawn: a thin black line in the gap below its image (cut[i] = y of the gap's middle)
-// - no storyboard row of its own, film numbers / seconds / seeds never shift. Cut mirrors box[] and cut[].
+// Cell layout: the images stay one stack (user 2026-11-15). A prompt box sits between its image and the next
+// (img[i] + row/2); the box of a cut film sits next to its own image (img[i]) and the transition box above it ends
+// where it starts (short[i]: half height). A cut is only drawn: a thin black line in the gap below its image
+// (cut[i] = y of the gap's middle) - no storyboard row of its own, film numbers / seconds / seeds never shift.
+// Cut mirrors box[], short[] and cut[].
 export function cellTops(rows, loop, row, gapPx = 10) {
-  const n = rows.length, img = [], box = [], cut = [];
+  const n = rows.length, img = [], box = [], cut = [], short = [];
   for (let i = 0; i < n; i++) {
+    const c = isCut(rows, i, loop);
     img.push(i * row);
-    box.push(hasFilm(n, i, loop) ? img[i] + row / 2 : null);
-    cut.push(isCut(rows, i, loop) ? img[i] + row - gapPx / 2 : null);
+    box.push(hasFilm(n, i, loop) ? img[i] + (c ? 0 : row / 2) : null);
+    cut.push(c ? img[i] + row - gapPx / 2 : null);
+    short.push(hasFilm(n, i, loop) && !c && i + 1 < n && isCut(rows, i + 1, loop));
   }
-  return { img, box, cut, end: n * row };
+  return { img, box, cut, short, end: n * row };
 }
 
 export function pairOf(rows, i, loop) {

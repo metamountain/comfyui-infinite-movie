@@ -85,18 +85,19 @@ def write_prompts(board, indices, loop, settings) -> list[dict]:
         if j < 0:
             continue
         row = board[i]
-        if row.get("cut"):
-            j = i   # First -> Open: the prompt is written from the start image alone (as for a single image)
+        # First -> Open (cut): the prompt is written from the start image alone as an OPEN shot (image_to None:
+        # "no fixed last frame, one clear change"). The same image twice would read as a single-image loop.
+        cut = bool(row.get("cut")) and n > 1
         try:
             context = ""
             if plan is not None and i in filled:
                 from .llm_nodes import shot_context
                 context = shot_context(plan, filled.index(i))
             text, _desc, _warning = generate(
-                image(i), image(j), cfg["model_name"], " ".join(row["prompt"].split()) if row["own"] else "",
+                image(i), None if cut else image(j), cfg["model_name"], " ".join(row["prompt"].split()) if row["own"] else "",
                 camera=cfg["camera"], instruction=cfg["instruction"], max_words=cfg["max_words"],
                 seed=int(time.time()) % 2**31, load=cfg["load"], gen=cfg["gen"], context=context)
-            out.append({"i": i, "prompt": text, "pair": [row["image"], "open" if row.get("cut") else board[j]["image"]]})
+            out.append({"i": i, "prompt": text, "pair": [row["image"], "open" if cut else board[j]["image"]]})
         except Exception as e:  # noqa: BLE001 - one broken film must not stop the others
             out.append({"i": i, "error": str(e)})
     return out

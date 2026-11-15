@@ -43,7 +43,7 @@ export function fcChooseRender(node) {
   const entries = fcChooseEntries(node);
   const sig = fcChooseSig(entries) + fcCutSig(node);
   node._fc_choose_sig = sig;
-  const { iw, ih, row, boardH, tops } = fcChooseLayout(node, entries);
+  const { iw, ih, row, boardH, tops, heights } = fcChooseLayout(node, entries);
   const marked = node.properties.marked || [];
   const choices = fcChooseGetChoices(node);
   el.innerHTML = "";
@@ -58,7 +58,7 @@ export function fcChooseRender(node) {
     const sb = imParseStoryboard(fcChooseDirectorOf(node));
     const isCut = (e, i) => (sb.length > 1 ? !!sb[i]?.cut : !!e.cut);
     entries.forEach((e, i) => {
-      const top = tops[i];   // = the Director's prompt box i (empty ✂ tiles included)
+      const top = tops[i], rh = heights[i];   // = the Director's prompt box i (a cut box sits next to its image)
       const cut = isCut(e, i);
       if (cut) {
         // the Director's cut line, mirrored: thin black line in the gap below this film's row
@@ -107,7 +107,7 @@ export function fcChooseRender(node) {
           imSyncSet("seg", i);
         });
         t.addEventListener("mouseleave", () => { node._fc_choose_active = -1; fcChooseApplyActive(node); imSyncSet("film", null); });
-        t.style.cssText = `position:absolute;top:${top}px;left:${letters.indexOf(k) * (iw + FC_CHOOSE_ROW_GAP)}px;width:${iw}px;height:${ih}px;background:#1a1a1a;border-radius:3px;` +
+        t.style.cssText = `position:absolute;top:${top}px;left:${letters.indexOf(k) * (iw + FC_CHOOSE_ROW_GAP)}px;width:${iw}px;height:${rh}px;background:#1a1a1a;border-radius:3px;` +
           `overflow:hidden;box-sizing:border-box;cursor:${e.placeholder ? "default" : "pointer"};` +
           (e.placeholder ? "border:1px dashed #555;" : isMarked ? "outline:5px solid #d93025;outline-offset:-5px;"
             : sel || !e.has_variants ? "outline:5px solid #2ea043;outline-offset:-5px;" : "");
@@ -210,7 +210,7 @@ export function fcChooseRender(node) {
       const ix = letters.length * (iw + FC_CHOOSE_ROW_GAP);
       const info = document.createElement("div");
       info.className = "fc-info";
-      info.style.cssText = `position:absolute;top:${top}px;left:${ix}px;width:${FC_CHOOSE_NODE_W - FC_CHOOSE_PAD - ix}px;height:${ih}px;` +
+      info.style.cssText = `position:absolute;top:${top}px;left:${ix}px;width:${FC_CHOOSE_NODE_W - FC_CHOOSE_PAD - ix}px;height:${rh}px;` +
         "box-sizing:border-box;background:#262626;border:1px solid #4a4a4a;border-radius:5px;padding:6px;" +
         "display:flex;flex-direction:column;gap:6px;font:12px sans-serif;color:#bbb;overflow:hidden;";
       const effV = e.placeholder ? {} : (e[eff] || e.a || {});

@@ -148,10 +148,11 @@ export function fcChooseLayout(node, entries) {
   const dir = fcChooseDirectorOf(node), sb = imParseStoryboard(dir).map((r) => ({ ...r, cut: !!r.cut }));
   const cells = cellTops(sb, !!dir?.widgets?.find((w) => w.name === "loop")?.value, row);
   const tops = entries.map((_, i) => cells.box[i] ?? i * row + row / 2);
-  const boardH = entries.length ? Math.max(...tops) + ih : 0;
+  const heights = entries.map((_, i) => (cells.short[i] ? row / 2 - FC_CHOOSE_ROW_GAP : ih));   // half row above a cut
+  const boardH = entries.length ? Math.max(...tops.map((t, i) => t + heights[i])) : 0;
   // 2026-11-13: no play field in Cut any more – the analysis viewer is its own widget (im_viz) below this one.
   const domH = boardH + FC_CHOOSE_GAP + FC_CHOOSE_STATUS_H + FC_CHOOSE_GAP + FC_CHOOSE_BIG_H + 8;
-  return { iw, ih, row, boardH, domH, sheet: null, tops };
+  return { iw, ih, row, boardH, domH, sheet: null, tops, heights };
 }
 // 124d: the 3×3 sheet row is gone (one row per film) – the sheet is reached via the analysis viewer.
 function fcChooseSheetSize() { return null; }

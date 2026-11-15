@@ -59,6 +59,7 @@ const CSS = `
 .imsb-p.cut { border-top:4px solid #000; }
 .imsb-p.cut .ct { background:#000; color:#fff; }
 .imsb-cut { position:absolute; left:0; height:4px; border-radius:2px; background:#000; pointer-events:none; }
+.imsb-p.short .rg { display:none; }
 .imsb-menu { position:fixed; z-index:10000; min-width:210px; background:#1f1f1f; border:1px solid #4a4a4a; border-radius:6px; padding:4px; box-shadow:0 6px 18px #000a; font:13px system-ui,sans-serif; color:#ddd; }
 .imsb-menu div { padding:6px 10px; border-radius:4px; cursor:pointer; white-space:nowrap; }
 .imsb-menu div:hover { background:#2f5d8a; }
@@ -306,7 +307,9 @@ function promptEl(node, rows, i, loop) {
   const st = node._imsb, r = rows[i], n = rows.length, j = nextOf(n, i, loop), { iw, ih, row, pw } = st.size;
   const cut = isCut(rows, i, loop);
   const box = el("div", "imsb-p" + (j === 0 && n > 1 && !cut ? " loop" : "") + (isStale(rows, i, loop) ? " stale" : "") + (cut ? " cut" : ""));
-  box.style.cssText = `left:${iw + GAP}px;top:${st.size.cells.box[i]}px;height:${ih}px;width:${pw}px`;
+  const short = st.size.cells.short[i];   // the cut box below sits next to its image: this one ends where it starts
+  if (short) box.classList.add("short");
+  box.style.cssText = `left:${iw + GAP}px;top:${st.size.cells.box[i]}px;height:${short ? row / 2 - GAP : ih}px;width:${pw}px`;
   const hd = el("div", "hd");
   const badge = () => (r.own ? ["own", "✎ manual"] : r.prompt.trim() ? ["llm", "LLM"] : ["", "empty"]);
   const bg = el("span", "bg " + badge()[0], badge()[1]);
@@ -347,6 +350,13 @@ function promptEl(node, rows, i, loop) {
   };
   const rg = Object.assign(el("button", "rg", busy ? "… writing" : "↻ Regenerate prompt"), { disabled: busy });
   rg.onclick = () => regen(node, [i]);
+  if (short) {   // no room for the button: ↻ in the header
+    const r2 = el("span", "ct", "↻");
+    r2.title = "Regenerate prompt";
+    r2.onpointerdown = (e) => e.stopPropagation();
+    r2.onclick = (e) => { e.stopPropagation(); regen(node, [i]); };
+    hd.insertBefore(r2, sec);
+  }
   box.append(hd, ta, rg);
   return box;
 }
