@@ -294,7 +294,7 @@ class InfiniteMovieRender(io.ComfyNode):
             outputs=[
                 # sync is a link to the internal ShotsOut node hanging on the collector of all films: the Director
                 # thereby waits for every film without a visible output (execution.py strong links).
-                SYNC.Output("sync", display_name="sync ▶ Cut",
+                SYNC.Output("sync", display_name="sync",
                             tooltip="All films (paths, folder, name, fps, loop …) and the settings, for Cut."),
             ],
             hidden=[io.Hidden.unique_id, io.Hidden.dynprompt],

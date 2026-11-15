@@ -159,7 +159,7 @@ class InfiniteMovieSettings(io.ComfyNode):
             search_aliases=["infinite movie", "infinite_movie", "film", "movie", "video", "settings", "gpu"],
             category="Infinite Movie/0 Setup",
             description="Shared settings for the whole chain: the local prompt model, format and output. "
-                        "Connect `settings ▶ chain` to Prompt Style (or the first Auto Prompt).",
+                        "Connect `settings` to the Director (one link; from there everything travels in `sync`).",
             inputs=[
                 STORY_MODE.Input("llm", optional=True, display_name="LLM",
                                  tooltip="Plug in Infinite Movie · Story Mode (LLM): a bigger vision LLM on a server "
@@ -188,8 +188,8 @@ class InfiniteMovieSettings(io.ComfyNode):
                                          "(saves the audio VAE load per shot) and shots and film stay silent."),
             ],
             outputs=[
-                SETTINGS.Output("settings", display_name="settings ▶ chain",
-                                tooltip="All shared settings as one pipe → Prompt Style / Auto Prompt / Director / Assemble."),
+                SETTINGS.Output("settings", display_name="settings",
+                                tooltip="All shared settings as one pipe → Director (optional Prompt Style in between)."),
             ],
         )
 
@@ -362,8 +362,8 @@ class InfiniteMovieStyle(io.ComfyNode):
                                tooltip="Camera move, appended to every prompt after the generated text. 'none' = no camera line."),
             ],
             outputs=[
-                io.Custom("SETTINGS").Output("settings", display_name="settings ▶ chain",
-                                             tooltip="Settings with this prompt style. Connect to the first Auto Prompt."),
+                io.Custom("SETTINGS").Output("settings", display_name="settings",
+                                             tooltip="Settings with this prompt style → Director."),
             ],
         )
 

@@ -8,7 +8,7 @@ import { fcWorkflowLayout } from "./infinite_movie_layout.js";
 
 const LAYOUT = "🔗 AUTO LAYOUT";
 const slotIndex = (node, name) => (node.inputs || []).findIndex((i) => i.name === name);
-// Output slots by type: their names are display names ("settings ▶ chain", "sync ▶ Cut").
+// Output slots by type, not by name (display names can change).
 const outByType = (node, type) => (node.outputs || []).findIndex((o) => o.type === type);
 
 // Connect `from`'s output of `type` to `to`'s input `name`, unless that link is already there.

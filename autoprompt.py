@@ -297,7 +297,7 @@ class InfiniteMovieAutoPromptV2(io.ComfyNode):
                 # 73: only prompt + settings-chain left (descriptions output removed;
                 # the model text stays internal in generate(), no longer output).
                 io.String.Output("prompt", tooltip="The final prompt → Director `prompt …`."),
-                SETTINGS.Output("settings", display_name="settings ▶ chain",
+                SETTINGS.Output("settings", display_name="settings",
                                 tooltip="The incoming settings, passed on to the next node of the chain."),
             ],
             hidden=[io.Hidden.unique_id, io.Hidden.prompt],
