@@ -43,13 +43,26 @@ def prompt_config(settings) -> dict:
     }
 
 
-def parse_indices(text) -> list[int]:
-    """Row indices from the ``regen`` widget (JSON list); anything else -> ``[]``."""
+VARIANTS = "abcd"
+
+
+def _item(x):
+    """One regen entry: a row index (variant A) or ``[row, letter]`` (variants A-D); anything else -> None."""
+    if isinstance(x, int) and not isinstance(x, bool):
+        return (x, "a")
+    if isinstance(x, (list, tuple)) and len(x) == 2 and isinstance(x[0], int) and not isinstance(x[0], bool)             and str(x[1]).lower() in tuple(VARIANTS):
+        return (x[0], str(x[1]).lower())
+    return None
+
+
+def parse_indices(text) -> list[tuple[int, str]]:
+    """``(row, variant letter)`` pairs from the ``regen`` widget (JSON list of ints = variant A, or ``[row, "b"]``);
+    anything else -> ``[]``."""
     try:
         data = json.loads(text or "[]")
     except (TypeError, ValueError):
         return []
-    return [int(i) for i in data if isinstance(i, int) and not isinstance(i, bool)] if isinstance(data, list) else []
+    return [it for it in map(_item, data) if it] if isinstance(data, list) else []
 
 
 # Progress of prompt writing (user 2026-11-15): event infinite_movie.prompt_progress to the Director's storyboard bar.
@@ -73,9 +86,11 @@ def _progress(node_id, **data) -> None:
 
 
 def write_prompts(board, indices, loop, settings, node_id=None) -> list[dict]:
-    """The prompts of the rows ``indices`` (storyboard.parse rows): ``{"i", "prompt", "pair"}`` per film, or
-    ``{"i", "error"}`` when its images are missing or the generation fails - the other rows still run. Rows that
-    start no film (the last one without loop) are left out. Only the images of these films are loaded."""
+    """The prompts of ``indices`` (row indices = variant A, or ``(row, letter)`` pairs; storyboard.parse rows):
+    ``{"i", "v", "prompt", "pair"}`` per film and variant, or ``{"i", "v", "error"}`` when its images are missing or
+    the generation fails - the others still run. Rows that start no film (the last one without loop) are left out.
+    Variants B-D (user 2026-11-15: "separate"): an independent prompt from the same two images, its own seed, no
+    manual keywords from A. Only the images of these films are loaded."""
     from . import storyboard as sb
     from .autoprompt import generate
 
@@ -92,7 +107,10 @@ def write_prompts(board, indices, loop, settings, node_id=None) -> list[dict]:
         return images[k]
 
     from . import timing
-    films = [i for i in indices if 0 <= i < n and i in sb.film_rows(board, loop)]   # a cut row has no film
+    items = [it for it in map(_item, indices) if it]
+    rows_ok = sb.film_rows(board, loop)   # a cut row has no film
+    jobs = [(i, v) for i, v in items if 0 <= i < n and i in rows_ok]
+    films = [i for i, _v in jobs]
     filled = [k for k, row in enumerate(board) if row["image"]]
     model = str(cfg["model_name"] or "")
     planning = isinstance(llm, dict) and bool(llm.get("story_mode")) and len(filled) >= 2
@@ -114,7 +132,7 @@ def write_prompts(board, indices, loop, settings, node_id=None) -> list[dict]:
         _progress(node_id, phase="plan_done", seconds=round(dt, 1))
 
     out = []
-    for k, i in enumerate(films):
+    for k, (i, v) in enumerate(jobs):
         j = sb.next_of(n, i, loop)
         row = board[i]
         _progress(node_id, phase="prompt", k=k, i=i)
@@ -124,14 +142,20 @@ def write_prompts(board, indices, loop, settings, node_id=None) -> list[dict]:
             if plan is not None and i in filled:
                 from .llm_nodes import shot_context
                 context = shot_context(plan, filled.index(i))
+            if v != "a":   # an independent take: same two images, its own way between them
+                context = (context + "\n" if context else "") + (
+                    f"This is alternative take {v.upper()} of this shot: find your own way from image 1 to image 2 "
+                    "(action, timing, camera) - do not just repeat the obvious version.")
+            keywords = " ".join(row["prompt"].split()) if v == "a" and row["own"] else ""
             text, _desc, _warning = generate(
-                image(i), image(j), cfg["model_name"], " ".join(row["prompt"].split()) if row["own"] else "",
+                image(i), image(j), cfg["model_name"], keywords,
                 camera=cfg["camera"], instruction=cfg["instruction"], max_words=cfg["max_words"],
-                seed=int(time.time()) % 2**31, load=cfg["load"], gen=cfg["gen"], context=context)
-            out.append({"i": i, "prompt": text, "pair": [row["image"], board[j]["image"]]})
+                seed=(int(time.time()) + VARIANTS.index(v) * 7919) % 2**31, load=cfg["load"], gen=cfg["gen"],
+                context=context)
+            out.append({"i": i, "v": v, "prompt": text, "pair": [row["image"], board[j]["image"]]})
             timing.record("prompt", 1000, 1000, 1, round(time.time() - t0, 2), preset=model)
         except Exception as e:  # noqa: BLE001 - one broken film must not stop the others
-            out.append({"i": i, "error": str(e)})
+            out.append({"i": i, "v": v, "error": str(e)})
         _progress(node_id, phase="prompt_done", k=k + 1, i=i, seconds=round(time.time() - t0, 1))
     _progress(node_id, phase="done")
     return out

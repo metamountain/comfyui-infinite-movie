@@ -50,8 +50,11 @@ const CSS = `
 .imsb-p .sec { margin-left:auto; display:flex; align-items:center; gap:3px; font-weight:400; }
 .imsb-p .sec input { width:46px; background:#1b1b1b; color:#ddd; border:1px solid #444; border-radius:3px; font:13px system-ui; padding:2px 3px; }
 .imsb-p .sec input.own { color:#e6c229; font-weight:700; border-color:#e6c229; }
-.imsb-p .vs { flex:1; min-height:0; display:flex; gap:4px; }
-.imsb-p .vs textarea { min-width:0; }
+.imsb-p .vs { flex:1; min-height:0; display:flex; gap:6px; }
+.imsb-p .vc { flex:1; min-width:0; display:flex; flex-direction:column; gap:3px; }
+.imsb-p .vc + .vc { border-left:1px solid #444; padding-left:6px; }
+.imsb-p .vh { display:flex; align-items:center; gap:5px; font:700 12px system-ui; color:#bbb; min-height:18px; }
+.imsb-p .vh .vre { margin-left:auto; cursor:pointer; opacity:.75; } .imsb-p .vh .vre:hover { opacity:1; }
 .imsb-p .cp { cursor:pointer; opacity:.75; } .imsb-p .cp:hover { opacity:1; }
 .imsb-p textarea { flex:1; min-height:0; resize:none; background:#1b1b1b; color:#ddd; border:1px solid #444; border-radius:3px; font:12px system-ui; padding:4px; }
 .imsb-p .hd input { cursor:auto; }
@@ -213,7 +216,7 @@ async function regen(node, idx) {
   if (!idx.length) { fcReviewToast("No prompt to write (all are ✎ manual)", "#e68929"); return; }
   const w = imWidget(node, "regen");
   if (!w) { fcReviewToast("Director has no regen input - restart ComfyUI", "#d93025"); return; }
-  node._imsb.busy = new Set(idx);
+  node._imsb.busy = new Set(idx.map((x) => (Array.isArray(x) ? x[0] : x)));
   render(node);
   w.value = JSON.stringify(idx);
   try { if (!(await fcQueueFixedSeeds([String(node.id)]))) endBusy(node); }
@@ -231,7 +234,9 @@ function received(e) {
     if (r.error) { fcReviewToast(`Prompt ${r.i + 1}: ${r.error}`, "#d93025"); continue; }
     const at = (k) => samePair(pairOf(rows, k, loop), r.pair);
     const k = at(r.i) ? r.i : rows.findIndex((_, j) => at(j));
-    if (k >= 0) Object.assign(rows[k], { prompt: r.prompt, own: false, pair: r.pair });
+    if (k < 0) continue;
+    if (r.v && r.v !== "a") rows[k][`prompt_${r.v}`] = r.prompt;   // variant B-D: only its field
+    else Object.assign(rows[k], { prompt: r.prompt, own: false, pair: r.pair });
   }
   node._imsb.busy = null;
   commit(node, rows);
@@ -364,14 +369,28 @@ function promptEl(node, rows, i, loop) {
   // variant, empty = A's prompt. ⧉ copies A into the empty fields - then change only the detail to compare.
   const nv = imVariantCount(node);
   if (nv > 1) {
+    // user 2026-11-15 ("separate, split graphically"): one column per variant with its own head - letter, lamp, ↻
+    // (the LLM writes an independent take from the same two images); empty field = A's prompt
     const vs = el("div", "vs");
-    ta.placeholder = busy ? "writing…" : "A: what happens from this image to the next…";
-    ta.title = "Variant A";
-    vs.append(ta);
+    const col = (l, field) => {
+      const c = el("div", "vc"), h = el("div", "vh"), L = l.toUpperCase();
+      const lp = el("span", "lamp " + (busy ? "wait" : words(field.value) >= 5 ? "ok" : "wait"));
+      lp.title = l === "a" ? lamp.title : field.value.trim() ? "Own prompt" : "Empty – renders with prompt A";
+      const re = el("span", "vre", busy ? "…" : "↻");
+      re.title = `Write prompt ${L} with the LLM (an own take from the same two images)`;
+      re.onpointerdown = (e) => e.stopPropagation();
+      re.onclick = (e) => { e.stopPropagation(); if (!busy) regen(node, [l === "a" ? i : [i, l]]); };
+      h.append(el("span", null, L), lp, re);
+      c.append(h, field);
+      vs.append(c);
+    };
+    ta.placeholder = busy ? "writing…" : "What happens from this image to the next…";
+    col("a", ta);
+    rg.remove();   // the columns have their own ↻
     const fields = [];
     for (const l of IM_LETTERS.slice(1, nv)) {
       const key = `prompt_${l}`, L = l.toUpperCase();
-      const tv = Object.assign(el("textarea", l), { value: r[key] || "", disabled: busy, placeholder: `${L}: empty = same as A` });
+      const tv = Object.assign(el("textarea", l), { value: r[key] || "", disabled: busy, placeholder: busy ? "writing…" : `empty = same as A` });
       tv.title = `Variant ${L} prompt – Cut shows the variants side by side`;
       tv.onkeydown = (e) => e.stopPropagation();
       tv.oninput = () => {
@@ -382,7 +401,7 @@ function promptEl(node, rows, i, loop) {
         st.sig = signature(node);
       };
       fields.push([key, tv]);
-      vs.append(tv);
+      col(l, tv);
     }
     const cp = el("span", "cp", "⧉");
     cp.title = "Copy prompt A into the empty variant fields";
@@ -486,14 +505,15 @@ export function addStoryboard(node) {
     for (const f of files.slice(0, MAX_IMAGES)) { const nm = await uploadImage(f); if (nm) names.push(nm); }
     append(names);
   };
-  const bAll = el("button", null, "✎ Write all prompts");
-  bAll.title = "Writes every prompt except the ✎ manual ones (typed by you)";
-  bAll.onclick = () => {
-    const rows = readRows(node), loop = isLoop(node);
-    regen(node, rows.flatMap((r, i) => (pairOf(rows, i, loop) && !r.own ? [i] : [])));
-  };
   const pbar = el("div", "imsb-pp");   // prompt writing progress (im_prompt_progress.js)
   pbar.appendChild(el("span"));
+  const bAll = el("button", null, "✎ Write all prompts");
+  bAll.title = "Writes every prompt except the ✎ manual ones (typed by you); with variants also the empty B-D fields";
+  bAll.onclick = () => {
+    const rows = readRows(node), loop = isLoop(node), extra = IM_LETTERS.slice(1, imVariantCount(node));
+    regen(node, rows.flatMap((r, i) => (pairOf(rows, i, loop)
+      ? [...(!r.own ? [i] : []), ...extra.filter((l) => !String(r[`prompt_${l}`] || "").trim()).map((l) => [i, l])] : [])));
+  };
   tb.append(cnt, bAll, bLoad, pbar);
   const board = el("div", "imsb-bd");
   root.append(tb, board);
