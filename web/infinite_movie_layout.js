@@ -119,6 +119,18 @@ export function fcWorkflowLayout(director, second = false) {
   const asmFilms = allFilms.filter((f) => !cutFilms.includes(f));
   const cutAnas = byType("InfiniteMovieAnalysis");   // Movie Analysis: under Cut's preview, same width
   const asm = byType("InfiniteMovieAssemble"), cut = byType("InfiniteMovieChooser");
+  // user 2026-11-15 ("4 5 like 5, no air"): the Upscale block is one column at the player width - loaders on top
+  // (left to right as they were), the upscaler below - so group 8 is as narrow as Even Motion
+  if (upBlock.length > 1) {
+    const ord = [...upBlock].sort((p, q) => p.pos[0] - q.pos[0] || p.pos[1] - q.pos[1]);
+    const x0 = Math.min(...ord.map((n) => n.pos[0]));
+    let y = Math.min(...ord.map((n) => n.pos[1]));
+    for (const n of ord) {
+      n.size = [Math.max(PLAYER_W, n.computeSize?.()[0] || 0), n.size[1]];
+      n.pos = [x0, y];
+      y += n.size[1] + NGAP + T;
+    }
+  }
   const blockW = upBlock.length ? Math.max(...upBlock.map((n) => n.pos[0] + n.size[0])) - Math.min(...upBlock.map((n) => n.pos[0])) : 0;
   // user 2026-11-13: "after 6 the work is done, 7 8 are extras" -> Cut (group 6) alone sets the width of 6-9;
   // a wider Upscale block only widens group 8 itself
