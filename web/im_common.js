@@ -3,7 +3,7 @@ import { api } from "../../scripts/api.js";
 import { fcChooseRender } from "./im_cut.js";
 import { fcFilmRender } from "./im_film.js";
 import { imToggleWidget } from "./im_settings.js";
-import { filmCount, nextOf } from "./im_storyboard_model.js";
+import { DEFAULT_IMAGES, filmCount, nextOf } from "./im_storyboard_model.js";
 
 // Slider tooltips (user 2026-11-13: "tooltips bei slidern nicht im slide bereich"): the canvas tooltip sits
 // 5 px above the cursor and covers the slider while dragging. Over a slider, lift it above the widget's top edge.
@@ -28,7 +28,6 @@ import { filmCount, nextOf } from "./im_storyboard_model.js";
 const MIN_FREE_MB = 20000;
 
 // Node active = not muted/bypassed.
-export const fcActive = (n) => (n?.mode ?? 0) === 0;
 
 export function getLink(graph, id) {
   const links = graph?.links;
@@ -62,24 +61,23 @@ export function fcShotSecondsOf(director, shotNumber) {
 export const imWidget = (node, name) => node?.widgets?.find((w) => w.name === name);
 
 // The Director's storyboard: the raw JSON entries of its storyboard widget ([] when empty or broken).
+// An empty storyboard is shown as DEFAULT_IMAGES empty rows (readRows): Cut mirrors exactly those rows.
 export function imParseStoryboard(director) {
-  try {
-    const v = JSON.parse(imWidget(director, "storyboard")?.value || "[]");
-    return Array.isArray(v) ? v.filter((x) => x && typeof x === "object") : [];
-  } catch { return []; }
+  if (!director) return [];
+  let v = [];
+  try { v = JSON.parse(imWidget(director, "storyboard")?.value || "[]"); } catch { v = []; }
+  v = Array.isArray(v) ? v.filter((x) => x && typeof x === "object") : [];
+  return v.length ? v : Array.from({ length: DEFAULT_IMAGES }, () => ({ image: "", prompt: "" }));
 }
 
-const imagesBatchLinked = (director) => (director?.inputs || []).some((i) => i.name === "images" && i.link != null);
-
-// Images the Director has: the filled storyboard rows, or (images batch linked) at least 2.
+// Images the Director has: the filled storyboard rows.
 export function imShotImageCount(director) {
-  const rows = imParseStoryboard(director);
-  return imagesBatchLinked(director) ? Math.max(2, rows.length) : rows.filter((x) => x.image).length;
+  return imParseStoryboard(director).filter((x) => x.image).length;
 }
 
 // Films the Director renders - one per storyboard row that starts one (storyboard.py: the same rule).
 export function imFilmCount(director) {
-  const n = imagesBatchLinked(director) ? imShotImageCount(director) : imParseStoryboard(director).length;
+  const n = imParseStoryboard(director).length;
   return filmCount(n, !!imWidget(director, "loop")?.value);
 }
 
@@ -92,8 +90,8 @@ export function imEmptyPromptFilms(director) {
   });
 }
 
-// Storyboard rows without an image (1-based); empty when the images batch is linked (it provides the images).
-export const imEmptyImageRows = (d) => imagesBatchLinked(d) ? [] : imParseStoryboard(d).flatMap((r, i) => (r.image ? [] : [i + 1]));
+// Storyboard rows without an image (1-based).
+export const imEmptyImageRows = (d) => imParseStoryboard(d).flatMap((r, i) => (r.image ? [] : [i + 1]));
 
 // 124b: a prompt-writing run (storyboard ↻ / Write all) = Director with a non-empty regen widget. Renders nothing.
 export const imPromptRun = (n) => n?.comfyClass === "InfiniteMovieRender"

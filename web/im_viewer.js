@@ -5,16 +5,6 @@ import { fcChooseFocus, fcChooseStatus } from "./im_cut_state.js";
 import { fcFilmShowFilm } from "./im_film.js";
 import { imToggleWidget } from "./im_settings.js";
 import { imSyncGet, imvShotDur } from "./im_sync.js";
-// Normalize Time: draw the graph of the last run below the widgets (user 2026-10-26:
-// "must be visualized which normalization takes effect"). Uses the analysis of the last run
-// (POST /infinite_movie/normalize_graph, retime_nodes.py) - no render, no encode.
-// The node itself draws the graph below the widgets: the frontend does not show output images
-// for nodes with a file upload widget (checked 2026-10-26: nodeOutputs set, node.imgs stayed empty).
-function viewUrl(im) {
-  const q = new URLSearchParams({ filename: im.filename, subfolder: im.subfolder || "", type: im.type || "temp" });
-  return api.apiURL(`/view?${q}&t=${Date.now()}`);
-}
-
 // 86 (user 2026-11-04: „just make everything … then we'll see“): Assemble viewer instead of the canvas graph.
 // Tabs Graph | Timeline | Heatmap | Frames; Frames with slider, ▶ and Onion Skin (3 ghosts, in the browser
 // computed). Data: ui.im_viz from retime_nodes._viz_shot/_viz_timeline (temp folder, max. 64 frames per shot).

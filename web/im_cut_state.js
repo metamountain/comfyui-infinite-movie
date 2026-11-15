@@ -119,7 +119,7 @@ function fcChoosePlan(node) {
   if (!d) return null;
   const nImg = imShotImageCount(d);
   const variants = String(d.widgets?.find((w) => w.name === "variants")?.value) === "2";
-  return { n: imFilmCount(d), variants: nImg > 0 && variants, director: d, nImg };
+  return { n: imFilmCount(d), variants, director: d, nImg };   // variants: both columns from the start (empty, black)
 }
 
 // Real entries (after the run) or placeholders from the plan; stale entries
@@ -137,7 +137,7 @@ export function fcChooseEntries(node) {
 export function fcChooseSig(e) { return e.length + (e[0]?.placeholder ? "p" : "r") + (e[0]?.has_variants ? "v" : ""); }
 
 // 124d: one row per film (mirror of the Director's prompt boxes): the tile box 283×205 is scaled to the
-// connected Director's format (Settings node via boardFormat), rows staggered half a row, node width fixed 672.
+// connected Director's format (Settings node via boardFormat), rows staggered half a row.
 export function fcChooseLayout(node, entries) {
   // Same height system as the Director (boardGeometry): its resolved format (incl. "from images" = its first tile),
   // rows = its prompt boxes, cut films next to their image, half rows above a cut.
@@ -149,32 +149,9 @@ export function fcChooseLayout(node, entries) {
   const boardH = entries.length ? Math.max(...tops.map((t, i) => t + heights[i])) : 0;
   // 2026-11-13: no play field in Cut any more – the analysis viewer is its own widget (im_viz) below this one.
   const domH = boardH + FC_CHOOSE_GAP + FC_CHOOSE_STATUS_H + FC_CHOOSE_GAP + FC_CHOOSE_BIG_H + 8;
-  return { iw, ih, row, boardH, domH, sheet: null, tops, heights, cutY: g.cells.cut };
-}
-// 124d: the 3×3 sheet row is gone (one row per film) – the sheet is reached via the analysis viewer.
-function fcChooseSheetSize() { return null; }
-export function fcChooseUpdateSheet(node, only = -1) {
-  const cells = node._fc_sheet_cells || [];
-  const entries = node._fc_choose_entries || [];
-  const choices = fcChooseGetChoices(node);
-  cells.forEach((cell, i) => {
-    if (only >= 0 && i !== only) return;
-    const e = entries[i];
-    if (!e || !cell) return;
-    const eff = fcChooseEff(e, choices[i]);
-    const k = (node._fc_sheet_hover?.[0] === i && e[node._fc_sheet_hover[1]]) ? node._fc_sheet_hover[1] : eff;
-    const im = e[k]?.sheet;
-    const src = im ? fcChooseStableUrl(im) : "";
-    if (src && cell.img.getAttribute("src") !== src) cell.img.setAttribute("src", src);
-    cell.img.style.visibility = src ? "visible" : "hidden";
-    const err = e[k]?.errors?.find((x) => x.startsWith("sheet")) || (e.placeholder ? "" : e[k] ? "" : `variant ${k.toUpperCase()} missing`);
-    cell.lbl.textContent = src ? `Film ${e.number}${e.has_variants ? " · " + k.toUpperCase() : ""} · 3×3`
-      : err ? `✗ Film ${e.number}: ${err}` : "no sheet yet – Run";
-    cell.lbl.style.color = !src && err ? "#ff6b6b" : "";
-  });
+  return { iw, ih, row, boardH, domH, tops, heights, cutY: g.cells.cut };
 }
 
-// 124d: fixed node width – one row per film, tiles + info box always fit into 672 px.
 // Node width = tiles (A, and B with variants) + the narrow info column; at least as wide as the analysis viewer below.
 export function fcChooseWidth(node, entries) {
   const { iw } = fcChooseLayout(node, entries), cols = entries.some((e) => e.has_variants) ? 2 : 1;

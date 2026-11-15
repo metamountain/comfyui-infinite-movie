@@ -307,26 +307,6 @@ export function fcChooseRender(node) {
   el.appendChild(btn);
   node._fc_choose_btn = btn;
   el.appendChild(status);   // 2026-11-05 (user): status/progress at the very bottom
-  // 3×3 sheets at the very bottom, per shot under its column
-  const sz = fcChooseLayout(node, entries).sheet;
-  node._fc_sheet_cells = [];
-  if (sz) {
-    const sheetRow = document.createElement("div");
-    sheetRow.style.cssText = `display:flex;gap:${FC_CHOOSE_GAP}px;overflow:hidden;`;
-    entries.forEach(() => {
-      const cell = document.createElement("div");
-      cell.style.cssText = `position:relative;width:${sz[0]}px;height:${sz[1]}px;flex:0 0 ${sz[0]}px;background:#121212;border-radius:3px;overflow:hidden;`;
-      const img = document.createElement("img");
-      img.style.cssText = "width:100%;height:100%;object-fit:contain;display:block;";
-      const lbl = document.createElement("div");
-      lbl.style.cssText = "position:absolute;left:4px;bottom:4px;padding:1px 6px;font:bold 11px sans-serif;color:#ddd;" +
-        "background:rgba(0,0,0,0.6);border-radius:3px;pointer-events:none;";
-      cell.appendChild(img); cell.appendChild(lbl);
-      sheetRow.appendChild(cell);
-      node._fc_sheet_cells.push({ img, lbl });
-    });
-    el.appendChild(sheetRow);
-  }
 
 
   fcChooseStatus(node);
@@ -467,72 +447,6 @@ app.registerExtension({
       }
       return r;
     };
-  },
-});
-
-// ---------------------------------------------------------------------------
-// InfiniteMovie.AutoBatch (task 39D): status row on the FramesCollect node,
-// fetches video info from /infinite_movie/video_info, computes frames_per_batch.
-// ---------------------------------------------------------------------------
-
-app.registerExtension({
-  name: "InfiniteMovie.AutoBatch",
-  nodeCreated(node) {
-    if (node.comfyClass !== "InfiniteMovieFramesCollect") return;
-    const drawFg = node.onDrawForeground;
-    node.onDrawForeground = function (ctx) {
-      const r = drawFg?.apply(this, arguments);
-      const info = this._fc_video_info;
-      if (!info || this.flags?.collapsed) return r;
-      const maxGb = this.widgets?.find((w) => w.name === "max_images_gb")?.value ?? 0;
-      const w = info.width || 768, h = info.height || 960;
-      const bytesPerFrame = w * h * 3 * 4;
-      const maxFrames = maxGb > 0 ? Math.floor((maxGb * 1024 ** 3) / bytesPerFrame) : info.frames;
-      const batches = maxFrames > 0 ? Math.ceil(info.frames / maxFrames) : 1;
-      const lines = [
-        `${info.frames} frames · ${info.width}×${info.height} · ${info.fps?.toFixed(1) || "?"} fps`,
-        maxGb > 0
-          ? `~${(info.frames * bytesPerFrame / 1024 ** 3).toFixed(1)} GB → ${batches} batch(es) of ${maxFrames}`
-          : `~${(info.frames * bytesPerFrame / 1024 ** 3).toFixed(1)} GB (no limit)`,
-      ];
-      const x = 8, bw = this.size[0] - 16, bh = 14 + lines.length * 16;
-      const y = (this.computeSize?.()[1] || 200) + 4;
-      ctx.save();
-      ctx.fillStyle = "rgba(0,0,0,0.55)";
-      ctx.fillRect(x - 2, y - 2, bw + 4, bh + 4);
-      ctx.fillStyle = "#ddd";
-      ctx.font = "12px sans-serif";
-      lines.forEach((t, i) => ctx.fillText(t, x, y + 16 + i * 16));
-      ctx.restore();
-      return r;
-    };
-    // Fetch video info if a path widget is present
-    const refresh = async () => {
-      const paths = node.widgets?.find((w) => w.name === "paths")?.value ?? "";
-      const first = paths.split("\n").map((s) => s.trim()).filter(Boolean)[0];
-      if (!first) { node._fc_video_info = null; node.setDirtyCanvas(true, true); return; }
-      try {
-        const r = await fetch(`/infinite_movie/video_info?path=${encodeURIComponent(first)}`);
-        const j = await r.json();
-        if (r.ok) {
-          node._fc_video_info = j;
-          node.setDirtyCanvas(true, true);
-        }
-      } catch (e) {
-        console.warn("[InfiniteMovie.AutoBatch]", e);
-      }
-    };
-    const pathsWidget = node.widgets?.find((w) => w.name === "paths");
-    if (pathsWidget) {
-      const origCb = pathsWidget.callback;
-      pathsWidget.callback = function (...args) {
-        const res = origCb?.apply(this, args);
-        clearTimeout(this._fc_batch_timer);
-        this._fc_batch_timer = setTimeout(refresh, 500);
-        return res;
-      };
-    }
-    setTimeout(refresh, 1500);
   },
 });
 

@@ -2,6 +2,9 @@ import { app } from "../../scripts/app.js";
 import { fcChooseRedoTokens, fcParseShotSeconds, fcQueueFixedSeeds, fcReviewToast, fcShotSecondsOf, getLink } from "./im_common.js";
 import { fcChooseRender } from "./im_cut.js";
 import { fcChooseGetChoices, fcChooseSetChoices } from "./im_cut_state.js";
+import { render as renderStoryboard } from "./im_storyboard.js";
+import { readRows, writeRows } from "./im_storyboard_io.js";
+import { pairOf } from "./im_storyboard_model.js";
 export function fcRerenderMarked(node, rerenderFn) {
   const marked = fcChooseRedoTokens(node);
   if (!marked.length) return;
@@ -98,39 +101,12 @@ export function fcChooseDirectorOf(node) {
   return null;
 }
 
-// 80: find the Auto Prompt node for a shot: director input `shot_prompts.prompt{k-1}`
-// (shot number 1-based), also follow the link through reroutes – model fcChooseDirectorOf.
-function fcChoosePromptNodeOf(node, shotNumber) {
-  const d = fcChooseDirectorOf(node);
-  if (!d) return null;
-  const inp = (d.inputs || []).find((i) => i.name === `shot_prompts.prompt${shotNumber - 1}`);
-  if (inp?.link == null) return null;
-  let n = d.graph?.getNodeById(getLink(d.graph, inp.link)?.origin_id), guard = 0;
-  while (n && guard++ < 10) {
-    if (n.comfyClass === "InfiniteMovieAutoPrompt") return n;
-    if (n.comfyClass !== "Reroute") return null;
-    const r = n.inputs?.[0];
-    if (r?.link == null) return null;
-    n = n.graph?.getNodeById(getLink(n.graph, r.link)?.origin_id);
-  }
-  return null;
-}
-
-// 80: „✎ prompt" per Choose column: expands a text field with the prompt of this transition
-// (source: prompt widget of the Auto Prompt node at the director input). Saving writes the text
-// into the widget (callback like a manual change) and marks the shot REDO (setMarked) – RERENDER
-// then only renders this shot, because the changed prompt changes the segment key (reuse logic).
-export function fcChooseEditPrompt(node, col, e, setMarked) {
-  const ap = fcChoosePromptNodeOf(node, e.number);
-  const w = ap?.widgets?.find((x) => x.name === "prompt");
-  if (!ap || !w) {
-    fcReviewToast(`Shot ${e.number}: no Auto Prompt node connected to its prompt input.`);
-    return;
-  }
+// Shared shell of Cut's edit overlays (prompt, length): dark panel over the info box, title + ✕. Events stay in the
+// overlay (no canvas drag/pan or canvas shortcuts while typing).
+function editOverlay(title) {
   const ov = document.createElement("div");
   ov.style.cssText = "position:absolute;inset:0;z-index:20;background:rgba(12,12,12,0.96);" +
     "display:flex;flex-direction:column;gap:6px;padding:8px;border-radius:3px;";
-  // Do NOT pass text field events through to the canvas (pointer drag/pan + canvas keyboard shortcuts).
   for (const t of ["pointerdown", "pointerup", "pointermove", "wheel", "mousedown", "mouseup",
     "dblclick", "contextmenu", "keydown", "keyup", "dragstart"]) {
     ov.addEventListener(t, (ev) => ev.stopPropagation());
@@ -138,14 +114,26 @@ export function fcChooseEditPrompt(node, col, e, setMarked) {
   const head = document.createElement("div");
   head.style.cssText = "display:flex;align-items:center;justify-content:space-between;font:bold 13px sans-serif;color:#fff;";
   const ht = document.createElement("span");
-  ht.textContent = `Prompt – Shot ${e.number}`;
+  ht.textContent = title;
   const x = document.createElement("span");
   x.textContent = "✕";
   x.style.cssText = "cursor:pointer;color:#aaa;padding:0 4px;";
   head.appendChild(ht);
   head.appendChild(x);
+  ov.appendChild(head);
+  return { ov, x };
+}
+
+// „✎ prompt" per Cut row: the prompt of this film from the Director's storyboard (row = film - 1; a single image
+// with loop has two films and one row). Saving writes the row (manual prompt, pair = its images now), redraws the
+// storyboard and marks the film REDO – the changed prompt changes the segment key, RERENDER renders only this film.
+export function fcChooseEditPrompt(node, col, e, setMarked) {
+  const d = fcChooseDirectorOf(node);
+  if (!d) { fcReviewToast(`Film ${e.number}: no Director connected.`); return; }
+  const rows0 = readRows(d), ri = Math.min(e.number - 1, rows0.length - 1);
+  const { ov, x } = editOverlay(`Prompt – Film ${e.number}`);
   const ta = document.createElement("textarea");
-  ta.value = String(w.value ?? "");
+  ta.value = String(rows0[ri]?.prompt ?? "");
   ta.style.cssText = "flex:1;min-height:60px;resize:none;background:#1a1a1a;color:#ddd;border:1px solid #444;" +
     "border-radius:3px;padding:6px;font:12px/1.4 monospace;";
   const foot = document.createElement("div");
@@ -158,24 +146,20 @@ export function fcChooseEditPrompt(node, col, e, setMarked) {
     return b;
   };
   const save = () => {
-    const text = ta.value;
-    const old = w.value;
-    // Like the frontend setValue: unchanged text triggers no change (no REDO marking,
-    // no incrementVersion/dirty), because the segment key stays the same anyway.
-    if (text === old) {
+    const rows = readRows(d), text = ta.value;
+    // unchanged text: no REDO marking, the segment key stays the same anyway
+    if (text === rows[ri].prompt) {
       ov.remove();
-      fcReviewToast(`Shot ${e.number}: prompt unchanged – nothing to re-render.`);
+      fcReviewToast(`Film ${e.number}: prompt unchanged – nothing to re-render.`);
       return;
     }
-    w.value = text;
-    w.callback?.(text);
-    // Frontend's own programmatic path (like setValue in the frontend, nodeDefStore): onWidgetChanged
-    // + incrementVersion, so the Modified flag and foreign onWidgetChanged hooks see the change.
-    ap.onWidgetChanged?.(w.name, text, old, w);
-    ap.graph?.incrementVersion?.();
+    Object.assign(rows[ri], { prompt: text, own: !!text.trim(), pair: pairOf(rows, ri, !!d.widgets?.find((w) => w.name === "loop")?.value) });
+    writeRows(d, rows);
+    renderStoryboard(d);
+    d.graph?.incrementVersion?.();
     setMarked(true);
     fcChooseRender(node);
-    fcReviewToast(`Shot ${e.number}: prompt saved – marked ✗ REDO.`);
+    fcReviewToast(`Film ${e.number}: prompt saved – marked ✗ REDO.`);
   };
   const cancel = () => ov.remove();
   x.addEventListener("click", (ev) => { ev.stopPropagation(); cancel(); });
@@ -185,7 +169,6 @@ export function fcChooseEditPrompt(node, col, e, setMarked) {
   });
   foot.appendChild(mk("💾 save", "#2ea043", save));
   foot.appendChild(mk("cancel", "#333", cancel));
-  ov.appendChild(head);
   ov.appendChild(ta);
   ov.appendChild(foot);
   col.appendChild(ov);
@@ -204,23 +187,7 @@ export function fcChooseEditSeconds(node, col, e, setMarked) {
     fcReviewToast(`Shot ${e.number}: no Director with a shot_seconds widget found.`);
     return;
   }
-  const ov = document.createElement("div");
-  ov.style.cssText = "position:absolute;inset:0;z-index:20;background:rgba(12,12,12,0.96);" +
-    "display:flex;flex-direction:column;gap:6px;padding:8px;border-radius:3px;";
-  // Do NOT pass number field events through to the canvas (pointer drag/pan + canvas keyboard shortcuts).
-  for (const t of ["pointerdown", "pointerup", "pointermove", "wheel", "mousedown", "mouseup",
-    "dblclick", "contextmenu", "keydown", "keyup", "dragstart"]) {
-    ov.addEventListener(t, (ev) => ev.stopPropagation());
-  }
-  const head = document.createElement("div");
-  head.style.cssText = "display:flex;align-items:center;justify-content:space-between;font:bold 13px sans-serif;color:#fff;";
-  const ht = document.createElement("span");
-  ht.textContent = `Length – Shot ${e.number}`;
-  const x = document.createElement("span");
-  x.textContent = "✕";
-  x.style.cssText = "cursor:pointer;color:#aaa;padding:0 4px;";
-  head.appendChild(ht);
-  head.appendChild(x);
+  const { ov, x } = editOverlay(`Length – Film ${e.number}`);
   const num = document.createElement("input");
   num.type = "number";
   num.min = "0.5";
@@ -278,7 +245,6 @@ export function fcChooseEditSeconds(node, col, e, setMarked) {
   foot.appendChild(mk("💾 save", "#2ea043", save));
   foot.appendChild(mk("global", "#555", () => write(0)));
   foot.appendChild(mk("cancel", "#333", cancel));
-  ov.appendChild(head);
   ov.appendChild(num);
   ov.appendChild(hint);
   ov.appendChild(foot);

@@ -1,8 +1,9 @@
 // Director node (InfiniteMovieRender): the storyboard (im_storyboard.js) and the big AUTO LAYOUT button, which wires
-// Settings → Prompt Style → Director and sync Director → Cut → Even Motion, then arranges the workflow.
+// Settings → (optional Prompt Style →) Director and sync Director → Cut → Even Motion, then arranges the workflow.
 import { app } from "../../scripts/app.js";
 import { fcReviewToast, getLink, imWidget } from "./im_common.js";
 import { imToggleWidget } from "./im_settings.js";
+import { fcChooseRender } from "./im_cut.js";
 import { addStoryboard, render as renderStoryboard } from "./im_storyboard.js";
 import { fcWorkflowLayout } from "./infinite_movie_layout.js";
 
@@ -109,6 +110,19 @@ app.registerExtension({
     addLayoutButton(node);
     addStoryboard(node);
     setTimeout(() => hideDataWidgets(node), 0);
+    // Variants on/off (user 2026-11-15: "instant"): Cut gets / loses its B column at once, the layout follows.
+    const vw = imWidget(node, "variants");
+    if (vw) {
+      const cb = vw.callback;
+      vw.callback = function (...a) {
+        const r = cb?.apply(this, a);
+        setTimeout(() => {
+          for (const c of node.graph?._nodes || []) if (c.comfyClass === "InfiniteMovieChooser" && c._fc_choose_el) fcChooseRender(c);
+          autoLayout(node);
+        }, 0);
+        return r;
+      };
+    }
     // A loaded workflow sets the widget values after nodeCreated: draw the storyboard from them. regen is set only for
     // the moment a prompt-writing run is queued; saved into a workflow it would turn every later Run into prompt
     // writing (nothing renders) - a loaded workflow never keeps it.

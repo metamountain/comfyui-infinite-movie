@@ -88,9 +88,3 @@ def prompt_list(board, n_segments) -> list[str]:
     return out
 
 
-def images_from_batch(images) -> list[np.ndarray]:
-    """An IMAGE tensor (B,H,W,C) float [0,1] as B uint8 H×W×C arrays."""
-    if images is None:
-        return []
-    t = images.detach().cpu() if hasattr(images, "detach") else images
-    return [_to_numpy_image(t[i]) for i in range(len(t))]

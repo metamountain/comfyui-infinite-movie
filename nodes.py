@@ -266,9 +266,6 @@ class InfiniteMovieRender(io.ComfyNode):
                 # dynprompt (expansion.engine_to_template). Unconnected = the single non-muted engine group.
                 io.String.Input("engine", force_input=True, lazy=True, optional=True,
                                 tooltip="Engine Result of the engine group to use. Unconnected: the single non-muted engine group."),
-                io.Image.Input("images", optional=True,
-                               tooltip="Optional image batch - replaces the storyboard images (image i = row i); "
-                                       "the prompts still come from the storyboard rows."),
                 io.String.Input("storyboard", default="[]", advanced=True, optional=True,
                                 tooltip="Storyboard JSON (image, prompt per row) - edited in the Director's storyboard."),
                 io.String.Input("regen", default="", advanced=True, optional=True,
@@ -309,7 +306,7 @@ class InfiniteMovieRender(io.ComfyNode):
         return []   # the lazy engine input is never awaited (read from the dynprompt)
 
     @classmethod
-    def execute(cls, images=None, storyboard="[]", loop=True, seconds=2.0, seed=42, reseed="", engine=None,
+    def execute(cls, storyboard="[]", loop=True, seconds=2.0, seed=42, reseed="", engine=None,
                 shot_seconds="", settings=None, variants="1", regen=""):
         board = _storyboard.parse(storyboard)
         if str(regen).strip():   # ↻ Regenerate / ✎ Write all: write these prompts, render nothing
@@ -322,7 +319,7 @@ class InfiniteMovieRender(io.ComfyNode):
         preset = cfg["preset"]
         _display_memory(cls, "before")
 
-        raw = _storyboard.images_from_batch(images) if images is not None else _storyboard.load_images(board)
+        raw = _storyboard.load_images(board)   # images and prompts only from the storyboard (user 2026-11-15)
         if not raw:
             raise ValueError("Director: no images - add images in the storyboard")
         width, height = _film_size(settings, cfg, raw[0])
@@ -616,59 +613,7 @@ class InfiniteMovieShotsOut(io.ComfyNode):
 # Node list
 # ---------------------------------------------------------------------------
 
-from .frames_nodes import (InfiniteMovieFramesCollect, _collect_frame_ranges,
-                           _collect_frames_tensor, _images_output, _output_connected)
-
-NODE_LIST = [InfiniteMovieRender, InfiniteMovieSegmentSave, InfiniteMovieSegmentPaths, InfiniteMovieShotsOut,
-             InfiniteMovieFramesCollect]
-
-
-# ---------------------------------------------------------------------------
-# Route: /infinite_movie/video_info (Auftrag 39D)
-# ---------------------------------------------------------------------------
-
-def _register_video_info_route():
-    """Register the /infinite_movie/video_info route (Auftrag 39D).
-
-    Returns video info (duration, fps, width, height, frame count) for a given
-    video file. Used by the AutoBatch JS to calculate the batch size.
-    """
-    try:
-        from server import PromptServer
-        from aiohttp import web
-
-        _ps = getattr(PromptServer, "instance", None)
-        if _ps is None:
-            return
-        @_ps.routes.get("/infinite_movie/video_info")
-        async def video_info(request):
-            path = request.query.get("path", "")
-            if not path or not os.path.exists(path):
-                return web.json_response({"error": f"file not found: {path}"}, status=404)
-            ff = _ffmpeg()
-            r = subprocess.run([ff, "-hide_banner", "-i", path],
-                               capture_output=True, text=True, timeout=10, **_no_window())
-            stderr = r.stderr or ""
-            info = {"path": path}
-            m = re.search(r"Duration:\s*(\d+):(\d+):(\d+\.?\d*)", stderr)
-            if m:
-                h, mi, s = int(m.group(1)), int(m.group(2)), float(m.group(3))
-                info["duration"] = h * 3600 + mi * 60 + s
-            m = re.search(r"(\d{2,5})x(\d{2,5})", stderr)
-            if m:
-                info["width"] = int(m.group(1))
-                info["height"] = int(m.group(2))
-            m = re.search(r"(\d+\.?\d*)\s*fps", stderr)
-            if m:
-                info["fps"] = float(m.group(1))
-            n = _count_frames(path)
-            info["frames"] = n
-            return web.json_response(info)
-    except Exception as e:
-        print(f"[InfiniteMovie] Failed to register video_info route: {e}")
-
-
-_register_video_info_route()
+NODE_LIST = [InfiniteMovieRender, InfiniteMovieSegmentSave, InfiniteMovieSegmentPaths, InfiniteMovieShotsOut]
 
 
 # ---------------------------------------------------------------------------

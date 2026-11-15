@@ -354,7 +354,6 @@ export function fcWorkflowLayout(director, second = false) {
   });
 
   g.setDirtyCanvas?.(true, true);
-  console.log("[InfiniteMovie] layout: README left / engine 0 top / row 1-8 with help", { XR, X0, TOP, Y, H123, H456, second });
   // Second pass: newly created nodes only get their real height after the
   // first draw - without re-measuring they overlap.
   if (!second) setTimeout(() => fcWorkflowLayout(director, true), 250);

@@ -99,17 +99,6 @@ def _parse_reseed(text: str) -> dict:
     return bumps
 
 
-def _snap_length(length: int, mod: int) -> int:
-    """Round length to the nearest value of the form (mod*n + 1).
-
-    Wan uses mod=4 (4n+1), LTX uses mod=8 (8n+1).
-    """
-    if length <= 1:
-        return 1
-    k = int((length - 1) / mod + 0.5)  # round half up
-    return k * mod + 1
-
-
 def _seconds_to_frames(seconds: float, fps: float, length_mod: int) -> int:
     """seconds -> frames (Auftrag 21, change 3 + fix 2026-10-26):
     frames = floor(seconds*fps/length_mod + 0.5) * length_mod + 1  (round half up,
