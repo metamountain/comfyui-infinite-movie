@@ -21,7 +21,8 @@ def parse(text) -> list[dict]:
     """Rows from the widget JSON: ``{"image": str, "prompt": str, "prompt_b": str, "prompt_c": str,
     "prompt_d": str, "own": bool, "cut": bool}``, at most MAX_IMAGES. prompt_b/c/d = the prompt of variant
     B/C/D (empty = that variant renders with the same prompt as A).
-    cut = the film of that row is First -> Open (start image only, open end), the next image starts after a hard cut.
+    cut = a hard cut after that row's image: the row starts no film - unless its prompt (variant A) is not
+    empty, then it renders an open film (start image only, no end image) before the cut (is_open).
     Empty or broken JSON -> ``[]``; entries that are not dicts are skipped."""
     try:
         data = json.loads(text or "[]")
@@ -70,19 +71,41 @@ def load_images(board) -> list[np.ndarray]:
     return [load_image(row["image"]) for row in board]
 
 
+def is_open(board, k: int, loop: bool) -> bool:
+    """A cut row with a prompt (variant A): it renders an open film - start image k only, no end image -
+    and a hard cut follows (user 2026-11-15: "kein Bild ohne Prompt, leer lassen geht immer")."""
+    n = len(board)
+    return (n > 1 and k < film_count(n, loop) and bool(board[k].get("cut"))
+            and str(board[k].get("prompt") or "").strip() != "")
+
+
+def open_films(board, loop: bool) -> list[int]:
+    """All cut rows that render an open film (is_open), by film id."""
+    n = len(board)
+    return [k for k in range(film_count(n, loop)) if is_open(board, k, loop)]
+
+
 def film_rows(board, loop: bool) -> list[int]:
     """Films that are rendered, by film id (= the row that starts them). A row marked ``cut`` starts no film
-    (user 2026-11-15): its image only ends the film before, a hard cut follows. The row stays the film id, so
-    segment files, seconds and seeds of the other films never shift when a cut is toggled."""
+    (user 2026-11-15): its image only ends the film before, a hard cut follows - unless its prompt (variant A)
+    is not empty, then it renders an open film (is_open). The row stays the film id, so segment files, seconds
+    and seeds of the other films never shift when a cut is toggled."""
     n = len(board)
-    return [k for k in range(film_count(n, loop)) if not (n > 1 and board[row_of(n, k)].get("cut"))]
+    return [k for k in range(film_count(n, loop))
+            if not (n > 1 and board[row_of(n, k)].get("cut")) or is_open(board, k, loop)]
 
 
-def hard_cuts(films: list[int], n_films: int, loop: bool) -> list[int]:
-    """Positions in ``films`` followed by a hard cut: the next film id (loop: around) is not rendered."""
+def hard_cuts(films: list[int], n_films: int, loop: bool, open_films=()) -> list[int]:
+    """Positions in ``films`` followed by a hard cut: the next film id (loop: around) is not rendered, or the
+    film is an open film (cut row with prompt) and another film follows. No position twice, sorted."""
     kept = set(films)
-    return [p for p, k in enumerate(films)
-            if (k + 1 < n_films and k + 1 not in kept) or (loop and k + 1 == n_films and 0 not in kept)]
+    opens = set(open_films or ())
+    out = [p for p, k in enumerate(films)
+           if (k + 1 < n_films and k + 1 not in kept) or (loop and k + 1 == n_films and 0 not in kept)]
+    for p, k in enumerate(films):
+        if k in opens and (p < len(films) - 1 or (loop and len(films) > 1)) and p not in out:
+            out.append(p)
+    return sorted(out)
 
 
 def row_of(n: int, k: int) -> int:

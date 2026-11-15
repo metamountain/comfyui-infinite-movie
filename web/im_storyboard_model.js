@@ -2,7 +2,7 @@
 // A row = one image and the film that starts there: {image, prompt, own, pair, sec, cut}.
 //   pair = the two images the prompt was written for (stale = no longer its current neighbours, shown red)
 //   sec  = own length of that film in seconds (0 = the Director's `seconds`)
-//   cut  = the film starts at this image and ends open (no end image), a hard cut to the next film follows
+//   cut  = hard cut after this image: empty prompt = no film, text = open film (no end image), then the cut
 
 export const MAX_IMAGES = 24;
 export const DEFAULT_IMAGES = 4;
@@ -15,27 +15,34 @@ export const hasFilm = (n, i, loop) => nextOf(n, i, loop) >= 0;
 // Films rendered: one per row that starts one; a single image with loop also gets the way back.
 export const filmCount = (n, loop) => (n < 1 ? 0 : n === 1 ? (loop ? 2 : 1) : loop ? n : n - 1);
 
-// A cut (user 2026-11-15): row i starts no film - its image only ends the film before, a hard cut follows.
-// Needs more than one image (a single image is open anyway).
+// A cut (user 2026-11-15) on row i = a hard cut after image i. Every row keeps its prompt box ("no image without
+// a prompt"): an empty A prompt = no film i (image i only ends the film before), text = an OPEN film from image i
+// (no end image), then the hard cut. Needs more than one image (a single image is open anyway). Only A decides.
 export const isCut = (rows, i, loop) => rows.length > 1 && hasFilm(rows.length, i, loop) && !!rows[i].cut;
-// Film ids that are rendered (= storyboard.film_rows): the row stays the id, a cut row has none.
+export const isOpen = (rows, i, loop) => isCut(rows, i, loop) && !!String(rows[i].prompt || "").trim();
+// Film ids that are rendered (= storyboard.film_rows): the row stays the id, an empty cut row has none.
 export const filmRows = (rows, loop) => {
   const n = rows.length;
-  return Array.from({ length: filmCount(n, loop) }, (_, k) => k).filter((k) => !isCut(rows, Math.min(k, n - 1), loop));
+  return Array.from({ length: filmCount(n, loop) }, (_, k) => k).filter((k) => {
+    const r = Math.min(k, n - 1);
+    return !isCut(rows, r, loop) || isOpen(rows, r, loop);
+  });
 };
 
 // Cell layout (user 2026-11-15): every prompt is one film = one Cut row, every box sits between its image and the
-// next (img[i] + row/2) with the same height. A cut row has no box: its slot stays empty, the black line sits in the
-// gap below its image (cut[i] = y of the gap's middle). Film ids / seconds / seeds never shift. Cut mirrors box[], cut[].
+// next (img[i] + row/2) with the same height - a cut row too. The cut is two black lines: cut[i] in the image
+// column (gap below image i), cutBox[i] in the prompt column and in Cut (gap below box i, where film i ends).
+// Film ids / seconds / seeds never shift. Cut mirrors box[], cutBox[].
 export function cellTops(rows, loop, row, gapPx = 10) {
-  const n = rows.length, img = [], box = [], cut = [];
+  const n = rows.length, img = [], box = [], cut = [], cutBox = [];
   for (let i = 0; i < n; i++) {
     const c = isCut(rows, i, loop);
     img.push(i * row);
-    box.push(hasFilm(n, i, loop) && !c ? img[i] + row / 2 : null);
+    box.push(hasFilm(n, i, loop) ? img[i] + row / 2 : null);
     cut.push(c ? img[i] + row - gapPx / 2 : null);
+    cutBox.push(c ? img[i] + row * 1.5 - gapPx / 2 : null);
   }
-  return { img, box, cut, end: n * row };
+  return { img, box, cut, cutBox, end: n * row };
 }
 
 // One height system for the Director and Cut (user 2026-11-15): the tile = the film format contain-fitted into the
@@ -51,7 +58,7 @@ export function boardGeometry(fmt, rows, loop) {
 
 export function pairOf(rows, i, loop) {
   const j = nextOf(rows.length, i, loop);
-  if (isCut(rows, i, loop)) return null;   // no film
+  if (isCut(rows, i, loop)) return rows[i].image ? [rows[i].image, ""] : null;   // open end: no end image
   return j >= 0 && rows[i].image && rows[j].image ? [rows[i].image, rows[j].image] : null;
 }
 

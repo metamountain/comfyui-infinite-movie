@@ -151,7 +151,7 @@ export function fcChooseLayout(node, entries) {
   const boardH = entries.length ? Math.max(...tops.map((t, i) => t + heights[i])) : 0;
   // 2026-11-13: no play field in Cut any more – the analysis viewer is its own widget (im_viz) below this one.
   const domH = (node._imHead || 0) + boardH + FC_CHOOSE_GAP + FC_CHOOSE_STATUS_H + FC_CHOOSE_GAP + FC_CHOOSE_BIG_H + 8;
-  return { iw, ih, row, boardH, domH, tops, heights, cutY: g.cells.cut };
+  return { iw, ih, row, boardH, domH, tops, heights, cutY: g.cells.cutBox };   // the cut line below the cut row's box (where its film ends)
 }
 
 // Node width = tiles (A, and B-D with variants) + the info column, as wide as one tile (user 2026-11-15); at least as

@@ -59,11 +59,13 @@ def segment_path_b(output_dir, index):
     return segment_path_v(output_dir, index, "b")
 
 
-def _segment_plan(n_images: int, loop: bool, frames: list, length: int) -> list:
+def _segment_plan(n_images: int, loop: bool, frames: list, length: int, open_films=()) -> list:
     """Ordered films as (start_idx, end_idx, seg_length, kind); kind 'scene', 'loop' or 'open'. Film k is
     frames[k] frames long (missing = length) - the loop film too (storyboard ⏱ on the last row).
 
     One image without loop = an 'open' film: start image + prompt, no end image (end_idx None).
+    A cut row with a prompt (open_films, user 2026-11-15) is 'open' too: start image only, no end image;
+    the hard cut after it is handled by the Cut node (storyboard.hard_cuts).
     One image + loop = two passes (user 2026-11-09): the open film, then one from its LAST FRAME back to the
     image (start_idx None = previous film's last frame) - image -> itself in one film reads as "nothing happens".
     """
@@ -71,6 +73,8 @@ def _segment_plan(n_images: int, loop: bool, frames: list, length: int) -> list:
         ends = [(0, None, "open")] + ([(None, 0, "loop")] if loop else [])
     else:
         ends = [(i, i + 1, "scene") for i in range(n_images - 1)] + ([(n_images - 1, 0, "loop")] if loop else [])
+        opens = set(open_films or ())
+        ends = [(a, None, "open") if i in opens else (a, b, kind) for i, (a, b, kind) in enumerate(ends)]
     return [(a, b, frames[k] if k < len(frames) else length, kind) for k, (a, b, kind) in enumerate(ends)]
 
 
@@ -661,7 +665,7 @@ def build_expansion_graph(unique_id: str, preset: str,
                           seed_bumps: dict | None = None,
                           template: dict | None = None,
                           cfg: dict | None = None,
-                           variants: int = 1, films=None, prompts_v=None) -> tuple[dict, bool]:
+                           variants: int = 1, films=None, prompts_v=None, open_films=None) -> tuple[dict, bool]:
     """Build the full expansion graph for InfiniteMovieRender.
 
     Args:
@@ -682,6 +686,8 @@ def build_expansion_graph(unique_id: str, preset: str,
             film k renders frames[k] frames long.
         seed_bumps: {segment number (1-based): bump count} from InfiniteMovieRender.reseed;
             each bump adds 1000 to that segment's seed, the others keep theirs.
+        open_films: film ids of cut rows with a prompt (storyboard.open_films): they render an open film
+            (start image only, end_idx None), a hard cut follows (storyboard.hard_cuts).
 
     Ordering note: a InfiniteMovieSegmentPaths collector is ALWAYS built and links one
     Autogrow input per segment to the corresponding InfiniteMovieSegmentSave output, so
@@ -704,7 +710,7 @@ def build_expansion_graph(unique_id: str, preset: str,
     n_images = len(images)
     # --- Per-segment graphs ---
     # films: film ids that are rendered (storyboard cut rows start none); the id keeps seed, file and prompt.
-    plan = [(k, *p) for k, p in enumerate(_segment_plan(n_images, loop, frames, length))
+    plan = [(k, *p) for k, p in enumerate(_segment_plan(n_images, loop, frames, length, open_films))
             if films is None or k in set(films)]
     n_segments = len(plan)
     if n_segments < 1:

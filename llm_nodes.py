@@ -201,27 +201,30 @@ STORYBOARD_SYSTEM = (
     "{schema}\nPositive words only, never mention images or frames.")
 
 
-def _shot_to(k: int, total: int, cuts=()) -> str:
-    """Where shot k goes: 'image k+2'; a cut row is not filmed - only a hard scene change to the next image."""
+def _shot_to(k: int, total: int, cuts=(), opens=()) -> str:
+    """Where shot k goes: 'image k+2'; a cut row is not filmed - only a hard scene change to the next image;
+    an open film (cut row with prompt) runs to an open end, then a hard cut."""
     nxt = f"image {(k + 1) % total + 1}"
+    if k in opens:
+        return f"an open end (no end image), then a hard cut to {nxt}"
     return f"{nxt} as a hard cut (not filmed, the scene changes)" if k in cuts else nxt
 
 
-def storyboard_schema(n: int, total: int | None = None, cuts=()) -> str:
+def storyboard_schema(n: int, total: int | None = None, cuts=(), opens=()) -> str:
     """Fixed JSON template with one named field per shot (a list made the 27B model put all beats into one string)."""
     # Each placeholder names its transition: with plain "<one sentence>" the 27B model described image k instead of
     # image k -> k+1 (beats shifted by one, test 2026-11-11).
     total = total or n
-    fields = ", ".join(f'"shot_{k + 1}": "<what happens from image {k + 1} to {_shot_to(k, total, cuts)}>"'
+    fields = ", ".join(f'"shot_{k + 1}": "<what happens from image {k + 1} to {_shot_to(k, total, cuts, opens)}>"'
                        for k in range(n))
     return '{"arc": "<2-3 sentences>", ' + fields + "}"
 
 
-def storyboard_system(text, n: int, total: int, loop: bool, cuts=()) -> str:
+def storyboard_system(text, n: int, total: int, loop: bool, cuts=(), opens=()) -> str:
     """Storyboard system prompt from the (editable) text: {loop} and {schema} are filled in; without {schema} the
     JSON template is appended, so an edited text can never break the parsing."""
     text = str(text or "").strip() or STORYBOARD_SYSTEM
-    schema = storyboard_schema(n, total, cuts)
+    schema = storyboard_schema(n, total, cuts, opens)
     text = text.replace("{loop}", ", the last shot returns to image 1" if loop else "")
     if "{schema}" in text:
         return text.replace("{schema}", schema)
@@ -250,7 +253,8 @@ def parse_storyboard(text: str, n: int):
     return {"arc": str(d.get("arc") or "").strip(), "shots": shots[:n]}
 
 
-def storyboard(cfg: dict, files: list, loop: bool, story: str, seed: int = 0, cache_dir=None, ask=None, cuts=()):
+def storyboard(cfg: dict, files: list, loop: bool, story: str, seed: int = 0, cache_dir=None, ask=None,
+               cuts=(), opens=()):
     """Arc + one beat per shot for the whole film, cached by images (path, size, mtime) + red thread + model.
     ask(cfg, text, files, system, max_tokens) is swappable for tests."""
     import hashlib
@@ -260,7 +264,8 @@ def storyboard(cfg: dict, files: list, loop: bool, story: str, seed: int = 0, ca
         return None
     stat = [(f, os.path.getsize(f), int(os.path.getmtime(f))) for f in files]
     cuts = sorted(int(k) for k in cuts or ())   # shots replaced by a hard cut (Director storyboard cut)
-    key = hashlib.sha1(json.dumps([stat, loop, cuts, str(story or ""), cfg.get("model"), _endpoint(cfg),
+    opens = sorted(int(k) for k in opens or ())   # open films (cut rows with a prompt)
+    key = hashlib.sha1(json.dumps([stat, loop, cuts, opens, str(story or ""), cfg.get("model"), _endpoint(cfg),
                                    str(cfg.get("storyboard_instruction") or "")]).encode()).hexdigest()[:16]
     if cache_dir is None:
         try:
@@ -276,8 +281,8 @@ def storyboard(cfg: dict, files: list, loop: bool, story: str, seed: int = 0, ca
             sb = json.load(f)
         announce_storyboard(sb, cached=True)
         return sb
-    system = red_thread(storyboard_system(cfg.get("storyboard_instruction"), n, len(files), loop, cuts), story)
-    lines = "\n".join(f"Shot {k + 1}: image {k + 1} -> {_shot_to(k, len(files), cuts)}" for k in range(n))
+    system = red_thread(storyboard_system(cfg.get("storyboard_instruction"), n, len(files), loop, cuts, opens), story)
+    lines = "\n".join(f"Shot {k + 1}: image {k + 1} -> {_shot_to(k, len(files), cuts, opens)}" for k in range(n))
     ask = ask or (lambda c, t, fs, sy, mt: llm_gen(c, t, fs, sy, mt, 0.7, seed))
     raw = ask(cfg, f"{len(files)} key images in film order.\n{lines}\nJSON:", files, system, 250 * n + 300)
     sb = parse_storyboard(raw, n)

@@ -10,7 +10,7 @@ import { imToggleWidget } from "./im_settings.js";
 import { imSyncSet } from "./im_sync.js";
 
 // Cut marks of the Director's board: part of the redraw signature (a ✂ in the Director redraws Cut).
-const fcCutSig = (node) => imParseStoryboard(fcChooseDirectorOf(node)).map((r) => (r.cut ? "1" : "0")).join("");
+const fcCutSig = (node) => imParseStoryboard(fcChooseDirectorOf(node)).map((r) => (r.cut ? (String(r.prompt || "").trim() ? "o" : "1") : "0")).join("");
 export function fcChooseRender(node) {
   let el = node._fc_choose_el;
   if (!el) {
@@ -57,10 +57,15 @@ export function fcChooseRender(node) {
     const board = document.createElement("div");
     board.style.cssText = `position:relative;height:${boardH}px;margin-top:${spacer}px;`;   // flexible head: flush with the Director (im_twin)
     el.appendChild(board);
-    // Hard cut after a film: the next row is cut (no film) - live from the board, else the last run
+    // Hard cut after a film - live from the board, else the last run: the film itself is open (its row is cut, with
+    // a prompt), or the next row is an empty cut (no film there). The line sits below the cut row's box (cutBox).
     const sb = imParseStoryboard(fcChooseDirectorOf(node));
     const nextRow = (e) => (sb.length ? e.number % sb.length : 0);
-    const isCut = (e) => (sb.length > 1 ? !!sb[nextRow(e)]?.cut : !!e.cut);
+    const ownRow = (e) => (sb.length ? (e.number - 1) % sb.length : 0);
+    const isOpenFilm = (e) => sb.length > 1 && !!sb[ownRow(e)]?.cut;
+    const emptyCut = (r) => !!sb[r]?.cut && !String(sb[r].prompt || "").trim();   // a cut row without its own film
+    const cutRowOf = (e) => (isOpenFilm(e) ? ownRow(e) : sb.length > 1 && emptyCut(nextRow(e)) ? nextRow(e) : -1);
+    const isCut = (e) => (sb.length > 1 ? cutRowOf(e) >= 0 : !!e.cut);
     entries.forEach((e, i) => {
       const top = tops[i], rh = heights[i];   // = the Director's prompt box i
       const cut = isCut(e);
@@ -69,7 +74,7 @@ export function fcChooseRender(node) {
         const ln = document.createElement("div");
         ln.className = "fc-cut-line";
         ln.title = "Hard cut: the next film starts fresh at its own image";
-        ln.style.cssText = `position:absolute;left:0;right:0;top:${(cutY[nextRow(e)] ?? top + ih + (row - ih) / 2) - 2}px;height:4px;` +
+        ln.style.cssText = `position:absolute;left:0;right:0;top:${(cutY[cutRowOf(e)] ?? top + ih + (row - ih) / 2) - 2}px;height:4px;` +
           "background:#000;border-radius:2px;pointer-events:none;";
         board.appendChild(ln);
       }
@@ -218,7 +223,7 @@ export function fcChooseRender(node) {
       const pendingAny = !e.placeholder && !!node._fc_redo_pending?.[e.number]?.length;
       const light = isMarked || rejected.length ? "#d93025" : (pendingAny || (e.placeholder && fcRun.running)) ? "#44aaff"
         : e.placeholder ? "#e6c229" : "#2ea043";
-      const nextNo = sb.length > 1 ? nextRow(e) + 1 : e.seam_next || (i + 1 < entries.length ? i + 2 : 1);
+      const nextNo = sb.length > 1 ? (isOpenFilm(e) ? "✂" : nextRow(e) + 1) : e.seam_next || (i + 1 < entries.length ? i + 2 : 1);
       const hd = document.createElement("div");
       hd.style.cssText = "display:flex;align-items:center;gap:6px;font:bold 12px sans-serif;color:#ddd;";
       hd.innerHTML = `<span style="width:10px;height:10px;border-radius:50%;background:${light};flex:none"></span>` +

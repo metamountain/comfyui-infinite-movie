@@ -2,9 +2,9 @@
 // right, half a row lower (between its two images). Rules in im_storyboard_model.js, widgets/server in
 // im_storyboard_io.js. User decisions: tiles as large as a standard Load Image preview, format from Settings; one
 // delete button (image + prompt); a dragged image takes its prompt along, prompts whose images changed glow red.
-// Cut (user 2026-11-15): ✂ in a prompt box, between two tiles (hover) or in a tile's right-click menu = that film ends
-// open ("First to Open") and the next film starts fresh at its own image. Shown as a thin black line in the gap below
-// the image - the images stay one stack. Black, not red: a cut is a choice, not a warning.
+// Cut (user 2026-11-15): ✂ between two tiles (hover) = hard cut after the image above; the next image starts fresh.
+// The row keeps its prompt box: empty = no film, text = open film (no end image). Thin black lines below the image
+// and below its box - the images stay one stack. Black, not red: a cut is a choice, not a warning.
 import { app } from "../../scripts/app.js";
 import { api } from "../../scripts/api.js";
 import { IM_LETTERS, fcQueueFixedSeeds, fcReviewToast, imVariantCount, imWidget, settingsNodeOf } from "./im_common.js";
@@ -65,8 +65,7 @@ const CSS = `
 .imsb-p .ct { cursor:pointer; padding:1px 5px; border-radius:3px; color:#aaa; font:700 15px system-ui; }
 .imsb-p .ct.busy { cursor:progress; color:#666; }
 .imsb-p .ct:hover { background:#383838; color:#fff; }
-.imsb-p .ct.x-cut { position:relative; }
-.imsb-p .ct.x-cut::after, .imsb-ins span.cut.on::after { content:""; position:absolute; left:2px; right:2px; top:50%; height:2px; background:currentColor; transform:rotate(-45deg); }
+.imsb-p.nofilm { opacity:.6; }   /* cut row without a prompt: no film there */
 .imsb-cut { position:absolute; left:0; height:4px; border-radius:2px; background:#000; pointer-events:none; }
 .imsb-p .lamp { display:inline-block; width:10px; height:10px; border-radius:50%; margin:0 1px 0 2px; flex:none;
   background:radial-gradient(circle at 40% 35%, var(--c1) 0 18%, var(--c2) 45%, var(--c3) 100%); box-shadow:0 0 3px 1px var(--g), 0 0 9px 2px var(--g); }
@@ -79,13 +78,11 @@ const CSS = `
 .imsb-menu div.off { color:#666; cursor:default; background:none; }
 .imsb-menu hr { border:0; border-top:1px solid #3a3a3a; margin:4px 2px; }
 .imsb-ins { position:absolute; left:0; height:18px; z-index:3; cursor:pointer; display:flex; align-items:center; justify-content:center; }
-.imsb-ins span { display:none; width:22px; height:22px; margin:0 4px; border-radius:50%; background:#4af; color:#fff; font:700 17px/22px system-ui; text-align:center; box-shadow:0 0 0 3px #1b1b1b; position:relative; }
-.imsb-ins span.cut { background:#000; border:1px dashed #888; font-size:12px; line-height:20px; }
-.imsb-ins span.cut.on { border-style:solid; }
-.imsb-ins span.empty { width:auto; padding:0 7px; border-radius:11px; background:#000; border:1px solid #888; font:600 11px/20px system-ui; }
+.imsb-ins span { display:none; height:20px; margin:0 3px; padding:0 6px; border-radius:4px; background:#2b2b2b; border:1px solid #4a4a4a; color:#ddd; font:600 11px/20px system-ui; text-align:center; box-shadow:0 0 0 3px #1b1b1b; position:relative; }
+.imsb-ins span.off { color:#666; cursor:default; }
 .imsb-ins:hover span { display:block; }
-.imsb-ins span:hover { transform:scale(1.2); }
-.imsb-ins:hover::before { content:""; position:absolute; left:0; right:0; top:7px; height:4px; background:#4af8; border-radius:2px; }
+.imsb-ins span:not(.off):hover { background:#3a3a3a; }
+.imsb-ins:hover::before { content:""; position:absolute; left:0; right:0; top:7px; height:4px; background:#8888; border-radius:2px; }
 .imsb-gap { position:absolute; left:-4px; height:4px; background:#4af; border-radius:2px; pointer-events:none; display:none; }
 .imsb-gap::before, .imsb-gap::after { content:""; position:absolute; top:-3px; width:10px; height:10px; border-radius:50%; background:#4af; }
 .imsb-gap::before { left:-5px; } .imsb-gap::after { right:-5px; }
@@ -140,13 +137,16 @@ function move(node, from, gap) {
 }
 
 // User 2026-11-14: hover on the line between two images shows a plus, click = new image there.
-async function insertAt(node, k, empty = false) {
+// aboveCut: a cut after image k stays below the new frame (the frame ends the film before the cut); else it stays above.
+async function insertAt(node, k, empty = false, aboveCut = false) {
   if (readRows(node).length >= MAX_IMAGES) { fcReviewToast(`Max ${MAX_IMAGES} images`, "#e68929"); return; }
   const f = empty ? null : (await pickFiles(false))[0];
   const name = empty ? await emptyImage(node._imsb.fmt) : f && await uploadImage(f);
   if (!name) return;
   const rows = readRows(node);
-  rows.splice(k, 0, { ...emptyRow(), image: name });
+  const moveCut = aboveCut && k > 0 && !!rows[k - 1]?.cut;
+  if (moveCut) rows[k - 1].cut = false;
+  rows.splice(k, 0, { ...emptyRow(), image: name, cut: moveCut });
   node._imsb.land = k;
   commit(node, rows);
 }
@@ -197,7 +197,8 @@ function remove(node, i) {
 // One wording for every cut toggle (prompt header and hover strip): what a click does now.
 const cutTitle = (on, film, next) => (on
   ? `Remove cut: film ${film} → ${next} comes back`
-  : `Cut: no film ${film} → ${next} - image ${film} ends the film before, image ${next} starts fresh (hard cut)`);
+  : `Cut after image ${film}: hard cut, image ${next} starts fresh. Prompt ${film} empty = no film, text = open film from image ${film}`);
+const CUT_HINT = "Empty = no film, just the hard cut. Text = open film from this image (no end image), then the cut";
 
 function setCut(node, i, on) {
   const rows = readRows(node);
@@ -230,7 +231,8 @@ async function regen(node, idx) {
 
 // One prompt column: A = every prompt except the manual ones; B-D = the empty fields, all filled = the whole column.
 function writeColumn(node, l) {
-  const rows = readRows(node), loop = isLoop(node), films = rows.flatMap((r, i) => (pairOf(rows, i, loop) ? [i] : []));
+  // cut rows are never filled by Write all (empty = no film is a choice) - ↻ on the box writes an open shot
+  const rows = readRows(node), loop = isLoop(node), films = rows.flatMap((r, i) => (pairOf(rows, i, loop) && !isCut(rows, i, loop) ? [i] : []));
   if (l === "a") return regen(node, films.filter((i) => !rows[i].own));
   const empty = films.filter((i) => !String(rows[i][`prompt_${l}`] || "").trim());
   regen(node, (empty.length ? empty : films).map((i) => [i, l]));
@@ -339,17 +341,15 @@ function promptEl(node, rows, i, loop) {
   inp.onkeydown = (e) => { e.stopPropagation(); if (e.key === "Enter") inp.blur(); };
   const sec = el("label", "sec", "⏱");
   sec.append(inp, "s");
-  hd.append(el("span", null, `${i + 1} → ${n === 1 ? "open" : j + 1}`), bg, sec);
-  if (n > 1) {
-    const ct = el("span", "ct", "✂");   // this film becomes a hard cut (the box goes, the line comes)
-    ct.title = cutTitle(false, i + 1, j + 1);
-    ct.onpointerdown = (e) => e.stopPropagation();
-    ct.onclick = (e) => { e.stopPropagation(); setCut(node, i, true); };
-    hd.insertBefore(ct, sec);
-  }
+  const cutRow = isCut(rows, i, loop);   // hard cut after this image: empty = no film, text = open film
+  const noFilm = () => box.classList.toggle("nofilm", cutRow && !readRows(node)[i]?.prompt.trim());
+  box.classList.toggle("cut", cutRow);
+  noFilm();
+  hd.append(el("span", null, `${i + 1} → ${n === 1 ? "open" : cutRow ? "✂" : j + 1}`), bg, sec);
+  // user 2026-11-15: no ✂ in the prompt box - cuts are set only between the images (hover ✂ in the image column)
   const busy = !!st.busy?.has(i);
   const ta = Object.assign(el("textarea"), { value: r.prompt, disabled: busy,
-    placeholder: busy ? "writing…" : "What happens from this image to the next…" });
+    placeholder: busy ? "writing…" : cutRow ? CUT_HINT : "What happens from this image to the next…" });
   ta.onkeydown = (e) => e.stopPropagation();
   ta.oninput = () => {
     const now = readRows(node);
@@ -359,6 +359,7 @@ function promptEl(node, rows, i, loop) {
     st.sig = signature(node);
     [bg.className, bg.textContent] = ["bg " + badge()[0], badge()[1]];
     box.classList.remove("stale");
+    noFilm();
     setLamp();
   };
   // Prompt status lamp (user 2026-11-15): green = prompt fits its images, yellow = none yet / writing, red = doesn't fit
@@ -396,7 +397,7 @@ function promptEl(node, rows, i, loop) {
       c.append(h, field);
       vs.append(c);
     };
-    ta.placeholder = busy ? "writing…" : "What happens from this image to the next…";
+    ta.placeholder = busy ? "writing…" : cutRow ? CUT_HINT : "What happens from this image to the next…";
     col("a", ta);
     rg.remove();   // the columns have their own ↻
     const fields = [];
@@ -446,11 +447,12 @@ export function render(node) {
   st.gap.style.width = `${iw + 8}px`;
   for (let i = 0; i < rows.length; i++) {
     st.board.appendChild(tileEl(node, rows, i));
-    if (hasFilm(rows.length, i, loop) && !isCut(rows, i, loop)) st.board.appendChild(promptEl(node, rows, i, loop));   // a cut row: no film
-    if (st.size.cells.cut[i] != null) {   // the cut: a thin black line in the gap below image i
-      const c = el("div", "imsb-cut");
-      c.style.cssText = `top:${st.size.cells.cut[i] - 2}px;width:${iw + GAP + st.size.pw}px`;   // whole width
-      st.board.appendChild(c);
+    if (hasFilm(rows.length, i, loop)) st.board.appendChild(promptEl(node, rows, i, loop));   // every image has a prompt
+    if (st.size.cells.cut[i] != null) {   // the cut: black line below image i, and below box i (where film i ends)
+      const c = el("div", "imsb-cut"), cb = el("div", "imsb-cut bx");
+      c.style.cssText = `top:${st.size.cells.cut[i] - 2}px;width:${iw}px`;
+      cb.style.cssText = `top:${st.size.cells.cutBox[i] - 2}px;left:${iw + GAP}px;width:${st.size.pw}px`;
+      st.board.append(c, cb);
     }
   }
   // ✎ Write all over every prompt column (user 2026-11-15): each button writes only its own column (variant)
@@ -468,27 +470,29 @@ export function render(node) {
     }
     st.board.appendChild(wp);
   }
-  // Hover between two tiles (user 2026-11-15): + = insert an image here, ✂ = cut here on/off (after the image above).
+  // Hover between two tiles (user 2026-11-15): four grey buttons - empty frame above / below the cut, cut, uncut.
   for (let k = 1; k <= rows.length; k++) {   // k = n: below the last image
     const add = rows.length < MAX_IMAGES, cut = rows.length > 1 && hasFilm(rows.length, k - 1, loop), on = cut && rows[k - 1].cut;
     if (!add && !cut) continue;
     const z = el("div", "imsb-ins");
     z.style.cssText = `top:${gapTop(st, k) - 9}px;width:${iw}px`;
     z.onpointerdown = (e) => e.stopPropagation();
+    const btn = (cls, label, title, fn, off = false) => {
+      const b = el("span", cls + (off ? " off" : ""), label);
+      b.title = title;
+      if (!off) b.onclick = fn;
+      z.appendChild(b);
+    };
     if (add) {
-      const a = el("span", "add", "+");
-      a.title = "Insert an image here";
-      a.onclick = () => insertAt(node, k);
-      const e = el("span", "empty", "empty");
-      e.title = "Insert an empty (black) image here";
-      e.onclick = () => insertAt(node, k, true);
-      z.append(a, e);
+      btn("eu", "▢↑", on ? `Empty frame above the cut: it ends the film from image ${k}, then the cut` : "Insert an empty (black) frame here",
+        () => insertAt(node, k, true, true));
+      btn("ed", "▢↓", on ? `Empty frame below the cut: the next part starts with it` : "Insert an empty (black) frame here",
+        () => insertAt(node, k, true, false));
     }
     if (cut) {
-      const c = el("span", "cut" + (on ? " on" : ""), "✂");
-      c.title = cutTitle(on, k, nextOf(rows.length, k - 1, loop) + 1);
-      c.onclick = () => setCut(node, k - 1, !on);
-      z.appendChild(c);
+      const next = nextOf(rows.length, k - 1, loop) + 1;
+      btn("cut", "✂", cutTitle(false, k, next), () => setCut(node, k - 1, true), on);
+      btn("uncut", "uncut", cutTitle(true, k, next), () => setCut(node, k - 1, false), !on);
     }
     st.board.appendChild(z);
   }

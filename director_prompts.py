@@ -89,6 +89,8 @@ def write_prompts(board, indices, loop, settings, node_id=None) -> list[dict]:
     """The prompts of ``indices`` (row indices = variant A, or ``(row, letter)`` pairs; storyboard.parse rows):
     ``{"i", "v", "prompt", "pair"}`` per film and variant, or ``{"i", "v", "error"}`` when its images are missing or
     the generation fails - the others still run. Rows that start no film (the last one without loop) are left out.
+    A cut row (n > 1) writes an open film: image_to None (no end image), pair [image, ""] (user 2026-11-15:
+    "kein Bild ohne Prompt" - an empty prompt leaves the row without a film).
     Variants B-D (user 2026-11-15: "separate"): an independent prompt from the same two images, its own seed, no
     manual keywords from A. Only the images of these films are loaded."""
     from . import storyboard as sb
@@ -108,8 +110,9 @@ def write_prompts(board, indices, loop, settings, node_id=None) -> list[dict]:
 
     from . import timing
     items = [it for it in map(_item, indices) if it]
-    rows_ok = sb.film_rows(board, loop)   # a cut row has no film
-    jobs = [(i, v) for i, v in items if 0 <= i < n and i in rows_ok]
+    # every row that can start a film is writable - cut rows too (an empty prompt leaves them without a film,
+    # a written prompt makes them open films)
+    jobs = [(i, v) for i, v in items if 0 <= i < n and sb.next_of(n, i, loop) >= 0]
     films = [i for i, _v in jobs]
     filled = [k for k, row in enumerate(board) if row["image"]]
     model = str(cfg["model_name"] or "")
@@ -123,9 +126,13 @@ def write_prompts(board, indices, loop, settings, node_id=None) -> list[dict]:
         t0 = time.time()
         import folder_paths
         from .llm_nodes import storyboard
-        cuts = [m for m, k in enumerate(filled) if board[k].get("cut") and n > 1]   # cut rows: a scene break, not filmed
+        # a cut row that is written now (or already has a prompt) renders an open film; the rest are scene breaks
+        writing = {i for i, _v in jobs}
+        opens = [m for m, k in enumerate(filled) if n > 1 and board[k].get("cut")
+                 and (k in writing or sb.is_open(board, k, loop))]
+        cuts = [m for m, k in enumerate(filled) if n > 1 and board[k].get("cut") and m not in set(opens)]
         plan = storyboard(llm, [folder_paths.get_annotated_filepath(board[k]["image"]) for k in filled], loop,
-                          llm.get("story"), cuts=cuts)
+                          llm.get("story"), cuts=cuts, opens=opens)
         dt = time.time() - t0
         if dt > 1.5:   # below: the plan came from the cache - no measurement
             timing.record("story_plan", 1000, 1000, len(filled), round(dt, 2), preset=model)
@@ -142,17 +149,26 @@ def write_prompts(board, indices, loop, settings, node_id=None) -> list[dict]:
             if plan is not None and i in filled:
                 from .llm_nodes import shot_context
                 context = shot_context(plan, filled.index(i))
+            is_cut = n > 1 and row.get("cut")   # open film: start image only, no end image
             if v != "a":   # an independent take: same two images, its own way between them
-                context = (context + "\n" if context else "") + (
-                    f"This is alternative take {v.upper()} of this shot: find your own way from image 1 to image 2 "
-                    "(action, timing, camera) - do not just repeat the obvious version.")
+                if is_cut:
+                    context = (context + "\n" if context else "") + (
+                        f"This is alternative take {v.upper()} of this shot: find your own way onward from image 1 "
+                        "(open end, no end image) - do not just repeat the obvious version.")
+                else:
+                    context = (context + "\n" if context else "") + (
+                        f"This is alternative take {v.upper()} of this shot: find your own way from image 1 to image 2 "
+                        "(action, timing, camera) - do not just repeat the obvious version.")
             keywords = " ".join(row["prompt"].split()) if v == "a" and row["own"] else ""
+            image_from = image(i)
+            image_to = None if is_cut else image(j)
             text, _desc, _warning = generate(
-                image(i), image(j), cfg["model_name"], keywords,
+                image_from, image_to, cfg["model_name"], keywords,
                 camera=cfg["camera"], instruction=cfg["instruction"], max_words=cfg["max_words"],
                 seed=(int(time.time()) + VARIANTS.index(v) * 7919) % 2**31, load=cfg["load"], gen=cfg["gen"],
                 context=context)
-            out.append({"i": i, "v": v, "prompt": text, "pair": [row["image"], board[j]["image"]]})
+            out.append({"i": i, "v": v, "prompt": text,
+                        "pair": [row["image"], "" if is_cut else board[j]["image"]]})
             timing.record("prompt", 1000, 1000, 1, round(time.time() - t0, 2), preset=model)
         except Exception as e:  # noqa: BLE001 - one broken film must not stop the others
             out.append({"i": i, "v": v, "error": str(e)})
