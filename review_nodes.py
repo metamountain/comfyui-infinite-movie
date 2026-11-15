@@ -225,12 +225,12 @@ def _review_segment(path: str, out_webp: str) -> dict:
     cut, cut_lv, cut_info = _check_cut(path)
     flick, flick_lv, flick_info = _check_flicker(frames)
     part, part_lv, part_info = _check_particles(frames)
-    if cut:
-        flags.append("CUT"); levels.append(cut_lv); infos.append(cut_info)
-    if flick:
-        flags.append("FLICKER"); levels.append(flick_lv); infos.append(flick_info)
-    if part:
-        flags.append("PARTICLES"); levels.append(part_lv); infos.append(part_info)
+    for name, hit, lv, info in (("CUT", cut, cut_lv, cut_info), ("FLICKER", flick, flick_lv, flick_info),
+                                ("PARTICLES", part, part_lv, part_info)):
+        if hit:
+            flags.append(name)
+            levels.append(lv)
+            infos.append(info)
     level = max(levels) if levels else 0
     if len(flags) >= 2:
         level = max(level, 2)
