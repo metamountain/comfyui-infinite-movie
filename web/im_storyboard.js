@@ -68,8 +68,10 @@ const CSS = `
 .imsb-menu hr { border:0; border-top:1px solid #3a3a3a; margin:4px 2px; }
 .imsb-anchor { position:absolute; left:0; width:1px; height:0; pointer-events:none; }
 .imsb-ins { position:absolute; left:0; height:18px; z-index:3; cursor:pointer; display:flex; align-items:center; justify-content:center; }
-.imsb-ins span { display:none; width:22px; height:22px; border-radius:50%; background:#4af; color:#fff; font:700 17px/22px system-ui; text-align:center; box-shadow:0 0 0 3px #1b1b1b; }
+.imsb-ins span { display:none; width:22px; height:22px; margin:0 4px; border-radius:50%; background:#4af; color:#fff; font:700 17px/22px system-ui; text-align:center; box-shadow:0 0 0 3px #1b1b1b; position:relative; }
+.imsb-ins span.cut { background:#000; border:1px dashed #888; font-size:12px; line-height:20px; }
 .imsb-ins:hover span { display:block; }
+.imsb-ins span:hover { transform:scale(1.2); }
 .imsb-ins:hover::before { content:""; position:absolute; left:0; right:0; top:7px; height:4px; background:#4af8; border-radius:2px; }
 .imsb-gap { position:absolute; left:-4px; height:4px; background:#4af; border-radius:2px; pointer-events:none; display:none; }
 .imsb-gap::before, .imsb-gap::after { content:""; position:absolute; top:-3px; width:10px; height:10px; border-radius:50%; background:#4af; }
@@ -380,13 +382,25 @@ export function render(node) {
   const anchor = el("div", "imsb-anchor");
   anchor.style.top = `${row / 2}px`;
   st.board.appendChild(anchor);
-  for (let k = 1; k <= rows.length && rows.length < MAX_IMAGES; k++) {   // k = n: below the last image
+  // Hover between two tiles (user 2026-11-15): + = insert an image here, ✂ = empty frame here (cut after the image above).
+  for (let k = 1; k <= rows.length; k++) {   // k = n: below the last image
+    const add = rows.length < MAX_IMAGES, cut = rows.length > 1 && hasFilm(rows.length, k - 1, loop) && !rows[k - 1].cut;
+    if (!add && !cut) continue;
     const z = el("div", "imsb-ins");
     z.style.cssText = `top:${gapTop(st, k) - 9}px;width:${iw}px`;
-    z.title = "Insert an image here";
-    z.appendChild(el("span", null, "+"));
     z.onpointerdown = (e) => e.stopPropagation();
-    z.onclick = () => insertAt(node, k);
+    if (add) {
+      const a = el("span", "add", "+");
+      a.title = "Insert an image here";
+      a.onclick = () => insertAt(node, k);
+      z.appendChild(a);
+    }
+    if (cut) {
+      const c = el("span", "cut", "✂");
+      c.title = `Empty frame here: film ${k} ends open, a hard cut follows`;
+      c.onclick = () => setCut(node, k - 1, true);
+      z.appendChild(c);
+    }
     st.board.appendChild(z);
   }
   st.board.appendChild(st.gap);
