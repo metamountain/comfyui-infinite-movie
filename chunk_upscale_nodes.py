@@ -358,7 +358,7 @@ class InfiniteMovieLTXRefine(io.ComfyNode):
                                  tooltip="Film is a loop: the last chunk runs on into the start and the seam "
                                          "end->start is cross-faded like every other chunk border."),
                 io.Int.Input("crf", advanced=True, default=16, min=0, max=40),
-                io.String.Input("filename_prefix", default="infinite_movie/refine",
+                io.String.Input("filename_prefix", default="Infinite Movie/refine",
                                 tooltip="Only without video_path. With video_path the film is saved next to it "
                                         "as <name>_upscale.mp4."),
                 io.Image.Input("images", optional=True, tooltip="Frames, e.g. VHS Load Video (priority 1). Whole film in RAM."),
