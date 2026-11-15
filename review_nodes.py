@@ -632,8 +632,9 @@ class InfiniteMovieChooser(io.ComfyNode):
         entries: list[dict] = []
         chosen_segments: list[str] = []
         changed = False
+        films = list(sync.get("films") or range(n))   # film id per segment (storyboard row; cut rows have none)
         for i in range(n):
-            number = i + 1
+            number = int(films[i]) + 1 if i < len(films) else i + 1   # = the Director's film number, seeds follow it
             a_path = str(segments[i])
             b_path = str(variants[i][1]) if has_variants else None
             a_entry, ch_a = _variant_entry(a_path, choose_dir, subfolder, "a", cache, f"{i}_a")
@@ -676,9 +677,9 @@ class InfiniteMovieChooser(io.ComfyNode):
         # shot i+1 (with loop: last -> first). Same downscaling/difference
         # as _jerk_metric; threshold JERK_HARD. Measured on the chosen segments.
         loop = bool(sync.get("loop", False))
-        cuts = {int(k) for k in sync.get("open_films") or []}
+        cuts = {int(k) for k in sync.get("hard_cuts") or []}
         for i in range(n):
-            entries[i]["cut"] = i in cuts   # open film: hard cut to the next one, no seam to measure
+            entries[i]["cut"] = i in cuts   # hard cut to the next film (storyboard cut), no seam to measure
             if i in cuts:
                 nxt = None
             elif i + 1 < n:
@@ -695,7 +696,7 @@ class InfiniteMovieChooser(io.ComfyNode):
             seam = _seam_metric(chosen_segments[i], chosen_segments[nxt])
             entries[i]["seam"] = seam
             entries[i]["seam_bad"] = seam >= JERK_HARD
-            entries[i]["seam_next"] = nxt + 1   # shot number of the neighbor (loop: 1)
+            entries[i]["seam_next"] = entries[nxt]["number"]   # film number of the neighbor (loop: the first)
         if changed:
             with open(cache_file, "w", encoding="utf-8") as f:
                 json.dump(cache, f)

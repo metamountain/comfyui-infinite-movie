@@ -3,7 +3,7 @@ import { api } from "../../scripts/api.js";
 import { fcChooseRender } from "./im_cut.js";
 import { fcFilmRender } from "./im_film.js";
 import { imToggleWidget } from "./im_settings.js";
-import { DEFAULT_IMAGES, filmCount, nextOf } from "./im_storyboard_model.js";
+import { DEFAULT_IMAGES, filmRows, isCut, nextOf } from "./im_storyboard_model.js";
 
 // Slider tooltips (user 2026-11-13: "tooltips bei slidern nicht im slide bereich"): the canvas tooltip sits
 // 5 px above the cursor and covers the slider while dragging. Over a slider, lift it above the widget's top edge.
@@ -75,18 +75,16 @@ export function imShotImageCount(director) {
   return imParseStoryboard(director).filter((x) => x.image).length;
 }
 
-// Films the Director renders - one per storyboard row that starts one (storyboard.py: the same rule).
-export function imFilmCount(director) {
-  const n = imParseStoryboard(director).length;
-  return filmCount(n, !!imWidget(director, "loop")?.value);
-}
+// Films the Director renders, by film id (storyboard.film_rows: the same rule - a cut row starts none).
+export const imFilmRows = (director) => filmRows(imParseStoryboard(director), !!imWidget(director, "loop")?.value);
+export const imFilmCount = (director) => imFilmRows(director).length;
 
 // Films without a prompt, as "1 → 2" labels.
 export function imEmptyPromptFilms(director) {
   const rows = imParseStoryboard(director), n = rows.length, loop = !!imWidget(director, "loop")?.value;
   return rows.flatMap((r, i) => {
     const j = nextOf(n, i, loop);
-    return j >= 0 && !String(r.prompt || "").trim() ? [`${i + 1} → ${n === 1 ? "open" : j + 1}`] : [];
+    return j >= 0 && !isCut(rows, i, loop) && !String(r.prompt || "").trim() ? [`${i + 1} → ${n === 1 ? "open" : j + 1}`] : [];
   });
 }
 

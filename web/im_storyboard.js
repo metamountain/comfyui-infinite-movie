@@ -9,7 +9,7 @@ import { app } from "../../scripts/app.js";
 import { api } from "../../scripts/api.js";
 import { fcQueueFixedSeeds, fcReviewToast, imWidget, settingsNodeOf } from "./im_common.js";
 import {
-  MAX_IMAGES, boardGeometry, emptyRow, hasFilm, isCut, isStale, moveRow, nextOf, pairOf, samePair,
+  MAX_IMAGES, boardGeometry, emptyRow, filmRows, hasFilm, isCut, isStale, moveRow, nextOf, pairOf, samePair,
 } from "./im_storyboard_model.js";
 import {
   boardFormat, defaultSeconds, emptyImage, imageUrl, isEmptyImage, isLoop, readRows, uploadImage, writeRows,
@@ -54,7 +54,6 @@ const CSS = `
 .imsb-p .ct { cursor:pointer; padding:1px 5px; border-radius:3px; color:#aaa; font:700 15px system-ui; }
 .imsb-p .ct.busy { cursor:progress; color:#666; }
 .imsb-p .ct:hover { background:#383838; color:#fff; }
-.imsb-p.cut { border-top:4px solid #000; }
 .imsb-p .ct.x-cut { position:relative; }
 .imsb-p .ct.x-cut::after, .imsb-ins span.cut.on::after { content:""; position:absolute; left:2px; right:2px; top:50%; height:2px; background:currentColor; transform:rotate(-45deg); }
 .imsb-cut { position:absolute; left:0; height:4px; border-radius:2px; background:#000; pointer-events:none; }
@@ -168,26 +167,14 @@ function showMenu(e, items) {
 }
 
 function tileMenu(node, e, i) {
-  const rows = readRows(node), n = rows.length, loop = isLoop(node), r = rows[i];
-  const canCut = n > 1 && hasFilm(n, i, loop);
-  showMenu(e, [
+  const n = readRows(node).length;
+  showMenu(e, [   // cuts live on the hover strip between the images (user 2026-11-15: not in the menu)
     ["↑ Move up", i > 0 ? () => move(node, i, i - 1) : null],
     ["↓ Move down", i < n - 1 ? () => move(node, i, i + 2) : null],
-    "-",
-    [r.cut ? "Remove cut" : "✂ Cut after this image", canCut ? () => setCut(node, i, !r.cut) : null],
-    ["✂ Replace with cut", i > 0 && n > 2 ? () => replaceWithCut(node, i) : null],
     "-",
     ["Change image…", () => pickImage(node, i)],
     ["✕ Remove image and prompt", () => remove(node, i)],
   ]);
-}
-
-// The image goes, the film before it ends open: image i-1 -> ✂ -> image i+1.
-function replaceWithCut(node, i) {
-  const rows = readRows(node);
-  rows.splice(i, 1);
-  rows[i - 1].cut = true;
-  commit(node, rows);
 }
 
 function remove(node, i) {
@@ -198,13 +185,14 @@ function remove(node, i) {
 
 // One wording for every cut toggle (prompt header and hover strip): what a click does now.
 const cutTitle = (on, film, next) => (on
-  ? `Remove cut: film ${film} goes to image ${next} again`
-  : `Cut: film ${film} ends open (no end image), image ${next} starts the next film fresh`);
+  ? `Remove cut: film ${film} → ${next} comes back`
+  : `Cut: no film ${film} → ${next} - image ${film} ends the film before, image ${next} starts fresh (hard cut)`);
 
 function setCut(node, i, on) {
   const rows = readRows(node);
   if (!!rows[i]?.cut === on) return;
   rows[i].cut = on;
+  if (on && !filmRows(rows, isLoop(node)).length) { fcReviewToast("At least one film must stay", "#e68929"); return; }
   commit(node, rows);
 }
 
@@ -314,8 +302,7 @@ const words = (t) => (t || "").trim().split(/\s+/).filter(Boolean).length;
 
 function promptEl(node, rows, i, loop) {
   const st = node._imsb, r = rows[i], n = rows.length, j = nextOf(n, i, loop), { iw, ih, row, pw } = st.size;
-  const cut = isCut(rows, i, loop);
-  const box = el("div", "imsb-p" + (j === 0 && n > 1 && !cut ? " loop" : "") + (isStale(rows, i, loop) ? " stale" : "") + (cut ? " cut" : ""));
+  const box = el("div", "imsb-p" + (j === 0 && n > 1 ? " loop" : "") + (isStale(rows, i, loop) ? " stale" : ""));
   box.style.cssText = `left:${iw + GAP}px;top:${st.size.cells.box[i]}px;height:${st.size.heights[i]}px;width:${pw}px`;
   const hd = el("div", "hd");
   const badge = () => (r.own ? ["own", "✎ manual"] : r.prompt.trim() ? ["llm", "LLM"] : ["none", ""]);   // no prompt: no badge
@@ -331,12 +318,12 @@ function promptEl(node, rows, i, loop) {
   inp.onkeydown = (e) => { e.stopPropagation(); if (e.key === "Enter") inp.blur(); };
   const sec = el("label", "sec", "⏱");
   sec.append(inp, "s");
-  hd.append(el("span", null, `${i + 1} → ${n === 1 || cut ? "open" : j + 1}`), bg, sec);
+  hd.append(el("span", null, `${i + 1} → ${n === 1 ? "open" : j + 1}`), bg, sec);
   if (n > 1) {
-    const ct = el("span", "ct" + (cut ? " x-cut" : ""), "✂");   // crossed ✂ = remove the cut
-    ct.title = cutTitle(cut, i + 1, j + 1);
+    const ct = el("span", "ct", "✂");   // this film becomes a hard cut (the box goes, the line comes)
+    ct.title = cutTitle(false, i + 1, j + 1);
     ct.onpointerdown = (e) => e.stopPropagation();
-    ct.onclick = (e) => { e.stopPropagation(); setCut(node, i, !cut); };
+    ct.onclick = (e) => { e.stopPropagation(); setCut(node, i, true); };
     hd.insertBefore(ct, sec);
   }
   const busy = !!st.busy?.has(i);
@@ -388,7 +375,7 @@ export function render(node) {
   st.gap.style.width = `${iw + 8}px`;
   for (let i = 0; i < rows.length; i++) {
     st.board.appendChild(tileEl(node, rows, i));
-    if (hasFilm(rows.length, i, loop)) st.board.appendChild(promptEl(node, rows, i, loop));
+    if (hasFilm(rows.length, i, loop) && !isCut(rows, i, loop)) st.board.appendChild(promptEl(node, rows, i, loop));   // a cut row: no film
     if (st.size.cells.cut[i] != null) {   // the cut: a thin black line in the gap below image i
       const c = el("div", "imsb-cut");
       c.style.cssText = `top:${st.size.cells.cut[i] - 2}px;width:${iw + GAP + st.size.pw}px`;   // whole width

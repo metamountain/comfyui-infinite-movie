@@ -1,6 +1,6 @@
 import { app } from "../../scripts/app.js";
 import { api } from "../../scripts/api.js";
-import { FC_REVIEW_LINE_COLORS, fcQueueFixedSeeds, fcReviewToast, fcShotSecondsOf, getLink, imFilmCount, imParseStoryboard } from "./im_common.js";
+import { FC_REVIEW_LINE_COLORS, fcQueueFixedSeeds, fcReviewToast, fcShotSecondsOf, getLink, imFilmRows, imParseStoryboard } from "./im_common.js";
 import { fcChooseDirectorOf, fcChooseEditPrompt, fcChooseEditSeconds, fcRerenderMarked } from "./im_cut_edit.js";
 import { FC_CHOOSE_BIG_H, FC_CHOOSE_GAP, FC_CHOOSE_PAD, FC_CHOOSE_ROW_GAP, FC_CHOOSE_STATUS_H, fcAsmFocus, fcChooseApplyActive, fcChooseEff, fcChooseEffective, fcChooseEntries, fcChooseFocus, fcChooseGetChoices, fcChooseLayout, fcChoosePick, fcChoosePlay, fcChooseQuality, fcChooseSig, fcChooseStableUrl, fcChooseStatus, fcChooseWidth, fcRun } from "./im_cut_state.js";
 import { fcDownstreamOutputs } from "./im_film.js";
@@ -55,18 +55,19 @@ export function fcChooseRender(node) {
     const board = document.createElement("div");
     board.style.cssText = `position:relative;height:${boardH}px;`;
     el.appendChild(board);
-    // Director rows marked cut: that film ends open, a hard cut follows (live from the board, else the last run)
+    // Hard cut after a film: the next row is cut (no film) - live from the board, else the last run
     const sb = imParseStoryboard(fcChooseDirectorOf(node));
-    const isCut = (e, i) => (sb.length > 1 ? !!sb[i]?.cut : !!e.cut);
+    const nextRow = (e) => (sb.length ? e.number % sb.length : 0);
+    const isCut = (e) => (sb.length > 1 ? !!sb[nextRow(e)]?.cut : !!e.cut);
     entries.forEach((e, i) => {
       const top = tops[i], rh = heights[i];   // = the Director's prompt box i
-      const cut = isCut(e, i);
+      const cut = isCut(e);
       if (cut) {
         // the Director's cut line, mirrored: thin black line in the gap below this film's row
         const ln = document.createElement("div");
         ln.className = "fc-cut-line";
-        ln.title = "Hard cut: this film ends open, the next one starts fresh at its own image";
-        ln.style.cssText = `position:absolute;left:0;right:0;top:${(cutY[i] ?? top + ih + (row - ih) / 2) - 2}px;height:4px;` +
+        ln.title = "Hard cut: the next film starts fresh at its own image";
+        ln.style.cssText = `position:absolute;left:0;right:0;top:${(cutY[nextRow(e)] ?? top + ih + (row - ih) / 2) - 2}px;height:4px;` +
           "background:#000;border-radius:2px;pointer-events:none;";
         board.appendChild(ln);
       }
@@ -218,7 +219,7 @@ export function fcChooseRender(node) {
       const pendingAny = !e.placeholder && !!node._fc_redo_pending?.[e.number]?.length;
       const light = isMarked || rejected.length ? "#d93025" : (pendingAny || (e.placeholder && fcRun.running)) ? "#44aaff"
         : e.placeholder ? "#e6c229" : "#2ea043";
-      const nextNo = cut ? "open" : e.seam_next || (i + 1 < entries.length ? i + 2 : 1);
+      const nextNo = sb.length > 1 ? nextRow(e) + 1 : e.seam_next || (i + 1 < entries.length ? i + 2 : 1);
       const hd = document.createElement("div");
       hd.style.cssText = "display:flex;align-items:center;gap:6px;font:bold 12px sans-serif;color:#ddd;";
       hd.innerHTML = `<span style="width:10px;height:10px;border-radius:50%;background:${light};flex:none"></span>` +
@@ -470,10 +471,10 @@ app.registerExtension({
     estWidget._fc_est = true;
 
     const refreshEstimate = () => {
-      const nShots = imFilmCount(node);
+      const films = imFilmRows(node), nShots = films.length;
       if (nShots < 1) { estWidget.value = "needs at least 1 image"; node.setDirtyCanvas?.(true, true); return; }
       let total = 0;
-      for (let i = 1; i <= nShots; i++) total += fcShotSecondsOf(node, i);
+      for (const k of films) total += fcShotSecondsOf(node, k + 1);
       const fps = 24; // LTX
       estWidget.value = `${nShots} film${nShots > 1 ? "s" : ""} · ${total.toFixed(1)} s · ~${Math.round(total * fps)} frames`;
       node.setDirtyCanvas?.(true, true);

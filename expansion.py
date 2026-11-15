@@ -44,21 +44,18 @@ def segment_path_b(output_dir, index):
     return os.path.join(output_dir, f"seg_{index:03d}_b.mp4")
 
 
-def _segment_plan(n_images: int, loop: bool, frames: list, length: int, open_films=()) -> list:
+def _segment_plan(n_images: int, loop: bool, frames: list, length: int) -> list:
     """Ordered films as (start_idx, end_idx, seg_length, kind); kind 'scene', 'loop' or 'open'. Film k is
     frames[k] frames long (missing = length) - the loop film too (storyboard ⏱ on the last row).
 
     One image without loop = an 'open' film: start image + prompt, no end image (end_idx None).
     One image + loop = two passes (user 2026-11-09): the open film, then one from its LAST FRAME back to the
     image (start_idx None = previous film's last frame) - image -> itself in one film reads as "nothing happens".
-    open_films: films that end open although an image follows (storyboard cut, First -> Open); the next film starts
-    fresh at its own image (hard cut).
     """
     if n_images == 1:
         ends = [(0, None, "open")] + ([(None, 0, "loop")] if loop else [])
     else:
         ends = [(i, i + 1, "scene") for i in range(n_images - 1)] + ([(n_images - 1, 0, "loop")] if loop else [])
-        ends = [(a, None, "open") if k in set(open_films) else (a, b, kind) for k, (a, b, kind) in enumerate(ends)]
     return [(a, b, frames[k] if k < len(frames) else length, kind) for k, (a, b, kind) in enumerate(ends)]
 
 
@@ -649,7 +646,7 @@ def build_expansion_graph(unique_id: str, preset: str,
                           seed_bumps: dict | None = None,
                           template: dict | None = None,
                           cfg: dict | None = None,
-                           variants: int = 1, open_films=()) -> tuple[dict, bool]:
+                           variants: int = 1, films=None) -> tuple[dict, bool]:
     """Build the full expansion graph for InfiniteMovieRender.
 
     Args:
@@ -688,7 +685,9 @@ def build_expansion_graph(unique_id: str, preset: str,
 
     n_images = len(images)
     # --- Per-segment graphs ---
-    plan = _segment_plan(n_images, loop, frames, length, open_films)
+    # films: film ids that are rendered (storyboard cut rows start none); the id keeps seed, file and prompt.
+    plan = [(k, *p) for k, p in enumerate(_segment_plan(n_images, loop, frames, length))
+            if films is None or k in set(films)]
     n_segments = len(plan)
     if n_segments < 1:
         raise ValueError("InfiniteMovieRender needs at least 1 image.")
@@ -699,7 +698,7 @@ def build_expansion_graph(unique_id: str, preset: str,
     renders = False                # True when at least one film is rendered (not reused from disk)
 
     prev_key, prev_save, prev_path = None, None, None   # previous segment (variant A)
-    for i, (start_idx, end_idx, seg_length, kind) in enumerate(plan):
+    for pos, (i, start_idx, end_idx, seg_length, kind) in enumerate(plan):
         end_tensor = images[end_idx] if end_idx is not None else None
         if start_idx is None:
             # 1-image loop, pass 2: start = last frame of the previous segment. Rendered in this run ->
@@ -756,7 +755,7 @@ def build_expansion_graph(unique_id: str, preset: str,
             # Add the segment to the graph, then fill in the save path / index.
             graph.update(seg_a)
             graph[save_id_a]["inputs"]["path"] = segment_path(output_dir, i)
-            graph[save_id_a]["inputs"]["index"] = i
+            graph[save_id_a]["inputs"]["index"] = pos
             graph[save_id_a]["inputs"]["total"] = n_segments
             graph[save_id_a]["inputs"]["key"] = key_a
         save_ids.append(save_id_a)
@@ -780,7 +779,7 @@ def build_expansion_graph(unique_id: str, preset: str,
                 renders = True
                 graph.update(seg_b)
                 graph[save_id_b]["inputs"]["path"] = segment_path_b(output_dir, i)
-                graph[save_id_b]["inputs"]["index"] = i
+                graph[save_id_b]["inputs"]["index"] = pos
                 graph[save_id_b]["inputs"]["total"] = n_segments
                 graph[save_id_b]["inputs"]["key"] = key_b
             save_ids_b.append(save_id_b)

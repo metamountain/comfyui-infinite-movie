@@ -92,7 +92,7 @@ def write_prompts(board, indices, loop, settings, node_id=None) -> list[dict]:
         return images[k]
 
     from . import timing
-    films = [i for i in indices if 0 <= i < n and sb.next_of(n, i, loop) >= 0]
+    films = [i for i in indices if 0 <= i < n and i in sb.film_rows(board, loop)]   # a cut row has no film
     filled = [k for k, row in enumerate(board) if row["image"]]
     model = str(cfg["model_name"] or "")
     planning = isinstance(llm, dict) and bool(llm.get("story_mode")) and len(filled) >= 2
@@ -105,7 +105,7 @@ def write_prompts(board, indices, loop, settings, node_id=None) -> list[dict]:
         t0 = time.time()
         import folder_paths
         from .llm_nodes import storyboard
-        cuts = [m for m, k in enumerate(filled) if board[k].get("cut") and n > 1]   # cut films: planned as open ends
+        cuts = [m for m, k in enumerate(filled) if board[k].get("cut") and n > 1]   # cut rows: a scene break, not filmed
         plan = storyboard(llm, [folder_paths.get_annotated_filepath(board[k]["image"]) for k in filled], loop,
                           llm.get("story"), cuts=cuts)
         dt = time.time() - t0
@@ -119,19 +119,16 @@ def write_prompts(board, indices, loop, settings, node_id=None) -> list[dict]:
         row = board[i]
         _progress(node_id, phase="prompt", k=k, i=i)
         t0 = time.time()
-        # First -> Open (cut): the prompt is written from the start image alone as an OPEN shot (image_to None:
-        # "no fixed last frame, one clear change"). The same image twice would read as a single-image loop.
-        cut = bool(row.get("cut")) and n > 1
         try:
             context = ""
             if plan is not None and i in filled:
                 from .llm_nodes import shot_context
                 context = shot_context(plan, filled.index(i))
             text, _desc, _warning = generate(
-                image(i), None if cut else image(j), cfg["model_name"], " ".join(row["prompt"].split()) if row["own"] else "",
+                image(i), image(j), cfg["model_name"], " ".join(row["prompt"].split()) if row["own"] else "",
                 camera=cfg["camera"], instruction=cfg["instruction"], max_words=cfg["max_words"],
                 seed=int(time.time()) % 2**31, load=cfg["load"], gen=cfg["gen"], context=context)
-            out.append({"i": i, "prompt": text, "pair": [row["image"], "open" if cut else board[j]["image"]]})
+            out.append({"i": i, "prompt": text, "pair": [row["image"], board[j]["image"]]})
             timing.record("prompt", 1000, 1000, 1, round(time.time() - t0, 2), preset=model)
         except Exception as e:  # noqa: BLE001 - one broken film must not stop the others
             out.append({"i": i, "error": str(e)})

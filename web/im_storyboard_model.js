@@ -15,24 +15,27 @@ export const hasFilm = (n, i, loop) => nextOf(n, i, loop) >= 0;
 // Films rendered: one per row that starts one; a single image with loop also gets the way back.
 export const filmCount = (n, loop) => (n < 1 ? 0 : n === 1 ? (loop ? 2 : 1) : loop ? n : n - 1);
 
-// A cut film can only exist with more than one image (a single image is open anyway).
+// A cut (user 2026-11-15): row i starts no film - its image only ends the film before, a hard cut follows.
+// Needs more than one image (a single image is open anyway).
 export const isCut = (rows, i, loop) => rows.length > 1 && hasFilm(rows.length, i, loop) && !!rows[i].cut;
+// Film ids that are rendered (= storyboard.film_rows): the row stays the id, a cut row has none.
+export const filmRows = (rows, loop) => {
+  const n = rows.length;
+  return Array.from({ length: filmCount(n, loop) }, (_, k) => k).filter((k) => !isCut(rows, Math.min(k, n - 1), loop));
+};
 
 // Cell layout (user 2026-11-15): every prompt is one film = one Cut row, every box sits between its image and the
-// next (img[i] + row/2) with the same height. A cut opens half a row: the images after it move down by row/2, so the
-// cut film's box ends above the black line (cut[i] = y of the gap's middle) and the next image starts below it - no
-// storyboard row of its own, film numbers / seconds / seeds never shift. Cut mirrors box[] and cut[].
+// next (img[i] + row/2) with the same height. A cut row has no box: its slot stays empty, the black line sits in the
+// gap below its image (cut[i] = y of the gap's middle). Film ids / seconds / seeds never shift. Cut mirrors box[], cut[].
 export function cellTops(rows, loop, row, gapPx = 10) {
   const n = rows.length, img = [], box = [], cut = [];
-  let y = 0;
   for (let i = 0; i < n; i++) {
     const c = isCut(rows, i, loop);
-    img.push(y);
-    box.push(hasFilm(n, i, loop) ? y + row / 2 : null);
-    y += c ? row * 1.5 : row;
-    cut.push(c ? y - gapPx / 2 : null);
+    img.push(i * row);
+    box.push(hasFilm(n, i, loop) && !c ? img[i] + row / 2 : null);
+    cut.push(c ? img[i] + row - gapPx / 2 : null);
   }
-  return { img, box, cut, end: y };
+  return { img, box, cut, end: n * row };
 }
 
 // One height system for the Director and Cut (user 2026-11-15): the tile = the film format contain-fitted into the
@@ -48,7 +51,7 @@ export function boardGeometry(fmt, rows, loop) {
 
 export function pairOf(rows, i, loop) {
   const j = nextOf(rows.length, i, loop);
-  if (j >= 0 && isCut(rows, i, loop)) return rows[i].image ? [rows[i].image, "open"] : null;
+  if (isCut(rows, i, loop)) return null;   // no film
   return j >= 0 && rows[i].image && rows[j].image ? [rows[i].image, rows[j].image] : null;
 }
 

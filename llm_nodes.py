@@ -202,8 +202,9 @@ STORYBOARD_SYSTEM = (
 
 
 def _shot_to(k: int, total: int, cuts=()) -> str:
-    """Where shot k goes: 'image k+2', or for a cut film (ends open, hard cut follows) an open end."""
-    return "an open end - a hard cut follows" if k in cuts else f"image {(k + 1) % total + 1}"
+    """Where shot k goes: 'image k+2'; a cut row is not filmed - only a hard scene change to the next image."""
+    nxt = f"image {(k + 1) % total + 1}"
+    return f"{nxt} as a hard cut (not filmed, the scene changes)" if k in cuts else nxt
 
 
 def storyboard_schema(n: int, total: int | None = None, cuts=()) -> str:
@@ -258,7 +259,7 @@ def storyboard(cfg: dict, files: list, loop: bool, story: str, seed: int = 0, ca
     if n < 1:
         return None
     stat = [(f, os.path.getsize(f), int(os.path.getmtime(f))) for f in files]
-    cuts = sorted(int(k) for k in cuts or ())   # shots that end open (Director storyboard cut)
+    cuts = sorted(int(k) for k in cuts or ())   # shots replaced by a hard cut (Director storyboard cut)
     key = hashlib.sha1(json.dumps([stat, loop, cuts, str(story or ""), cfg.get("model"), _endpoint(cfg),
                                    str(cfg.get("storyboard_instruction") or "")]).encode()).hexdigest()[:16]
     if cache_dir is None:

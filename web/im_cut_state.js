@@ -1,6 +1,6 @@
 import { app } from "../../scripts/app.js";
 import { api } from "../../scripts/api.js";
-import { fcClearFilms, fcChooseRedoTokens, fcReviewToast, imEmptyPromptFilms, imFilmCount, imFilmInfoText, imPromptRun, imShotImageCount } from "./im_common.js";
+import { fcClearFilms, fcChooseRedoTokens, fcReviewToast, imEmptyPromptFilms, imFilmInfoText, imFilmRows, imPromptRun, imShotImageCount } from "./im_common.js";
 import { fcFilmShowShot } from "./im_film.js";
 import { fcChooseRender } from "./im_cut.js";
 import { fmtTime, renderEstimate } from "./im_progress.js";
@@ -118,7 +118,8 @@ function fcChoosePlan(node) {
   if (!d) return null;
   const nImg = imShotImageCount(d);
   const variants = String(d.widgets?.find((w) => w.name === "variants")?.value) === "2";
-  return { n: imFilmCount(d), variants, director: d, nImg };   // variants: both columns from the start (empty, black)
+  const films = imFilmRows(d);
+  return { n: films.length, films, variants, director: d, nImg };   // variants: both columns from the start (empty, black)
 }
 
 // Real entries (after the run) or placeholders from the plan; stale entries
@@ -128,8 +129,8 @@ export function fcChooseEntries(node) {
   const plan = fcChoosePlan(node);
   if (real.length && (!plan || (plan.n === real.length && plan.variants === !!real[0]?.has_variants))) return real;
   if (!plan || !plan.n) return real.length && !plan ? real : [];
-  return Array.from({ length: plan.n }, (_, i) => ({
-    number: i + 1, placeholder: true, has_variants: plan.variants, a: {}, b: plan.variants ? {} : null,
+  return plan.films.map((k) => ({   // number = film id + 1, as after a run (seeds and redo marks follow it)
+    number: k + 1, placeholder: true, has_variants: plan.variants, a: {}, b: plan.variants ? {} : null,
   }));
 }
 
@@ -143,8 +144,9 @@ export function fcChooseLayout(node, entries) {
   const dir = fcChooseDirectorOf(node), sb = imParseStoryboard(dir).map((r) => ({ ...r, cut: !!r.cut }));
   const fmt = boardFormat(dir, dir?._imsb?.img0 || null) || { w: 4, h: 5 };   // fresh, as the Director computes it
   const g = boardGeometry(fmt, sb, !!dir?.widgets?.find((w) => w.name === "loop")?.value), { iw, ih, row } = g;
-  const tops = entries.map((_, i) => g.tops[i] ?? i * row + row / 2);
-  const heights = entries.map((_, i) => g.heights[i] ?? ih);
+  // entry -> its film id (number - 1); the way back of a single image has no box of its own: below it
+  const tops = entries.map((e, i) => g.tops[(e.number || i + 1) - 1] ?? i * row + row / 2);
+  const heights = entries.map(() => ih);
   const boardH = entries.length ? Math.max(...tops.map((t, i) => t + heights[i])) : 0;
   // 2026-11-13: no play field in Cut any more – the analysis viewer is its own widget (im_viz) below this one.
   const domH = boardH + FC_CHOOSE_GAP + FC_CHOOSE_STATUS_H + FC_CHOOSE_GAP + FC_CHOOSE_BIG_H + 8;

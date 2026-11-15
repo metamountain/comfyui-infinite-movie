@@ -66,10 +66,19 @@ def load_images(board) -> list[np.ndarray]:
     return [load_image(row["image"]) for row in board]
 
 
-def open_films(board, n_films) -> list[int]:
-    """Films that end open (First -> Open): rows marked ``cut``. A single image is open anyway (expansion plan)."""
+def film_rows(board, loop: bool) -> list[int]:
+    """Films that are rendered, by film id (= the row that starts them). A row marked ``cut`` starts no film
+    (user 2026-11-15): its image only ends the film before, a hard cut follows. The row stays the film id, so
+    segment files, seconds and seeds of the other films never shift when a cut is toggled."""
     n = len(board)
-    return [k for k in range(n_films) if n > 1 and k < n and board[row_of(n, k)].get("cut")]
+    return [k for k in range(film_count(n, loop)) if not (n > 1 and board[row_of(n, k)].get("cut"))]
+
+
+def hard_cuts(films: list[int], n_films: int, loop: bool) -> list[int]:
+    """Positions in ``films`` followed by a hard cut: the next film id (loop: around) is not rendered."""
+    kept = set(films)
+    return [p for p, k in enumerate(films)
+            if (k + 1 < n_films and k + 1 not in kept) or (loop and k + 1 == n_films and 0 not in kept)]
 
 
 def row_of(n: int, k: int) -> int:
