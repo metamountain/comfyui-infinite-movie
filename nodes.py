@@ -320,6 +320,8 @@ class InfiniteMovieRender(io.ComfyNode):
         n = len(tensors)
         n_films = _storyboard.film_count(n, loop)
         prompts = [_clean_prompt(p) for p in _storyboard.prompt_list(board, n_films)]
+        # Variant B may take its own prompt (user 2026-11-15: "2 variants, 2 prompts"); empty = A's prompt
+        prompts_b = [_clean_prompt(p) for p in _storyboard.prompt_list(board, n_films, "prompt_b")]
         film_seconds = _parse_shot_seconds(shot_seconds)
         own = _scene_frames(film_seconds, cfg["fps"], cfg["length_mod"], length)
         # Film k takes the length of its row (storyboard.row_of); the way back of a
@@ -346,7 +348,7 @@ class InfiniteMovieRender(io.ComfyNode):
             unique_id=uid, preset=preset, images=tensors, prompts=prompts, seed=seed,
             width=width, height=height, length=length, loop=loop, output_dir=output_dir,
             frames=frames, seed_bumps=_parse_reseed(reseed), template=template, cfg=cfg,
-            variants=variants, films=films)
+            variants=variants, films=films, prompts_b=prompts_b)
         # GPU only when something renders (all films reused -> no waiting, no unloading)
         if renders:
             vram.wait_acquire(min_free_mb=get_setting(settings, "min_free_mb"),

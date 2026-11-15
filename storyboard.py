@@ -18,7 +18,8 @@ DEFAULT_IMAGES = 4
 
 
 def parse(text) -> list[dict]:
-    """Rows from the widget JSON: ``{"image": str, "prompt": str, "own": bool, "cut": bool}``, at most MAX_IMAGES.
+    """Rows from the widget JSON: ``{"image": str, "prompt": str, "prompt_b": str, "own": bool, "cut": bool}``, at
+    most MAX_IMAGES. prompt_b = the prompt of variant B (empty = B renders with the same prompt as A).
     cut = the film of that row is First -> Open (start image only, open end), the next image starts after a hard cut.
     Empty or broken JSON -> ``[]``; entries that are not dicts are skipped."""
     try:
@@ -27,7 +28,8 @@ def parse(text) -> list[dict]:
         return []
     if not isinstance(data, list):
         return []
-    return [{"image": str(e.get("image") or "").strip(), "prompt": str(e.get("prompt") or ""), "own": bool(e.get("own")),
+    return [{"image": str(e.get("image") or "").strip(), "prompt": str(e.get("prompt") or ""),
+             "prompt_b": str(e.get("prompt_b") or ""), "own": bool(e.get("own")),
              "cut": bool(e.get("cut"))}
             for e in data if isinstance(e, dict)][:MAX_IMAGES]
 
@@ -86,13 +88,13 @@ def row_of(n: int, k: int) -> int:
     return min(k, n - 1)
 
 
-def prompt_list(board, n_segments) -> list[str]:
+def prompt_list(board, n_segments, key="prompt") -> list[str]:
     """One prompt per rendered film: film k takes row ``row_of(len(board), k)`` — its own row, except the way
     back of a single image, which belongs to that image. An empty prompt stays empty (no fill from the film
-    that starts one row earlier); whitespace is collapsed."""
+    that starts one row earlier); whitespace is collapsed. key="prompt_b": the variant B prompts."""
     out: list[str] = []
     for k in range(max(0, int(n_segments))):
-        p = " ".join(board[row_of(len(board), k)]["prompt"].split()) if (k < len(board) or len(board) == 1) else ""
+        p = " ".join(str(board[row_of(len(board), k)].get(key) or "").split()) if (k < len(board) or len(board) == 1) else ""
         out.append(p)
     return out
 

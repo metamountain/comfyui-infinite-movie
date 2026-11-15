@@ -98,8 +98,10 @@ export function filmSquare(node, minW = 360) {
 export const IMV_CTL_H = 96 + 20;   // tab / shot / control / info rows + the widget margin
 function imvArea(node) {
   if (imvIsAna(node)) {
-    const w = Math.max(200, Math.round((node.size?.[0] || IMV_NODE_W) - 24)), fit = Number(node.properties?.im_fit_h);
-    const s = fit > 0 ? Math.max(160, Math.min(w, Math.floor(fit - IMV_CTL_H))) : w;
+    // im_sq (AUTO LAYOUT, user 2026-11-15: "identical to the preview, same size and format"): the preview's square
+    const w = Math.max(200, Math.round((node.size?.[0] || IMV_NODE_W) - 20)), sq = Number(node.properties?.im_sq);
+    const fit = Number(node.properties?.im_fit_h);
+    const s = Math.max(160, Math.min(w, sq > 0 ? Math.floor(sq) : w, fit > 0 ? Math.floor(fit - IMV_CTL_H) : w));
     return [s, s];
   }
   if (imvIsFilm(node)) { const s = filmSquare(node, 0); return [s, s]; }

@@ -646,7 +646,7 @@ def build_expansion_graph(unique_id: str, preset: str,
                           seed_bumps: dict | None = None,
                           template: dict | None = None,
                           cfg: dict | None = None,
-                           variants: int = 1, films=None) -> tuple[dict, bool]:
+                           variants: int = 1, films=None, prompts_b=None) -> tuple[dict, bool]:
     """Build the full expansion graph for InfiniteMovieRender.
 
     Args:
@@ -655,6 +655,7 @@ def build_expansion_graph(unique_id: str, preset: str,
         images: list of image tensors (each a torch tensor, HWC or CHW as
             produced by the image loader / preprocessing).
         prompts: one prompt per film (len == the number of films); film k renders with prompts[k].
+        prompts_b: variant B's own prompts (same length; empty entry or None = B uses prompts[k]).
         seed: base seed (per-segment seed = seed + segment_index
             + 1000 * seed_bumps.get(segment_number, 0)).
         width, height, length: render size / default frame count (fallback for a missing per-film length).
@@ -713,6 +714,7 @@ def build_expansion_graph(unique_id: str, preset: str,
         else:
             start_value = images[start_idx]
         seg_prompt = prompts[i]
+        seg_prompt_b = ((prompts_b[i] if prompts_b and i < len(prompts_b) else "") or "").strip() or seg_prompt
         _b = seed_bumps or {}
         seg_seed = seed + i + 1000 * (_b.get(i + 1, 0) + _b.get(f"{i + 1}a", 0))
         # Variant B: as before seg_seed + 500, but only its own bumps ("2b") - "2a" leaves B unchanged
@@ -764,7 +766,10 @@ def build_expansion_graph(unique_id: str, preset: str,
         # --- Variant B (seed A + 500, seg_XXX_b.mp4) – only when variants >= 2 ---
         if variants >= 2:
             prefix_b = f"{unique_id}_s{i}b_"
-            key_b = f"seed={seed_b};size={width}x{height};end={kind};len={seg_length};{base_hash}"
+            # own B prompt: own key (same prompt -> the key as before, existing B files stay valid)
+            hash_b = base_hash if seg_prompt_b == seg_prompt else \
+                hashlib.md5(f"{base_hash}|b:{seg_prompt_b}".encode("utf-8")).hexdigest()
+            key_b = f"seed={seed_b};size={width}x{height};end={kind};len={seg_length};{hash_b}"
             if _reusable_segment(segment_path_b(output_dir, i), key_b):
                 save_id_b = _reuse_node(graph, f"{prefix_b}reuse", segment_path_b(output_dir, i))
             else:
@@ -772,7 +777,7 @@ def build_expansion_graph(unique_id: str, preset: str,
                     template, cfg, prefix_b,
                     start_tensor=start_value,
                     end_tensor=end_tensor,
-                    prompt=seg_prompt,
+                    prompt=seg_prompt_b,
                     seed=seed_b,
                     width=width, height=height, length=seg_length,
                 )

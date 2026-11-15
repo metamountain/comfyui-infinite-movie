@@ -50,7 +50,8 @@ const CSS = `
 .imsb-p .sec { margin-left:auto; display:flex; align-items:center; gap:3px; font-weight:400; }
 .imsb-p .sec input { width:46px; background:#1b1b1b; color:#ddd; border:1px solid #444; border-radius:3px; font:13px system-ui; padding:2px 3px; }
 .imsb-p .sec input.own { color:#e6c229; font-weight:700; border-color:#e6c229; }
-.imsb-p textarea { flex:1; resize:none; background:#1b1b1b; color:#ddd; border:1px solid #444; border-radius:3px; font:12px system-ui; padding:4px; }
+.imsb-p textarea.b { border-color:#5a4a8a; }
+.imsb-p textarea { flex:1; min-height:0; resize:none; background:#1b1b1b; color:#ddd; border:1px solid #444; border-radius:3px; font:12px system-ui; padding:4px; }
 .imsb-p .hd input { cursor:auto; }
 .imsb-p .ct { cursor:pointer; padding:1px 5px; border-radius:3px; color:#aaa; font:700 15px system-ui; }
 .imsb-p .ct.busy { cursor:progress; color:#666; }
@@ -103,7 +104,7 @@ function boardSize(node, rows, loop) {
 
 function signature(node) {
   const s = settingsNodeOf(node), v = (n, k) => imWidget(n, k)?.value;
-  return [v(node, "storyboard"), v(node, "loop"), v(node, "seconds"), v(node, "shot_seconds"), v(s, "aspect"), v(s, "long_side")].join("|");
+  return [v(node, "storyboard"), v(node, "loop"), v(node, "seconds"), v(node, "shot_seconds"), v(node, "variants"), v(s, "aspect"), v(s, "long_side")].join("|");
 }
 
 function commit(node, rows) { writeRows(node, rows); render(node); }
@@ -357,6 +358,22 @@ function promptEl(node, rows, i, loop) {
   rg.onclick = (e) => { e.stopPropagation(); if (!busy) regen(node, [i]); };
   hd.append(lamp, rg);
   box.append(hd, ta);
+  // Variants 2 (user 2026-11-15: "2 variants, 2 prompts"): a second field for variant B, empty = A's prompt
+  if (String(imWidget(node, "variants")?.value) === "2") {
+    ta.placeholder = busy ? "writing…" : "A: what happens from this image to the next…";
+    const tb = Object.assign(el("textarea", "b"), { value: r.prompt_b || "", disabled: busy,
+      placeholder: "B: own prompt for variant B (empty = same as A)" });
+    tb.title = "Variant B prompt – Cut shows A and B side by side";
+    tb.onkeydown = (e) => e.stopPropagation();
+    tb.oninput = () => {
+      const now = readRows(node);
+      now[i].prompt_b = tb.value;
+      writeRows(node, now);
+      r.prompt_b = tb.value;
+      st.sig = signature(node);
+    };
+    box.append(tb);
+  }
   (st.boxes ||= [])[i] = box;
   return box;
 }

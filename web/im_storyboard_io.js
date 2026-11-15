@@ -24,8 +24,8 @@ export function readRows(node) {
 
 export function writeRows(node, rows) {
   rows = rows.slice(0, MAX_IMAGES);
-  setWidget(node, "storyboard", JSON.stringify(rows.map(({ image, prompt, own, pair, cut }) =>
-    (cut ? { image, prompt, own, pair, cut } : { image, prompt, own, pair }))));
+  setWidget(node, "storyboard", JSON.stringify(rows.map(({ image, prompt, prompt_b, own, pair, cut }) =>
+    ({ image, prompt, ...(prompt_b ? { prompt_b } : {}), own, pair, ...(cut ? { cut } : {}) }))));
   const secs = rows.map((r) => r.sec);
   while (secs.length && !secs.at(-1)) secs.pop();
   setWidget(node, "shot_seconds", secs.join(", "));

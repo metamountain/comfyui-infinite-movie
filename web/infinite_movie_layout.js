@@ -12,6 +12,7 @@
 // left like the README. Anchor: x = README note, y = top edge of the engine.
 import { app } from "../../scripts/app.js";
 import { fcChooseRefreshAll } from "./im_cut_state.js";
+import { filmSquare } from "./im_viewer.js";
 
 const T = 30;        // node title bar
 const HEAD = 64;     // group header: title (32) + room for the node badge (#id …)
@@ -207,12 +208,14 @@ export function fcWorkflowLayout(director, second = false) {
     n.size = [n.size[0], n.computeSize()[1]];
   };
   const oneCol = cut.length && cutFilms.length === 1;
-  for (const n of [...cutFilms, ...cutAnas, ...asmFilms, ...upFilms]) { if (n.properties) delete n.properties.im_fit_h; n.size = [n.size[0], n.computeSize()[1]]; }   // fresh, natural size
+  for (const n of [...cutFilms, ...cutAnas, ...asmFilms, ...upFilms]) { if (n.properties) { delete n.properties.im_fit_h; delete n.properties.im_sq; } n.size = [n.size[0], n.computeSize()[1]]; }   // fresh, natural size
   // user 2026-11-15: analysis on top, the preview below it exactly as big as the players in the groups behind
-  // (natural square), the analysis takes the rest of the Director's height; without analysis the preview fits it
+  // (natural square); the analysis square is the preview's square ("identical, same size and format") as long as
+  // the rest of the Director's height holds it, else as big as fits. No analysis: the preview fits the Director.
+  const anaFit = (a, h) => { a.properties ||= {}; a.properties.im_sq = filmSquare(cutFilms[0], 0); fitTo(a, h); };
   if (oneCol) {
     const H = director.computeSize()[1], ana = cutAnas[0];
-    if (ana) fitTo(ana, H - cutFilms[0].size[1] - T - NGAP);
+    if (ana) anaFit(ana, H - cutFilms[0].size[1] - T - NGAP);
     else fitTo(cutFilms[0], H);
   }
   const sizes = row.map(([, ns, side], k) => colSize(ns, side, rowHelp[k]));
@@ -274,7 +277,7 @@ export function fcWorkflowLayout(director, second = false) {
     const f = cutFilms[0], a = cutAnas[0];
     if (a) {
       const fy = bottom != null ? bottom - f.size[1] : director.pos[1] + director.computeSize()[1] - f.size[1];
-      fitTo(a, fy - NGAP - T - director.pos[1]);
+      anaFit(a, fy - NGAP - T - director.pos[1]);
       a.pos = [f.pos[0], director.pos[1]];
       f.pos = [f.pos[0], fy];
     } else f.pos = [f.pos[0], director.pos[1]];
