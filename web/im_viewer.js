@@ -117,6 +117,13 @@ function imvArea(node) {
     return [Math.min(w, Math.round(h * ar)), h];
   }
   if (imvIsFilm(node)) { const h = filmSquare(node, 0); return [Math.round(h * filmAspect(node)), h]; }
+  if ((node?.comfyClass || node?.type) === "InfiniteMovieAssemble") {
+    // Even Motion's graph (user 2026-11-15): full node width, height from the graph image's format (before the
+    // first run: the film's format)
+    const w = Math.max(IMV_MIN_H, Math.round((node.size?.[0] || IMV_NODE_W) - 20)), g = node._imv?.graph;
+    const ar = g?.naturalWidth && g.naturalHeight ? g.naturalWidth / g.naturalHeight : filmAspect(node);
+    return [w, Math.round(w / ar)];
+  }
   const h = Number(node?.properties?.imv_h);
   if (!(h >= IMV_MIN_H)) return [IMV_W, IMV_H];
   const w = Math.max(IMV_W, Math.round((node.size?.[0] || IMV_NODE_W) - 24));

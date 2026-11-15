@@ -20,6 +20,9 @@ const PAD = 20;      // margin left/right/bottom
 const GAP = 40;      // between groups
 const NGAP = 40;     // between nodes in a group
 const MINW = 420;    // minimum width of a group
+// user 2026-11-15 ("graph and players maximised to the format, height variable, width fixed"): one fixed width for
+// every player column (Cut's preview + analysis, Even Motion, Upscale, GIF) - variants only widen Cut itself
+const PLAYER_W = 600;
 // user 2026-11-15 ("everything on a simple grid, no rounding errors"): every constant above is a multiple of R, node
 // sizes are rounded UP to it (csH), positions snapped - edges that should meet meet exactly.
 const R = 10;
@@ -119,7 +122,7 @@ export function fcWorkflowLayout(director, second = false) {
   const blockW = upBlock.length ? Math.max(...upBlock.map((n) => n.pos[0] + n.size[0])) - Math.min(...upBlock.map((n) => n.pos[0])) : 0;
   // user 2026-11-13: "after 6 the work is done, 7 8 are extras" -> Cut (group 6) alone sets the width of 6-9;
   // a wider Upscale block only widens group 8 itself
-  const inner678 = up(Math.max(MINW - 2 * PAD, ...cut.map((n) => n.size[0])));
+  const inner678 = PLAYER_W;
   for (const a of asm) a.size = [inner678, csH(a)];
   // players: width first (user 2026-11-15: "width!"), the height follows from the film's format (im_viewer filmAspect)
   for (const f of [...cutFilms, ...asmFilms, ...upFilms, ...cutAnas]) {
@@ -305,8 +308,7 @@ export function fcWorkflowLayout(director, second = false) {
   // user 2026-11-13 ("never collapse the graph, always open"): Even Motion reaches down to its Film player, so its
   // analysis graph (image preview below the widgets) always has room inside group 7 - also before the first run
   for (const a of asm) {
-    const below = asmFilms.length ? Math.min(...asmFilms.map((f) => f.pos[1])) - T - NGAP : Y + H456 - PAD;
-    a.size = [a.size[0], Math.max(csH(a), below - a.pos[1])];
+    a.size = [a.size[0], csH(a)];   // the graph in its own format at full width (im_viewer imvArea), no stretching
   }
   // 8 Upscale right of 7, content as a block, help centered on top, same height as the row
   if (upGrp && upMembers.length) {
