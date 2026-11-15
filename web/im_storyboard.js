@@ -197,7 +197,7 @@ function remove(node, i) {
 // One wording for every cut toggle (prompt header and hover strip): what a click does now.
 const cutTitle = (on, film, next) => (on
   ? `Remove cut: film ${film} → ${next} comes back`
-  : `Cut after image ${film}: hard cut, image ${next} starts fresh. Prompt ${film} empty = no film, text = film from image ${film} into ∅`);
+  : `Cut after image ${film}: hard cut, image ${next} starts fresh (no film ${film} → ${next})`);
 const CUT_HINT = "Cut after this image: the end is empty (∅). Empty prompt = no film here. Text = film from this image into ∅, then the cut";
 const TEXT_HINT = "∅ → ∅: no image on either side - write this prompt yourself (text to video)";
 const hint = (cutRow, textOnly) => (textOnly ? TEXT_HINT : cutRow ? CUT_HINT : "What happens from this image to the next…");
@@ -477,8 +477,8 @@ export function render(node) {
   }
   // Hover between two tiles (user 2026-11-15): ▢ = insert an empty (black) frame; uncut only where an old cut is.
   for (let k = 1; k <= rows.length; k++) {   // k = n: below the last image
-    const add = rows.length < MAX_IMAGES, on = rows.length > 1 && hasFilm(rows.length, k - 1, loop) && !!rows[k - 1].cut;
-    if (!add && !on) continue;
+    const add = rows.length < MAX_IMAGES, cut = rows.length > 1 && hasFilm(rows.length, k - 1, loop), on = cut && !!rows[k - 1].cut;
+    if (!add && !cut) continue;
     const z = el("div", "imsb-ins");
     z.style.cssText = `top:${gapTop(st, k) - 9}px;width:${iw}px`;
     z.onpointerdown = (e) => e.stopPropagation();
@@ -488,10 +488,18 @@ export function render(node) {
       if (!off) b.onclick = fn;
       z.appendChild(b);
     };
-    // user 2026-11-15: no cut button - a film into nothing is an empty (black) frame; only an old cut can be removed
-    if (add) btn("ed", "▢ empty", "Insert an empty frame here (placeholder, no image): the film before runs into it, the next one starts from it",
-      () => insertAt(node, k, true));
-    if (on) btn("uncut", "uncut", cutTitle(true, k, nextOf(rows.length, k - 1, loop) + 1), () => setCut(node, k - 1, false));
+    // user 2026-11-15: four grey buttons - empty frame above / below the cut, cut, uncut (what cannot be done is grey)
+    if (add) {
+      btn("eu", "▢↑", on ? "Empty frame above the cut: the film before runs into it, then the cut" : "Insert an empty frame here (placeholder, no image)",
+        () => insertAt(node, k, true, true));
+      btn("ed", "▢↓", on ? "Empty frame below the cut: the next part starts from it" : "Insert an empty frame here (placeholder, no image)",
+        () => insertAt(node, k, true, false));
+    }
+    if (cut) {
+      const next = nextOf(rows.length, k - 1, loop) + 1;
+      btn("cut", "✂", cutTitle(false, k, next), () => setCut(node, k - 1, true), on);
+      btn("uncut", "uncut", cutTitle(true, k, next), () => setCut(node, k - 1, false), !on);
+    }
     st.board.appendChild(z);
   }
   st.board.appendChild(st.gap);

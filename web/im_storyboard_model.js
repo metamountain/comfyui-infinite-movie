@@ -52,7 +52,7 @@ export function cellTops(rows, loop, row, gapPx = 10) {
     box.push(film ? top : null);
     // to the middle of the next tile; the loop film (last -> first) and a single image keep a whole row
     bh.push(film ? (j === i + 1 ? img[j] + h[j] / 2 - top : row) - gapPx : null);
-    cut.push(c ? img[i] + h[i] - gapPx / 2 : null);
+    cut.push(c ? img[i] + h[i] - gapPx / 2 : null);   // empty frames do not cut (several in a row = one sequence)
   }
   return { img, hts: h.map((x) => x - gapPx), box, bh, cut, cutBox: cut, end: y };
 }
