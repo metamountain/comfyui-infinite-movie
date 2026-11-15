@@ -83,9 +83,9 @@ def load_images(board) -> list[np.ndarray]:
 def is_open(board, k: int, loop: bool) -> bool:
     """A cut row with a prompt (variant A): it renders an open film - start image k only, no end image -
     and a hard cut follows (user 2026-11-15: "kein Bild ohne Prompt, leer lassen geht immer")."""
-    n = len(board)
-    return (n > 1 and k < film_count(n, loop) and bool(board[k].get("cut"))
-            and str(board[k].get("prompt") or "").strip() != "")
+    # user 2026-11-15 ("there is no open, those are black frames = empty"): a cut row never films; its prompt
+    # stays hidden (back with uncut). A film into nothing = a black frame before the cut (kind 'open' via empty).
+    return False
 
 
 def open_films(board, loop: bool) -> list[int]:

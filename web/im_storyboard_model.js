@@ -19,7 +19,9 @@ export const filmCount = (n, loop) => (n < 1 ? 0 : n === 1 ? (loop ? 2 : 1) : lo
 // a prompt"): an empty A prompt = no film i (image i only ends the film before), text = an OPEN film from image i
 // (no end image), then the hard cut. Needs more than one image (a single image is open anyway). Only A decides.
 export const isCut = (rows, i, loop) => rows.length > 1 && hasFilm(rows.length, i, loop) && !!rows[i].cut;
-export const isOpen = (rows, i, loop) => isCut(rows, i, loop) && !!String(rows[i].prompt || "").trim();
+// user 2026-11-15 ("there is no open, those are black frames = empty"): a cut row never films - its prompt stays
+// hidden and comes back with uncut; a film into nothing is a black frame (▢) before the cut.
+export const isOpen = () => false;
 // Film ids that are rendered (= storyboard.film_rows): the row stays the id, an empty cut row has none.
 export const filmRows = (rows, loop) => {
   const n = rows.length;
@@ -30,20 +32,18 @@ export const filmRows = (rows, loop) => {
 };
 
 // Cell layout (user 2026-11-15): every prompt is one film = one Cut row, every box sits between its image and the
-// next (img[i] + row/2) with the same height - a cut row too. A cut is ONE black line through image and prompt
-// column ("black must go all the way through"): below box i, and everything after it moves down half a row, so the
-// line never crosses a box. cut[i] = cutBox[i] = its y. Film ids / seconds / seeds never shift. Cut mirrors it.
+// next (img[i] + row/2) with the same height. A cut row has no box ("2 and 4 away"): a film into nothing is a black
+// frame (▢), not a cut. The cut is ONE black line through both columns in the gap below image i (cut[i]); it crosses
+// no box. Film ids / seconds / seeds never shift. Cut mirrors box[], cut[].
 export function cellTops(rows, loop, row, gapPx = 10) {
   const n = rows.length, img = [], box = [], cut = [];
-  let off = 0;
   for (let i = 0; i < n; i++) {
     const c = isCut(rows, i, loop);
-    img.push(i * row + off);
-    box.push(hasFilm(n, i, loop) ? img[i] + row / 2 : null);
-    cut.push(c ? img[i] + row * 1.5 - gapPx / 2 : null);
-    if (c && i < n - 1) off += row / 2;
+    img.push(i * row);
+    box.push(hasFilm(n, i, loop) && !c ? img[i] + row / 2 : null);
+    cut.push(c ? img[i] + row - gapPx / 2 : null);
   }
-  return { img, box, cut, cutBox: cut, end: n * row + off };
+  return { img, box, cut, cutBox: cut, end: n * row };
 }
 
 // One height system for the Director and Cut (user 2026-11-15): the tile = the film format contain-fitted into the

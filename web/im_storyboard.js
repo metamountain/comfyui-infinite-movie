@@ -453,8 +453,8 @@ export function render(node) {
   st.gap.style.width = `${iw + 8}px`;
   for (let i = 0; i < rows.length; i++) {
     st.board.appendChild(tileEl(node, rows, i));
-    if (hasFilm(rows.length, i, loop)) st.board.appendChild(promptEl(node, rows, i, loop));   // every image has a prompt
-    if (st.size.cells.cut[i] != null) {   // the cut: one black line through both columns, below box i
+    if (hasFilm(rows.length, i, loop) && !isCut(rows, i, loop)) st.board.appendChild(promptEl(node, rows, i, loop));   // a cut row: no box
+    if (st.size.cells.cut[i] != null) {   // the cut: one black line through both columns, below image i
       const c = el("div", "imsb-cut");
       c.style.cssText = `top:${st.size.cells.cut[i] - 2}px;width:${iw + GAP + st.size.pw}px`;
       st.board.appendChild(c);
@@ -475,10 +475,10 @@ export function render(node) {
     }
     st.board.appendChild(wp);
   }
-  // Hover between two tiles (user 2026-11-15): four grey buttons - empty frame above / below the cut, cut, uncut.
+  // Hover between two tiles (user 2026-11-15): ▢ = insert an empty (black) frame; uncut only where an old cut is.
   for (let k = 1; k <= rows.length; k++) {   // k = n: below the last image
-    const add = rows.length < MAX_IMAGES, cut = rows.length > 1 && hasFilm(rows.length, k - 1, loop), on = cut && rows[k - 1].cut;
-    if (!add && !cut) continue;
+    const add = rows.length < MAX_IMAGES, on = rows.length > 1 && hasFilm(rows.length, k - 1, loop) && !!rows[k - 1].cut;
+    if (!add && !on) continue;
     const z = el("div", "imsb-ins");
     z.style.cssText = `top:${gapTop(st, k) - 9}px;width:${iw}px`;
     z.onpointerdown = (e) => e.stopPropagation();
@@ -488,17 +488,10 @@ export function render(node) {
       if (!off) b.onclick = fn;
       z.appendChild(b);
     };
-    if (add) {
-      btn("eu", "▢↑", on ? `Empty frame above the cut: it ends the film from image ${k}, then the cut` : "Insert an empty (black) frame here",
-        () => insertAt(node, k, true, true));
-      btn("ed", "▢↓", on ? `Empty frame below the cut: the next part starts with it` : "Insert an empty (black) frame here",
-        () => insertAt(node, k, true, false));
-    }
-    if (cut) {
-      const next = nextOf(rows.length, k - 1, loop) + 1;
-      btn("cut", "✂", cutTitle(false, k, next), () => setCut(node, k - 1, true), on);
-      btn("uncut", "uncut", cutTitle(true, k, next), () => setCut(node, k - 1, false), !on);
-    }
+    // user 2026-11-15: no cut button - a film into nothing is an empty (black) frame; only an old cut can be removed
+    if (add) btn("ed", "▢ empty", "Insert an empty (black) frame here: the film before ends in it, the next starts from it",
+      () => insertAt(node, k, true));
+    if (on) btn("uncut", "uncut", cutTitle(true, k, nextOf(rows.length, k - 1, loop) + 1), () => setCut(node, k - 1, false));
     st.board.appendChild(z);
   }
   st.board.appendChild(st.gap);
