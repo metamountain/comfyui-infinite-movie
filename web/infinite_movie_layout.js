@@ -222,11 +222,17 @@ export function fcWorkflowLayout(director, second = false) {
   const sizes = row.map(([, ns, side], k) => colSize(ns, side, rowHelp[k]));
   // user 2026-11-13 ("groups modular, 2 or 3 widths, no more"): one module width U = a Cut column (Cut node + margins)
   // or the storyboard, whichever is wider. Settings and Director are U wide, Cut (Cut + preview side by side) 2U + GAP.
-  const U = up(Math.max(inner678 + 2 * PAD, sizes[SET][0], sizes[DIR][0]));
+  // user 2026-11-15 ("1 2 3 as wide as 3, spread better"): Settings, Director and Cut share one width = the widest
+  // of them; Cut keeps its node on the left and its preview column on the right edge.
+  // natural widths, not the last layout's (the nodes were stretched to U before - that would only ever grow)
+  const natW = (k) => Math.max(MINW, ...row[k][1].filter((n) => !isHelp(n)).map((n) =>
+    (n === director && n._imsb?.size?.w) || n.computeSize?.()[0] || n.size[0]).map((w) => w + 2 * PAD));
+  const U = up(Math.max(inner678 + 2 * PAD, natW(SET), natW(DIR), row[CUT][0] ? sizes[CUT][0] : 0));
   for (const k of [SET, DIR]) {
     sizes[k][0] = U;
     for (const n of row[k][1]) if (!isHelp(n)) n.size = [U - 2 * PAD, n.size[1]];
   }
+  if (row[CUT][0]) sizes[CUT][0] = U;
   // Cut group: no fixed module width (user 2026-11-15: "close the gap, dynamic with variants") - Cut + PAD + the
   // preview column, so it grows and shrinks with Cut's variant columns
   // user 2026-11-13 ("1 wider"): the engine on top spans Settings + Director (2U + GAP); help stays on the left
