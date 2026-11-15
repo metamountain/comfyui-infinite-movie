@@ -220,4 +220,26 @@ class InfiniteMovieFilm(io.ComfyNode):
                              ui={"infinite_movie_film": [info]})
 
 
-FILM_NODE_LIST = [InfiniteMovieFilm]
+class InfiniteMovieAnalysis(io.ComfyNode):
+    """Movie analysis of Cut's shots (Particles / Heatmap / Frames / Sheet), live in sync with the Video Preview.
+    Display only: the data comes from Cut (ui im_viz), the browser shows it - nothing is computed here."""
+
+    @classmethod
+    def define_schema(cls):
+        return io.Schema(
+            node_id="InfiniteMovieAnalysis",
+            display_name="Movie Analysis · Infinite Movie",
+            search_aliases=["analysis", "movie analysis", "particles", "heatmap", "motion", "infinite movie"],
+            category="Infinite Movie",
+            description="Shows Cut's shot analysis (particles, heatmap, frames, sheet) and follows the Video "
+                        "Preview's playback. Connect Cut's sync output.",
+            inputs=[io.Custom("SYNC").Input("sync", optional=True, tooltip="From Cut: its shot analysis is shown here.")],
+            outputs=[],
+        )
+
+    @classmethod
+    def execute(cls, sync=None) -> io.NodeOutput:
+        return io.NodeOutput()
+
+
+FILM_NODE_LIST = [InfiniteMovieFilm, InfiniteMovieAnalysis]

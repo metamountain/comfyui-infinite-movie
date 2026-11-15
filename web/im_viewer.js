@@ -12,8 +12,10 @@ const IMV_TABS = ["Graph", "Timeline", "Heatmap", "Frames", "Particles", "Sheet"
 // Tabs per node – Assemble keeps Graph/Timeline (before/after re-timing comparison); the Film node fed by Cut shows
 // Cut's shot analysis Heatmap/Frames/Particles/Sheet (that im_viz has timeline: null, no graph). Start tab = first entry.
 const imvIsFilm = (node) => node?.comfyClass === "InfiniteMovieFilm";
+const imvIsAna = (node) => (node?.comfyClass || node?.type) === "InfiniteMovieAnalysis";
 function imvTabs(node) {
-  if (imvIsFilm(node) || node?.comfyClass === "InfiniteMovieChooser") return ["Heatmap", "Frames", "Particles", "Sheet"];
+  // Particles first = the start tab (user 2026-11-15: "set particles as standard")
+  if (imvIsAna(node) || imvIsFilm(node) || node?.comfyClass === "InfiniteMovieChooser") return ["Particles", "Heatmap", "Frames", "Sheet"];
   return IMV_TABS;
 }
 // Particle color by speed (same scale as the heatmap, without the nearly black end)
@@ -84,14 +86,22 @@ export const IMV_W = 480, IMV_H = 480, IMV_NODE_W = IMV_W + 24;
 // own area height (properties.imv_h); the area is then as wide as the node. Without it the area stays 480×480.
 // With imv_h the area is a SQUARE (height = width), not as tall as the node.
 export const IMV_MIN_H = 200;
-// Film player: analysis square and video square as wide as the player; with properties.im_fit_h (AUTO LAYOUT, user
-// 2026-11-15: "previews together, group as tall as the Director") both shrink so the whole player fits that height.
-export const IMV_FILM_EXTRA = 100 + 16 + 16 + 26;   // analysis controls + gaps + timeline + bar (im_film)
+// Film player: the video square as wide as the player; with properties.im_fit_h (AUTO LAYOUT, user 2026-11-15:
+// "previews together, group as tall as the Director") it shrinks so the whole player fits that height.
+export const IMV_FILM_EXTRA = 16 + 16 + 26;   // gaps + timeline + bar (im_film)
 export function filmSquare(node, minW = 360) {
   const w = Math.max(minW, Math.round((node?.size?.[0] || IMV_NODE_W) - 20)), fit = Number(node?.properties?.im_fit_h);
-  return fit > 0 ? Math.max(160, Math.min(w, Math.floor((fit - IMV_FILM_EXTRA) / 2))) : w;
+  return fit > 0 ? Math.max(160, Math.min(w, Math.floor(fit - IMV_FILM_EXTRA))) : w;
 }
+// Movie Analysis node (user 2026-11-15: "analysis external, a square block"): a square as wide as the node; with
+// properties.im_fit_h (AUTO LAYOUT: preview + analysis = the Director's height) as tall as that leaves.
+export const IMV_CTL_H = 96 + 20;   // tab / shot / control / info rows + the widget margin
 function imvArea(node) {
+  if (imvIsAna(node)) {
+    const w = Math.max(200, Math.round((node.size?.[0] || IMV_NODE_W) - 24)), fit = Number(node.properties?.im_fit_h);
+    const s = fit > 0 ? Math.max(160, Math.min(w, Math.floor(fit - IMV_CTL_H))) : w;
+    return [s, s];
+  }
   if (imvIsFilm(node)) { const s = filmSquare(node, 0); return [s, s]; }
   const h = Number(node?.properties?.imv_h);
   if (!(h >= IMV_MIN_H)) return [IMV_W, IMV_H];
@@ -123,7 +133,7 @@ function imvSheetPicks(n, grid) {
   return out;
 }
 
-function imvEnsure(node) {
+export function imvEnsure(node) {
   if (node._imv) return node._imv;
   const st = { tab: imvTabs(node)[0], seg: 0, k: 0, grid: 3, trail: 16, onion: false, timer: null, graph: null, liveTimeline: null };
   node._imv = st;
@@ -198,11 +208,10 @@ function imvEnsure(node) {
   // fixed height: area 480×480 + 4 rows (22+22+22+14) + 4 gaps -> does not jump on tab switch.
   // +20: the frontend subtracts 10 px margin top/bottom from the widget (el = height - 20); without the 20 the
   // slider and info row would stick out below the frame (user 2026-11-09 "don't fit in frame").
-  if (imvIsFilm(node) && node._fc_film_el) {
-    // Film node: the analysis sits in the player's widget, above the video; the Film widget's min height adds hostH.
-    el.style.flex = "none";
-    node._fc_film_el.prepend(el);
-    st.hostH = () => imvArea(node)[1] + 96 + 4;
+  if (imvIsFilm(node)) {
+    // Film node (user 2026-11-15: "the analysis has no business in the preview"): a plain player, the analysis
+    // state only keeps the timeline data; nothing is shown.
+    st.hostH = () => 0;
     return st;
   }
   node.addDOMWidget("im_viz", "div", el, {
@@ -250,7 +259,7 @@ window.addEventListener("imv-time", (e) => {
 });
 
 export function imvDraw(node) {
-  if (imvIsFilm(node) && !node._fc_film_el) return;   // the player widget (its host) does not exist yet
+  if (imvIsFilm(node)) return;   // the player shows no analysis
   const st = imvEnsure(node);
   const v = node.properties?.im_viz;
   const shots = v?.shots || [];
@@ -469,15 +478,15 @@ app.registerExtension({
         if (fi0) { node._fc_film_done = fi0; imFilmDoneNotice(node, fi0); }
         return;
       }
-      // Cut's shot analysis is shown by the Film node(s) Cut feeds (above their player), Cut keeps a copy.
+      // Cut's shot analysis is shown by the Movie Analysis node(s) on its sync output, Cut keeps a copy.
       const viz = d.output?.im_viz?.[0];
-      const films = imvCutFilms(node);
+      const films = imvCutFilms(node), anas = imvCutTargets(node, imvIsAna);
       if (viz) {
-        for (const n of [node, ...films]) {
+        for (const n of [node, ...films, ...anas]) {
           n.properties = n.properties || {};
           n.properties.im_viz = viz;   // survives reloading the page (files until ComfyUI restart)
         }
-        for (const f of films) { const st = imvEnsure(f); st.liveTimeline = null; st.k = 0; imvStop(st); }
+        for (const f of [...films, ...anas]) { const st = imvEnsure(f); st.liveTimeline = null; st.k = 0; imvStop(st); }
       }
       // 116c2: film build failed (review_nodes.py:724 ui["film_error"]) -> red Cut status + toast.
       const fe = d.output?.film_error?.[0];
@@ -498,25 +507,35 @@ app.registerExtension({
           status: `Saved: ${fi.path} · ${fi.seconds} s · ${fi.shots} shots`, saved_at: Date.now() };
         for (const f of films) fcFilmShowFilm(f, info);
       }
-      for (const f of films) if (f.properties?.im_viz) imvDraw(f);
+      for (const a of anas) if (a.properties?.im_viz) imvDraw(a);
       fcChooseStatus(node);
     });
   },
-  // A saved Film node brings its analysis along (properties.im_viz); draw it once its player widget exists.
-  loadedGraphNode(node) {
-    if (imvIsFilm(node) && node.properties?.im_viz) setTimeout(() => imvDraw(node), 0);
+  // A Movie Analysis node shows its analysis right away: its own saved copy, else the one of the Cut it is linked to.
+  nodeCreated(node) {
+    if (!imvIsAna(node)) return;
+    const take = (force) => {
+      const l = node.inputs?.[0]?.link, g = node.graph || app.graph;
+      const src = l != null ? g?.getNodeById((g.links?.[l] ?? g.links?.get?.(l))?.origin_id) : null;
+      if (src?.properties?.im_viz && (force || !node.properties?.im_viz)) (node.properties ||= {}).im_viz = src.properties.im_viz;
+      imvDraw(node);
+    };
+    setTimeout(() => take(false), 0);
+    const prev = node.onConnectionsChange;
+    node.onConnectionsChange = function (...a) { prev?.apply(this, a); setTimeout(() => take(true), 0); };   // linked later
   },
 });
 
-// Film nodes fed by this Cut (its video_path output).
-function imvCutFilms(cut) {
+// Nodes this Cut feeds that match test (Film players on video_path, Movie Analysis on sync).
+function imvCutTargets(cut, test) {
   const g = cut.graph || app.graph, out = [];
   for (const o of cut.outputs || []) for (const lid of o.links || []) {
     const t = g?.getNodeById((g.links?.[lid] ?? g.links?.get?.(lid))?.target_id);
-    if (imvIsFilm(t)) out.push(t);
+    if (test(t) && !out.includes(t)) out.push(t);
   }
   return out;
 }
+const imvCutFilms = (cut) => imvCutTargets(cut, imvIsFilm);
 
 // 57d: the Assemble `loop` widget is hidden as long as `sync` is connected
 // (the value then comes from the pipe; in Python sync["loop"] wins).

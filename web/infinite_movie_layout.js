@@ -12,7 +12,6 @@
 // left like the README. Anchor: x = README note, y = top edge of the engine.
 import { app } from "../../scripts/app.js";
 import { fcChooseRefreshAll } from "./im_cut_state.js";
-import { IMV_H, IMV_MIN_H, imvDraw } from "./im_viewer.js";
 
 const T = 30;        // node title bar
 const HEAD = 64;     // group header: title (32) + room for the node badge (#id …)
@@ -106,6 +105,7 @@ export function fcWorkflowLayout(director, second = false) {
   const allFilms = byType("InfiniteMovieFilm");
   const cutFilms = allFilms.filter((f) => cls(filmSrc(f)) === "InfiniteMovieChooser");
   const asmFilms = allFilms.filter((f) => !cutFilms.includes(f));
+  const cutAnas = byType("InfiniteMovieAnalysis");   // Movie Analysis: under Cut's preview, same width
   const asm = byType("InfiniteMovieAssemble"), cut = byType("InfiniteMovieChooser");
   const blockW = upBlock.length ? Math.max(...upBlock.map((n) => n.pos[0] + n.size[0])) - Math.min(...upBlock.map((n) => n.pos[0])) : 0;
   // user 2026-11-13: "after 6 the work is done, 7 8 are extras" -> Cut (group 6) alone sets the width of 6-9;
@@ -113,7 +113,7 @@ export function fcWorkflowLayout(director, second = false) {
   const inner678 = Math.max(MINW - 2 * PAD, ...cut.map((n) => n.size[0]));
   for (const a of asm) a.size = [inner678, a.computeSize()[1]];
   // square player: width first, then the height follows from the Film node's getMinHeight (side = width - 20)
-  for (const f of [...cutFilms, ...asmFilms, ...upFilms]) { f.size = [inner678, f.size[1]]; f.size = [inner678, f.computeSize()[1]]; }
+  for (const f of [...cutFilms, ...asmFilms, ...upFilms, ...cutAnas]) { f.size = [inner678, f.size[1]]; f.size = [inner678, f.computeSize()[1]]; }
   // ONE row, order = numbers 2…7
   // 2026-11-11: help note "Story Mode …" sits right under the Story Mode node (not with the README)
   const storyHelp = byType("InfiniteMovieStoryMode").length ? allNotes.filter((n) => /story mode/i.test(n.title || "")) : [];
@@ -198,16 +198,22 @@ export function fcWorkflowLayout(director, second = false) {
   const HH = rowHelps.length ? Math.max(...rowHelps.map((h) => h.size[1])) : 0;
   // the help never makes a group wider: the nodes set the width, the help is stretched to it afterwards
   for (const h of rowHelps) h.size = [MINW - 2 * PAD, HH];
-  // Cut's single Film player as tall as the Director (user 2026-11-15: "previews together, groups at this height" -
-  // the groups only grow when the storyboard does): analysis and video squares shrink to fit (im_viewer filmSquare)
-  for (const f of cutFilms) {
-    f.properties ||= {};
-    if (cut.length && cutFilms.length === 1) {
-      const H = director.computeSize()[1];
-      f.properties.im_fit_h = H;
-      f.properties.im_fit_h = H - Math.max(0, f.computeSize()[1] - H);   // measured remainder (controls, margins)
-    } else delete f.properties.im_fit_h;
-    f.size = [f.size[0], f.computeSize()[1]];
+  // Cut's single Film player (+ the Movie Analysis under it) as tall as the Director (user 2026-11-15: "previews
+  // together, groups at this height" - the groups only grow when the storyboard does): the squares shrink to fit.
+  const fitTo = (n, h) => {   // im_fit_h so that the node is h tall (measured remainder: controls, margins)
+    n.properties ||= {};
+    n.properties.im_fit_h = h;
+    n.properties.im_fit_h = h - (n.computeSize()[1] - h);
+    n.size = [n.size[0], n.computeSize()[1]];
+  };
+  const oneCol = cut.length && cutFilms.length === 1;
+  for (const n of [...cutFilms, ...cutAnas, ...asmFilms, ...upFilms]) { if (n.properties) delete n.properties.im_fit_h; n.size = [n.size[0], n.computeSize()[1]]; }   // fresh, natural size
+  // user 2026-11-15: analysis on top, the preview below it exactly as big as the players in the groups behind
+  // (natural square), the analysis takes the rest of the Director's height; without analysis the preview fits it
+  if (oneCol) {
+    const H = director.computeSize()[1], ana = cutAnas[0];
+    if (ana) fitTo(ana, H - cutFilms[0].size[1] - T - NGAP);
+    else fitTo(cutFilms[0], H);
   }
   const sizes = row.map(([, ns, side], k) => colSize(ns, side, rowHelp[k]));
   // user 2026-11-13 ("groups modular, 2 or 3 widths, no more"): one module width U = a Cut column (Cut node + margins)
@@ -260,21 +266,27 @@ export function fcWorkflowLayout(director, second = false) {
   // Cut: the preview sits at the right edge of the double-width group
   if (row[CUT][0]) for (const f of cutFilms) f.pos = [row[CUT][0].pos[0] + sizes[CUT][0] - PAD - f.size[0], f.pos[1]];
   // A single Film player beside Cut: top flush with Director and Cut, at most as tall as they are
-  if (cut.length && cutFilms.length === 1) {
-    const f = cutFilms[0];
-    f.size = [f.size[0], f.computeSize()[1]];
-    f.pos = [f.pos[0], director.pos[1]];
-  }
+  const placeCutCol = () => {
+    if (!oneCol) return;
+    const f = cutFilms[0], a = cutAnas[0];
+    if (a) {
+      fitTo(a, director.computeSize()[1] - f.size[1] - T - NGAP);
+      a.pos = [f.pos[0], director.pos[1]];
+      f.pos = [f.pos[0], a.pos[1] + a.size[1] + NGAP + T];
+    } else f.pos = [f.pos[0], director.pos[1]];
+  };
+  placeCutCol();
   // Group height from the real content: groups 1-3 keep the full row height, groups 4-6 share one lower height
   // (the smallest that fits all three).
   const bottom123 = Math.max(...row.slice(0, 3).flatMap(([, ns]) => ns.map((n) => n.pos[1] + n.size[1])));
   // Upscale content (block + Film players below) counts for the 4-6 height, not the 1-3 height
-  let upNeed = 0;
-  if (upGrp && upMembers.length) {
+  const needUp = () => {
+    if (!upGrp || !upMembers.length) return 0;
     const ms = upBlock.length ? upBlock : upMembers;
     const blockH = Math.max(...ms.map((n) => n.pos[1] + n.size[1])) - Math.min(...ms.map((n) => n.pos[1] - T));
-    upNeed = HEAD + helpH(upHelp) + blockH + (upBlock.length ? upFilms.reduce((s, f) => s + NGAP + T + f.size[1], 0) : 0) + PAD;
-  }
+    return HEAD + helpH(upHelp) + blockH + (upBlock.length ? upFilms.reduce((s, f) => s + NGAP + T + f.size[1], 0) : 0) + PAD;
+  };
+  let upNeed = needUp();
   // GIF: width = 6/7/8 (square preview), its full height counts for the 4-6 height
   let gifNeed = 0;
   if (gifGrp && gifNodes.length) {
@@ -282,18 +294,21 @@ export function fcWorkflowLayout(director, second = false) {
     gifNeed = HEAD + helpH(gifHelp) + gifNodes.reduce((s, n) => s + T + n.size[1] + NGAP, 0) + PAD;
   }
   const H123 = Math.max(sizes[SET][1], sizes[DIR][1], sizes[CUT][1], bottom123 - Y + PAD);
-  const H456 = Math.max(sizes[3][1], upNeed, gifNeed);
-  row.forEach(([grp, ns], k) => { if (grp && (ns.length || grp)) grp.size = [sizes[k][0], k <= CUT ? H123 : H456]; });
-  // ...now grow: Cut's analysis area ends at the group bottom (the storyboard keeps its fixed rows)
-  const floor = Y + H123 - PAD;
-  for (const c of cut) {
-    const extra = floor - (c.pos[1] + c.size[1]);
-    if (extra > 0 && c.widgets?.some((w) => w.name === "im_viz")) {
-      c.properties.imv_h = Math.max(IMV_MIN_H, IMV_H + extra);
-      c.size = [c.size[0], c.computeSize()[1]];
-    }
-    if (c._imv) imvDraw(c);
+  // user 2026-11-15: 4 images are the reference - there the groups behind Cut end flush with 1-3; more images only
+  // grow 1-3, nothing behind Cut changes. Too tall behind Cut: every player (Cut's preview too) shrinks the same.
+  const sb = director._imsb?.size, extra = sb?.cells ? Math.max(0, sb.cells.img.length - 4) * sb.row : 0;
+  const H456ref = H123 - extra;
+  let H456 = Math.max(sizes[3][1], upNeed, gifNeed);
+  if (H456 > H456ref) {
+    const cut1 = H456 - H456ref;
+    for (const f of [...asmFilms, ...upFilms, ...cutFilms]) fitTo(f, f.size[1] - cut1);
+    placeCutCol();
+    sizes[3] = [sizes[3][0], colSize(row[3][1], row[3][2], rowHelp[3])[1]];
+    upNeed = needUp();
+    H456 = Math.max(sizes[3][1], upNeed, gifNeed);
   }
+  H456 = Math.max(H456, H456ref);
+  row.forEach(([grp, ns], k) => { if (grp && (ns.length || grp)) grp.size = [sizes[k][0], k <= CUT ? H123 : H456]; });
   // Film player(s) of 6 and 7 sit at the bottom edge of their group (user: "films at the bottom"); 6 is 1-3 tall, 7 is 4-6 tall
   for (const [fs, hh] of [[cutFilms.length === 1 && cut.length ? [] : cutFilms, H123], [asmFilms, H456]]) { let b = Y + hh - PAD; for (const f of [...fs].reverse()) { f.pos = [f.pos[0], b - f.size[1]]; b -= T + f.size[1] + NGAP; } }
   // user 2026-11-13 ("never collapse the graph, always open"): Even Motion reaches down to its Film player, so its

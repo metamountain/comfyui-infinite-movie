@@ -49,12 +49,13 @@ export function fcChooseRender(node) {
   const marked = node.properties.marked || [];
   const choices = fcChooseGetChoices(node);
   el.innerHTML = "";
+  const spacer = node._imHead || 0;   // flexible head (im_twin)
 
   if (entries.length) {
     // 124d: one row per film at the height of the Director's prompt box of that film (staggered half a row):
     // tiles on the left, info box on the right – Director and Cut read across.
     const board = document.createElement("div");
-    board.style.cssText = `position:relative;height:${boardH}px;margin-top:${node._imHead || 0}px;`;   // flexible head: flush with the Director (im_twin)
+    board.style.cssText = `position:relative;height:${boardH}px;margin-top:${spacer}px;`;   // flexible head: flush with the Director (im_twin)
     el.appendChild(board);
     // Hard cut after a film: the next row is cut (no film) - live from the board, else the last run
     const sb = imParseStoryboard(fcChooseDirectorOf(node));
