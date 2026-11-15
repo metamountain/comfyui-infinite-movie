@@ -1,4 +1,4 @@
-"""The Director's storyboard: one JSON list in its ``storyboard`` widget, ``[{"image", "prompt", "own"}, ...]``.
+"""The Director's storyboard: one JSON list in its ``storyboard`` widget, ``[{"image", "prompt", "own", "cut"}, ...]``.
 
 Row i is an image and the film that starts there (web/im_storyboard_model.js holds the same rules for the UI):
 film i runs from image i to image ``next_of(i)``. Importable without a running ComfyUI (headless unit tests),
@@ -18,7 +18,8 @@ DEFAULT_IMAGES = 4
 
 
 def parse(text) -> list[dict]:
-    """Rows from the widget JSON: ``{"image": str, "prompt": str, "own": bool}``, at most MAX_IMAGES.
+    """Rows from the widget JSON: ``{"image": str, "prompt": str, "own": bool, "cut": bool}``, at most MAX_IMAGES.
+    cut = the film of that row is First -> Open (start image only, open end), the next image starts after a hard cut.
     Empty or broken JSON -> ``[]``; entries that are not dicts are skipped."""
     try:
         data = json.loads(text or "[]")
@@ -26,7 +27,8 @@ def parse(text) -> list[dict]:
         return []
     if not isinstance(data, list):
         return []
-    return [{"image": str(e.get("image") or "").strip(), "prompt": str(e.get("prompt") or ""), "own": bool(e.get("own"))}
+    return [{"image": str(e.get("image") or "").strip(), "prompt": str(e.get("prompt") or ""), "own": bool(e.get("own")),
+             "cut": bool(e.get("cut"))}
             for e in data if isinstance(e, dict)][:MAX_IMAGES]
 
 
@@ -62,6 +64,12 @@ def load_images(board) -> list[np.ndarray]:
     if empty:
         raise ValueError(f"Director: storyboard image {', '.join(empty)} is empty - load an image or remove the row")
     return [load_image(row["image"]) for row in board]
+
+
+def open_films(board, n_films) -> list[int]:
+    """Films that end open (First -> Open): rows marked ``cut``. A single image is open anyway (expansion plan)."""
+    n = len(board)
+    return [k for k in range(n_films) if n > 1 and k < n and board[row_of(n, k)].get("cut")]
 
 
 def row_of(n: int, k: int) -> int:

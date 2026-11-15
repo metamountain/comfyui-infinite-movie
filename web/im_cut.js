@@ -1,12 +1,15 @@
 import { app } from "../../scripts/app.js";
 import { api } from "../../scripts/api.js";
-import { FC_REVIEW_LINE_COLORS, fcQueueFixedSeeds, fcReviewToast, fcShotSecondsOf, getLink, imFilmCount } from "./im_common.js";
+import { FC_REVIEW_LINE_COLORS, fcQueueFixedSeeds, fcReviewToast, fcShotSecondsOf, getLink, imFilmCount, imParseStoryboard } from "./im_common.js";
 import { fcChooseDirectorOf, fcChooseEditPrompt, fcChooseEditSeconds, fcRerenderMarked } from "./im_cut_edit.js";
 import { FC_CHOOSE_BIG_H, FC_CHOOSE_GAP, FC_CHOOSE_NODE_W, FC_CHOOSE_PAD, FC_CHOOSE_ROW_GAP, FC_CHOOSE_STATUS_H, fcAsmFocus, fcChooseApplyActive, fcChooseEff, fcChooseEffective, fcChooseEntries, fcChooseFocus, fcChooseGetChoices, fcChooseLayout, fcChoosePick, fcChoosePlay, fcChooseQuality, fcChooseSig, fcChooseStableUrl, fcChooseStatus, fcChooseWidth, fcRun } from "./im_cut_state.js";
 import { fcDownstreamOutputs } from "./im_film.js";
 import { fmtTime, renderEstimate } from "./im_progress.js";
 import { imToggleWidget } from "./im_settings.js";
 import { imSyncSet } from "./im_sync.js";
+
+// Cut marks of the Director's board: part of the redraw signature (a ✂ in the Director redraws Cut).
+const fcCutSig = (node) => imParseStoryboard(fcChooseDirectorOf(node)).map((r) => (r.cut ? "1" : "0")).join("");
 export function fcChooseRender(node) {
   let el = node._fc_choose_el;
   if (!el) {
@@ -38,7 +41,7 @@ export function fcChooseRender(node) {
     }, 0);
   }
   const entries = fcChooseEntries(node);
-  const sig = fcChooseSig(entries);
+  const sig = fcChooseSig(entries) + fcCutSig(node);
   node._fc_choose_sig = sig;
   const { iw, ih, row, boardH } = fcChooseLayout(node, entries);
   const marked = node.properties.marked || [];
@@ -51,8 +54,24 @@ export function fcChooseRender(node) {
     const board = document.createElement("div");
     board.style.cssText = `position:relative;height:${boardH}px;`;
     el.appendChild(board);
+    // Director rows marked cut: that film ends open, a hard cut follows (live from the board, else the last run)
+    const sb = imParseStoryboard(fcChooseDirectorOf(node));
+    const isCut = (e, i) => (sb.length > 1 ? !!sb[i]?.cut : !!e.cut);
     entries.forEach((e, i) => {
       const top = i * row + ih / 2 + 5;
+      const cut = isCut(e, i);
+      if (cut) {
+        const ln = document.createElement("div");
+        ln.className = "fc-cut-line";
+        ln.title = "Hard cut: this film ends open, the next one starts fresh at its own image";
+        ln.style.cssText = `position:absolute;left:0;right:0;top:${top + ih + (row - ih) / 2 - 1}px;height:0;` +
+          "border-top:2px dashed #ff3b30;pointer-events:none;z-index:2;";
+        const lb = document.createElement("span");
+        lb.textContent = "✂ CUT";
+        lb.style.cssText = "position:absolute;right:8px;top:-9px;padding:0 5px;background:#1b1b1b;color:#ff6b5e;font:bold 11px sans-serif;";
+        ln.appendChild(lb);
+        board.appendChild(ln);
+      }
 
       const isMarked = !e.placeholder && marked.includes(e.number);
       const toggleRedo = () => {
@@ -201,7 +220,7 @@ export function fcChooseRender(node) {
       const pendingAny = !e.placeholder && !!node._fc_redo_pending?.[e.number]?.length;
       const light = isMarked || rejected.length ? "#d93025" : (pendingAny || (e.placeholder && fcRun.running)) ? "#44aaff"
         : e.placeholder ? "#e6c229" : "#2ea043";
-      const nextNo = e.seam_next || (i + 1 < entries.length ? i + 2 : 1);
+      const nextNo = cut ? "open" : e.seam_next || (i + 1 < entries.length ? i + 2 : 1);
       const hd = document.createElement("div");
       hd.style.cssText = "display:flex;align-items:center;gap:6px;font:bold 12px sans-serif;color:#ddd;";
       hd.innerHTML = `<span style="width:10px;height:10px;border-radius:50%;background:${light};flex:none"></span>` +
@@ -238,7 +257,7 @@ export function fcChooseRender(node) {
           () => fcChoosePlay(node, e.number, e.has_variants ? eff.toUpperCase() : "", effV.video)));
       }
       info.append(hd, stx, ctl);
-      if (!e.placeholder && e.seam_next) {
+      if (!e.placeholder && e.seam_next && !cut) {
         const sm = document.createElement("div");
         sm.textContent = `seam → Film ${e.seam_next} ${e.seam_bad ? "⚠" : "✓"} ${(+e.seam || 0).toFixed(1)}`;
         sm.style.color = e.seam_bad ? "#ff8a80" : "#8b949e";
@@ -437,7 +456,7 @@ app.registerExtension({
     const origFg = nodeType.prototype.onDrawForeground;
     nodeType.prototype.onDrawForeground = function (...args) {
       const r = origFg ? origFg.apply(this, args) : undefined;
-      if (fcChooseSig(fcChooseEntries(this)) !== this._fc_choose_sig) fcChooseRender(this);
+      if (fcChooseSig(fcChooseEntries(this)) + fcCutSig(this) !== this._fc_choose_sig) fcChooseRender(this);
       return r;
     };
     // Fixed size: width from the shot count, height from the content (dragging the corner is reset).

@@ -1,5 +1,5 @@
 // Director storyboard <-> widgets, server and Settings (the view is web/im_storyboard.js, the rules
-// web/im_storyboard_model.js). Widget `storyboard` = JSON [{image, prompt, own, pair}], image relative to ComfyUI's
+// web/im_storyboard_model.js). Widget `storyboard` = JSON [{image, prompt, own, pair, cut?}], image relative to ComfyUI's
 // input folder ("" = empty); the seconds of each film live in the `shot_seconds` widget (Cut's ⏱ edits it too).
 import { api } from "../../scripts/api.js";
 import { fcParseShotSeconds, fcReviewToast, imParseStoryboard, imWidget, settingsNodeOf } from "./im_common.js";
@@ -24,7 +24,8 @@ export function readRows(node) {
 
 export function writeRows(node, rows) {
   rows = rows.slice(0, MAX_IMAGES);
-  setWidget(node, "storyboard", JSON.stringify(rows.map(({ image, prompt, own, pair }) => ({ image, prompt, own, pair }))));
+  setWidget(node, "storyboard", JSON.stringify(rows.map(({ image, prompt, own, pair, cut }) =>
+    (cut ? { image, prompt, own, pair, cut } : { image, prompt, own, pair }))));
   const secs = rows.map((r) => r.sec);
   while (secs.length && !secs.at(-1)) secs.pop();
   setWidget(node, "shot_seconds", secs.join(", "));

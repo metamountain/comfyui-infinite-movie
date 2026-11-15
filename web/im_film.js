@@ -31,7 +31,7 @@ function fcFilmTimeline(node) {
   const tl = node._fc_film_tl, shots = fcFilmViz(node)?.shots || [];
   const durs = shots.map(imvShotDur), total = durs.reduce((a, b) => a + b, 0);
   tl.style.visibility = total > 0 ? "visible" : "hidden";
-  const sig = durs.map((d) => d.toFixed(3)).join(",");
+  const sig = durs.map((d, i) => d.toFixed(3) + (shots[i].cut ? "c" : "")).join(",");
   if (tl.dataset.sig === sig) return;
   tl.dataset.sig = sig;
   node._fc_film_tl_total = total;
@@ -42,9 +42,10 @@ function fcFilmTimeline(node) {
     b.className = "fc-film-band";
     b.dataset.t = String(t0);
     b.textContent = String(sh.seg);
-    b.title = `Shot ${sh.seg} · ${t0.toFixed(1)} s · click: play the film from here`;
+    b.title = `Shot ${sh.seg} · ${t0.toFixed(1)} s${sh.cut ? " · ✂ hard cut after it" : ""} · click: play the film from here`;
     b.style.cssText = `flex:${durs[i] || 0.001} 1 0;min-width:0;overflow:hidden;background:${FC_FILM_TL_COLORS[i % FC_FILM_TL_COLORS.length]};` +
-      "color:#fff;font:10px sans-serif;line-height:16px;text-align:center;cursor:pointer;opacity:0.8;";
+      "color:#fff;font:10px sans-serif;line-height:16px;text-align:center;cursor:pointer;opacity:0.8;" +
+      (sh.cut ? "box-shadow:inset -3px 0 #ff3b30;" : "");   // red edge = hard cut to the next shot
     b.addEventListener("click", () => {
       const v = node._fc_film_video, before = v.getAttribute("src");
       imSyncSet("film", null);   // a single shot is showing -> back to the whole film first

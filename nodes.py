@@ -352,11 +352,12 @@ class InfiniteMovieRender(io.ComfyNode):
         for k, p in enumerate(prompts):
             print(f"[InfiniteMovie] film {k + 1} prompt: {p[:80]}")
 
+        open_films = _storyboard.open_films(board, n_films)   # rows marked cut: film ends open, hard cut after it
         graph, renders = build_expansion_graph(
             unique_id=uid, preset=preset, images=tensors, prompts=prompts, seed=seed,
             width=width, height=height, length=length, loop=loop, output_dir=output_dir,
             frames=frames, seed_bumps=_parse_reseed(reseed), template=template, cfg=cfg,
-            variants=variants)
+            variants=variants, open_films=open_films)
         # GPU only when something renders (all films reused -> no waiting, no unloading)
         if renders:
             vram.wait_acquire(min_free_mb=get_setting(settings, "min_free_mb"),
@@ -382,6 +383,7 @@ class InfiniteMovieRender(io.ComfyNode):
             "render_id": uid,
             "scene_frames": frames,
             "settings": chain_settings(settings),   # behind the Director the settings travel in sync
+            "open_films": open_films,
         }
         if variants == 2:   # segments stays the A list: Even Motion without Cut works unchanged
             sync["variants"] = [[a, segment_path_b(output_dir, k)] for k, a in enumerate(paths)]

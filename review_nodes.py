@@ -660,12 +660,18 @@ class InfiniteMovieChooser(io.ComfyNode):
         # shot i+1 (with loop: last -> first). Same downscaling/difference
         # as _jerk_metric; threshold JERK_HARD. Measured on the chosen segments.
         loop = bool(sync.get("loop", False))
+        cuts = {int(k) for k in sync.get("open_films") or []}
         for i in range(n):
-            if i + 1 < n:
+            entries[i]["cut"] = i in cuts   # open film: hard cut to the next one, no seam to measure
+            if i in cuts:
+                nxt = None
+            elif i + 1 < n:
                 nxt = i + 1
             elif loop:
                 nxt = 0
             else:
+                nxt = None
+            if nxt is None:
                 entries[i]["seam"] = 0.0
                 entries[i]["seam_bad"] = False
                 entries[i]["seam_next"] = None
@@ -755,6 +761,7 @@ class InfiniteMovieChooser(io.ComfyNode):
                     d["subfolder"] = (subfolder + "/viz/" + key).replace(os.sep, "/")
                     with open(vfile, "w", encoding="utf-8") as f:
                         json.dump(d, f, separators=(",", ":"))
+                d["cut"] = i in cuts   # not cached: the board may mark the same shot differently
                 viz_shots.append(d)
             except Exception as e:  # noqa: BLE001
                 print(f"[InfiniteMovieChooser] viz shot {i + 1} skipped: {e}")

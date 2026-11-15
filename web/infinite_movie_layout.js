@@ -257,7 +257,7 @@ export function fcWorkflowLayout(director, second = false) {
     return null;
   };
   for (const c of cut) {
-    const dY = domY(director, ".imsb-p"), cY = domY(c, ".fc-info");
+    const dY = domY(director, ".imsb-anchor"), cY = domY(c, ".fc-info");
     if (second && dY != null && cY != null && director._im_lay_y != null && c._im_lay_y != null) {
       const want = director.pos[1] + (dY - director._im_lay_y), now = c.pos[1] + (cY - c._im_lay_y);
       c.pos = [c.pos[0], c.pos[1] + Math.max(0, Math.round(want - now))];   // only down: above it sit the group head and help

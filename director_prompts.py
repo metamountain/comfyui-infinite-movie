@@ -85,6 +85,8 @@ def write_prompts(board, indices, loop, settings) -> list[dict]:
         if j < 0:
             continue
         row = board[i]
+        if row.get("cut"):
+            j = i   # First -> Open: the prompt is written from the start image alone (as for a single image)
         try:
             context = ""
             if plan is not None and i in filled:
@@ -94,7 +96,7 @@ def write_prompts(board, indices, loop, settings) -> list[dict]:
                 image(i), image(j), cfg["model_name"], " ".join(row["prompt"].split()) if row["own"] else "",
                 camera=cfg["camera"], instruction=cfg["instruction"], max_words=cfg["max_words"],
                 seed=int(time.time()) % 2**31, load=cfg["load"], gen=cfg["gen"], context=context)
-            out.append({"i": i, "prompt": text, "pair": [row["image"], board[j]["image"]]})
+            out.append({"i": i, "prompt": text, "pair": [row["image"], "open" if row.get("cut") else board[j]["image"]]})
         except Exception as e:  # noqa: BLE001 - one broken film must not stop the others
             out.append({"i": i, "error": str(e)})
     return out

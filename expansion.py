@@ -44,18 +44,21 @@ def segment_path_b(output_dir, index):
     return os.path.join(output_dir, f"seg_{index:03d}_b.mp4")
 
 
-def _segment_plan(n_images: int, loop: bool, frames: list, length: int) -> list:
+def _segment_plan(n_images: int, loop: bool, frames: list, length: int, open_films=()) -> list:
     """Ordered films as (start_idx, end_idx, seg_length, kind); kind 'scene', 'loop' or 'open'. Film k is
     frames[k] frames long (missing = length) - the loop film too (storyboard ⏱ on the last row).
 
     One image without loop = an 'open' film: start image + prompt, no end image (end_idx None).
     One image + loop = two passes (user 2026-11-09): the open film, then one from its LAST FRAME back to the
     image (start_idx None = previous film's last frame) - image -> itself in one film reads as "nothing happens".
+    open_films: films that end open although an image follows (storyboard cut, First -> Open); the next film starts
+    fresh at its own image (hard cut).
     """
     if n_images == 1:
         ends = [(0, None, "open")] + ([(None, 0, "loop")] if loop else [])
     else:
         ends = [(i, i + 1, "scene") for i in range(n_images - 1)] + ([(n_images - 1, 0, "loop")] if loop else [])
+        ends = [(a, None, "open") if k in set(open_films) else (a, b, kind) for k, (a, b, kind) in enumerate(ends)]
     return [(a, b, frames[k] if k < len(frames) else length, kind) for k, (a, b, kind) in enumerate(ends)]
 
 
@@ -508,11 +511,12 @@ def _drop_end_image(graph: dict, source_id: str) -> None:
 
 def _reusable_segment(path: str, key: str) -> bool:
     """Reuse an existing shot unless its seed or its render size changed (user 2026-11-10: only 'reseed' decides
-    what is rendered again - edited prompts, images or lengths do not; a shot of another size cannot join the film).
-    The key file still stores the full key; only its 'seed=…' and 'size=…' parts are compared. A missing file or
+    what is rendered again - edited prompts, images or lengths do not; a shot of another size, or one that now ends
+    open / at an image (storyboard cut), cannot join the film).
+    The key file still stores the full key; only its 'seed=…', 'size=…' and 'end=…' parts are compared. A missing file or
     key file -> render."""
     def head(k):
-        return [p for p in k.strip().split(";") if p.startswith(("seed=", "size="))]
+        return [p for p in k.strip().split(";") if p.startswith(("seed=", "size=", "end="))]
     try:
         return os.path.getsize(path) > 0 and head(open(path + ".key", encoding="utf-8").read()) == head(key)
     except OSError:
@@ -645,7 +649,7 @@ def build_expansion_graph(unique_id: str, preset: str,
                           seed_bumps: dict | None = None,
                           template: dict | None = None,
                           cfg: dict | None = None,
-                           variants: int = 1) -> tuple[dict, bool]:
+                           variants: int = 1, open_films=()) -> tuple[dict, bool]:
     """Build the full expansion graph for InfiniteMovieRender.
 
     Args:
@@ -684,7 +688,7 @@ def build_expansion_graph(unique_id: str, preset: str,
 
     n_images = len(images)
     # --- Per-segment graphs ---
-    plan = _segment_plan(n_images, loop, frames, length)
+    plan = _segment_plan(n_images, loop, frames, length, open_films)
     n_segments = len(plan)
     if n_segments < 1:
         raise ValueError("InfiniteMovieRender needs at least 1 image.")
@@ -736,7 +740,7 @@ def build_expansion_graph(unique_id: str, preset: str,
 
         # --- Variant A (seed as before, seg_XXX.mp4) ---
         prefix_a = f"{unique_id}_s{i}_"
-        key_a = f"seed={seg_seed};size={width}x{height};len={seg_length};{base_hash}"
+        key_a = f"seed={seg_seed};size={width}x{height};end={kind};len={seg_length};{base_hash}"
         if _reusable_segment(segment_path(output_dir, i), key_a):
             save_id_a = _reuse_node(graph, f"{prefix_a}reuse", segment_path(output_dir, i))
         else:
@@ -761,7 +765,7 @@ def build_expansion_graph(unique_id: str, preset: str,
         # --- Variant B (seed A + 500, seg_XXX_b.mp4) – only when variants >= 2 ---
         if variants >= 2:
             prefix_b = f"{unique_id}_s{i}b_"
-            key_b = f"seed={seed_b};size={width}x{height};len={seg_length};{base_hash}"
+            key_b = f"seed={seed_b};size={width}x{height};end={kind};len={seg_length};{base_hash}"
             if _reusable_segment(segment_path_b(output_dir, i), key_b):
                 save_id_b = _reuse_node(graph, f"{prefix_b}reuse", segment_path_b(output_dir, i))
             else:
