@@ -19,6 +19,19 @@ export const filmCount = (n, loop) => (n < 1 ? 0 : n === 1 ? (loop ? 2 : 1) : lo
 // A cut film can only exist with more than one image (a single image is open anyway).
 export const isCut = (rows, i, loop) => rows.length > 1 && hasFilm(rows.length, i, loop) && !!rows[i].cut;
 
+// Cell division (user 2026-11-15): image i at img[i]; prompt box i between image i and the next (img[i] + row/2) or,
+// for a cut film, at the height of its image (img[i]). A cut box would collide with the transition box above, so the
+// image of a cut row moves down half a row - every box keeps its full height. Cut mirrors box[] for its rows.
+export function cellTops(rows, loop, row) {
+  const n = rows.length, img = [], box = [];
+  for (let i = 0; i < n; i++) {
+    const push = i > 0 && isCut(rows, i, loop) && hasFilm(n, i - 1, loop) && !isCut(rows, i - 1, loop);
+    img.push(i ? img[i - 1] + row + (push ? row / 2 : 0) : 0);
+    box.push(hasFilm(n, i, loop) ? img[i] + (isCut(rows, i, loop) ? 0 : row / 2) : null);
+  }
+  return { img, box };
+}
+
 export function pairOf(rows, i, loop) {
   const j = nextOf(rows.length, i, loop);
   // A row without an image is a black image ("black") - its prompt is typed by hand, the LLM has nothing to look at.

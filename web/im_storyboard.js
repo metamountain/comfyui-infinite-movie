@@ -3,13 +3,13 @@
 // im_storyboard_io.js. User decisions: tiles as large as a standard Load Image preview, format from Settings; one
 // delete button (image + prompt); a dragged image takes its prompt along, prompts whose images changed glow red.
 // Cut (user 2026-11-15): dragging a prompt's header up to its image (or ✂) = that film ends open ("First to Open").
-// The box springs back into its slot (geometry never changes, Cut stays aligned); a black top edge, "i → open" and a
-// black ✂ line under the image mark the hard cut to the next film. Black, not red: a cut is a choice, not a warning.
+// The box snaps live between its two slots and stays where it is dropped; the cells re-divide (cellTops: the image
+// below moves down half a row). Black top edge, "i → open" and a black ✂ line under the image mark the hard cut.
 import { app } from "../../scripts/app.js";
 import { api } from "../../scripts/api.js";
 import { fcQueueFixedSeeds, fcReviewToast, imWidget, settingsNodeOf } from "./im_common.js";
 import {
-  MAX_IMAGES, emptyRow, hasFilm, isCut, isStale, moveRow, nextOf, pairOf, samePair,
+  MAX_IMAGES, cellTops, emptyRow, hasFilm, isCut, isStale, moveRow, nextOf, pairOf, samePair,
 } from "./im_storyboard_model.js";
 import {
   boardFormat, defaultSeconds, imageUrl, isLoop, readRows, setRowCut, uploadImage, writeRows,
@@ -88,10 +88,11 @@ function boardSize(node, rows, loop) {
   const k = Math.min(LI_W / fmt.w, LI_H / fmt.h);
   const iw = Math.round(fmt.w * k), ih = Math.round(fmt.h * k), row = ih + GAP;
   const pw = Math.max(PROMPT_W, Math.round(node.size[0]) - iw - GAP - 2 * MARGIN);
-  const lastFilm = hasFilm(n, n - 1, loop) ? n - 1 : n - 2;   // its prompt box reaches half a row below its image
-  // + room for the insert strip below the last image
-  const h = Math.max(n * row - GAP + (n < MAX_IMAGES ? GAP / 2 + 10 : 0), lastFilm >= 0 ? lastFilm * row + row / 2 + ih : 0);
-  return { iw, ih, row, pw, h, w: iw + GAP + PROMPT_W + 2 * MARGIN };
+  const cells = cellTops(rows, loop, row);
+  const last = n ? cells.img[n - 1] : 0;
+  // + room for the insert strip below the last image; a prompt box may reach further down
+  const h = Math.max(n ? last + ih + (n < MAX_IMAGES ? GAP / 2 + 10 : 0) : 0, ...cells.box.filter((t) => t != null).map((t) => t + ih));
+  return { iw, ih, row, pw, h, w: iw + GAP + PROMPT_W + 2 * MARGIN, cells };
 }
 
 function signature(node) {
@@ -146,22 +147,25 @@ function setCut(node, i, on) {
   commit(node, rows);
 }
 
-// Prompt header drag: pulled up to its image and released = cut on/off; the box always springs back into its slot.
+// Prompt header drag: the box snaps live to one of its two slots - at its image (cut, film ends open) or between
+// its image and the next (transition) - and stays where it is dropped; then the cells re-divide.
 function dragPrompt(node, e, i, box) {
   const st = node._imsb, bd = st.board, { row } = st.size, y0 = e.clientY, top0 = parseFloat(box.style.top);
-  const lo = i * row, hi = i * row + row / 2;
+  const lo = st.size.cells.img[i], hi = lo + row / 2;   // the two slots, measured in the current cells
   const scale = () => (bd.getBoundingClientRect().height / bd.offsetHeight) || 1;
-  let t = top0;
+  let cut = top0 < lo + row / 4;
   const onMove = (ev) => {
-    t = Math.max(lo, Math.min(hi, top0 + (ev.clientY - y0) / scale()));
-    box.style.top = `${t}px`;
-    box.classList.toggle("lift", t < lo + row / 4);
+    const y = top0 + (ev.clientY - y0) / scale();
+    cut = y < lo + row / 4;
+    box.style.top = `${cut ? lo : hi}px`;
+    box.classList.toggle("cut", cut);
+    box.classList.add("lift");
   };
   const end = () => {
     window.removeEventListener("pointermove", onMove, true);
     window.removeEventListener("pointerup", end, true);
     window.removeEventListener("pointercancel", end, true);
-    if (t < lo + row / 4) setCut(node, i, !readRows(node)[i]?.cut);
+    setCut(node, i, cut);
     render(node);
   };
   window.addEventListener("pointermove", onMove, true);
@@ -210,6 +214,9 @@ api.addEventListener("status", (e) => {
   if (e.detail?.exec_info?.queue_remaining === 0) for (const n of app.graph?._nodes || []) endBusy(n);
 });
 
+// y of the line above image k (k = n: below the last image)
+const gapTop = (st, k) => { const img = st.size.cells.img; return (k < img.length ? img[k] : img[img.length - 1] + st.size.row) - GAP / 2; };
+
 function startDrag(node, e, i, tile) {
   const st = node._imsb, bd = st.board, x0 = e.clientX, y0 = e.clientY, { row } = st.size;
   let active = false, gap = -1;
@@ -219,9 +226,10 @@ function startDrag(node, e, i, tile) {
     active = true;
     tile.classList.add("drag");
     const y = (ev.clientY - bd.getBoundingClientRect().top) / scale();
-    gap = Math.max(0, Math.min(readRows(node).length, Math.round(y / row)));
+    const img = st.size.cells.img, ih = st.size.ih;
+    gap = img.filter((t) => t + ih / 2 < y).length;   // gap k = above image k (n = below the last)
     st.gap.style.display = gap === i || gap === i + 1 ? "none" : "block";
-    st.gap.style.top = `${gap * row - GAP / 2 - 2}px`;
+    st.gap.style.top = `${gapTop(st, gap) - 2}px`;
   };
   const end = (drop) => () => {
     for (const [t, f] of handlers) window.removeEventListener(t, f, true);
@@ -236,7 +244,7 @@ function startDrag(node, e, i, tile) {
 function tileEl(node, rows, i) {
   const st = node._imsb, r = rows[i], { iw, ih, row } = st.size;
   const t = el("div", "imsb-t" + (r.image ? "" : " empty") + (st.land === i ? " land" : ""));
-  t.style.cssText = `top:${i * row}px;width:${iw}px;height:${ih}px`;
+  t.style.cssText = `top:${st.size.cells.img[i]}px;width:${iw}px;height:${ih}px`;
   if (r.image) {
     const img = el("img");
     img.src = imageUrl(r.image);
@@ -274,7 +282,7 @@ function promptEl(node, rows, i, loop) {
   const st = node._imsb, r = rows[i], n = rows.length, j = nextOf(n, i, loop), { iw, ih, row, pw } = st.size;
   const cut = isCut(rows, i, loop);
   const box = el("div", "imsb-p" + (j === 0 && n > 1 && !cut ? " loop" : "") + (isStale(rows, i, loop) ? " stale" : "") + (cut ? " cut" : ""));
-  box.style.cssText = `left:${iw + GAP}px;top:${i * row + row / 2}px;height:${ih}px;width:${pw}px`;
+  box.style.cssText = `left:${iw + GAP}px;top:${st.size.cells.box[i]}px;height:${ih}px;width:${pw}px`;
   const hd = el("div", "hd");
   const badge = () => (r.own ? ["own", "✎ manual"] : r.prompt.trim() ? ["llm", "LLM"] : ["", "empty"]);
   const bg = el("span", "bg " + badge()[0], badge()[1]);
@@ -294,12 +302,12 @@ function promptEl(node, rows, i, loop) {
   hd.append(el("span", null, `${i + 1} → ${n === 1 || cut ? "open" : j + 1}`), bg, red, sec);
   if (n > 1) {
     const ct = el("span", "ct", "✂");
-    ct.title = cut ? "Cut: this film ends open, a hard cut follows – click (or drag the header up again) to join it to the next image"
+    ct.title = cut ? "Cut: this film ends open, a hard cut follows – click (or drag the header down between the images) to join it to the next image"
       : "Click (or drag the header up to the image) = cut: this film ends open, the next one starts fresh at its image";
     ct.onpointerdown = (e) => e.stopPropagation();
     ct.onclick = (e) => { e.stopPropagation(); setCut(node, i, !cut); };
     hd.insertBefore(ct, sec);
-    hd.title = "Drag up to the image and release = cut on/off (film ends open)";
+    hd.title = "Drag: up to the image = cut (film ends open) · down between the images = transition to the next image";
     hd.onpointerdown = (e) => {
       if (e.button !== 0 || e.target.closest("input")) return;
       e.stopPropagation();
@@ -342,20 +350,20 @@ export function render(node) {
     if (hasFilm(rows.length, i, loop)) st.board.appendChild(promptEl(node, rows, i, loop));
     if (isCut(rows, i, loop)) {
       const ln = el("div", "imsb-cut"), lb = el("span", null, "✂ CUT");
-      ln.style.cssText = `top:${i * row + st.size.ih + GAP / 2 - 1}px;width:${iw}px`;   // image column only: box i sits across it
+      ln.style.cssText = `top:${st.size.cells.img[i] + st.size.ih + GAP / 2 - 1}px;width:${iw + GAP + st.size.pw}px`;
       lb.style.left = "6px";
       ln.title = "Hard cut: the film above ends open, the next film starts fresh at its own image";
       ln.appendChild(lb);
       st.board.appendChild(ln);
     }
   }
-  // Fixed mark for the auto layout: where prompt box 1 sits without a cut (Cut's rows align to it)
+  // Mark for the auto layout: where prompt box 1 sits (Cut's first row mirrors it)
   const anchor = el("div", "imsb-anchor");
-  anchor.style.top = `${row / 2}px`;
+  anchor.style.top = `${st.size.cells.box[0] ?? row / 2}px`;
   st.board.appendChild(anchor);
   for (let k = 1; k <= rows.length && rows.length < MAX_IMAGES; k++) {   // k = n: below the last image
     const z = el("div", "imsb-ins");
-    z.style.cssText = `top:${k * row - GAP / 2 - 9}px;width:${iw}px`;
+    z.style.cssText = `top:${gapTop(st, k) - 9}px;width:${iw}px`;
     z.title = "Insert an image here";
     z.appendChild(el("span", null, "+"));
     z.onpointerdown = (e) => e.stopPropagation();

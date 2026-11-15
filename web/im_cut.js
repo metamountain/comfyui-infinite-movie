@@ -43,7 +43,7 @@ export function fcChooseRender(node) {
   const entries = fcChooseEntries(node);
   const sig = fcChooseSig(entries) + fcCutSig(node);
   node._fc_choose_sig = sig;
-  const { iw, ih, row, boardH } = fcChooseLayout(node, entries);
+  const { iw, ih, row, boardH, tops } = fcChooseLayout(node, entries);
   const marked = node.properties.marked || [];
   const choices = fcChooseGetChoices(node);
   el.innerHTML = "";
@@ -58,7 +58,7 @@ export function fcChooseRender(node) {
     const dir = fcChooseDirectorOf(node), sb = imParseStoryboard(dir);
     const isCut = (e, i) => (sb.length > 1 ? imRowCut(dir, sb[i]) : !!e.cut);
     entries.forEach((e, i) => {
-      const top = i * row + ih / 2 + 5;
+      const top = tops[i];   // = the Director's prompt box i (cell division included)
       const cut = isCut(e, i);
       if (cut) {
         const ln = document.createElement("div");
