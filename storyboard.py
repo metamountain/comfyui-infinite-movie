@@ -1,4 +1,4 @@
-"""The Director's storyboard: one JSON list in its ``storyboard`` widget, ``[{"image", "prompt", "own", "cut"}, ...]``.
+"""The Director's storyboard: one JSON list in its ``storyboard`` widget, ``[{"image", "prompt", "own", "end"?}, ...]``.
 
 Row i is an image and the film that starts there (web/im_storyboard_model.js holds the same rules for the UI):
 film i runs from image i to image ``next_of(i)``. Importable without a running ComfyUI (headless unit tests),
@@ -17,9 +17,11 @@ MAX_IMAGES = 24
 DEFAULT_IMAGES = 4
 
 
-def parse(text) -> list[dict]:
+def parse(text, default_open: bool = False) -> list[dict]:
     """Rows from the widget JSON: ``{"image": str, "prompt": str, "own": bool, "cut": bool}``, at most MAX_IMAGES.
     cut = the film of that row is First -> Open (start image only, open end), the next image starts after a hard cut.
+    Stored per row is only the manual choice ``end`` = "open" | "image"; without it the Director's ``film_ends``
+    switch decides (default_open = "start → open").
     Empty or broken JSON -> ``[]``; entries that are not dicts are skipped."""
     try:
         data = json.loads(text or "[]")
@@ -28,7 +30,7 @@ def parse(text) -> list[dict]:
     if not isinstance(data, list):
         return []
     return [{"image": str(e.get("image") or "").strip(), "prompt": str(e.get("prompt") or ""), "own": bool(e.get("own")),
-             "cut": bool(e.get("cut"))}
+             "cut": e.get("end") == "open" if e.get("end") in ("open", "image") else bool(default_open)}
             for e in data if isinstance(e, dict)][:MAX_IMAGES]
 
 
@@ -58,16 +60,21 @@ def load_image(name: str) -> np.ndarray:
 
 
 def load_images(board) -> list[np.ndarray]:
-    """The image of every row. An empty row raises: the UI counts it as a film position, so skipping it would
-    shift every later prompt onto the wrong film."""
-    empty = [str(i + 1) for i, row in enumerate(board) if not row["image"]]
+    """The image of every row. A row without an image but with a prompt is a black image (the film rises out of /
+    ends in black, user 2026-11-15), sized like the first real image. A row without both raises: the UI counts it
+    as a film position, so skipping it would shift every later prompt onto the wrong film."""
+    empty = [str(i + 1) for i, row in enumerate(board) if not row["image"] and not row["prompt"].strip()]
     if empty:
-        raise ValueError(f"Director: storyboard image {', '.join(empty)} is empty - load an image or remove the row")
-    return [load_image(row["image"]) for row in board]
+        raise ValueError(f"Director: storyboard image {', '.join(empty)} is empty - load an image, write a prompt "
+                         "(a row with a prompt only is a black image) or remove the row")
+    out = [load_image(row["image"]) if row["image"] else None for row in board]
+    ref = next((im for im in out if im is not None), None)
+    shape = ref.shape if ref is not None else (512, 512, 3)
+    return [im if im is not None else np.zeros(shape, dtype=np.uint8) for im in out]
 
 
 def open_films(board, n_films) -> list[int]:
-    """Films that end open (First -> Open): rows marked ``cut``. A single image is open anyway (expansion plan)."""
+    """Films that end open (First -> Open): rows whose ``cut`` is set (by hand or by the film_ends switch). A single image is open anyway (expansion plan)."""
     n = len(board)
     return [k for k in range(n_films) if n > 1 and k < n and board[row_of(n, k)].get("cut")]
 

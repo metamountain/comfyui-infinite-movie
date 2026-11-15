@@ -2,11 +2,12 @@
 // A row = one image and the film that starts there: {image, prompt, own, pair, sec, cut}.
 //   pair = the two images the prompt was written for (stale = no longer its current neighbours, shown red)
 //   sec  = own length of that film in seconds (0 = the Director's `seconds`)
-//   cut  = the film starts at this image and ends open (no end image), a hard cut to the next film follows
+//   cut  = the film starts at this image and ends open (no end image), a hard cut to the next film follows -
+//          effective value: `end` ("open" | "image", set by hand) or else the Director's film_ends switch
 
 export const MAX_IMAGES = 24;
 export const DEFAULT_IMAGES = 4;
-export const emptyRow = () => ({ image: "", prompt: "", own: false, pair: null, sec: 0, cut: false });
+export const emptyRow = () => ({ image: "", prompt: "", own: false, pair: null, sec: 0, end: "", cut: false });
 
 // Film i runs from image i to image nextOf(i): the next one, with loop the last one back to the first.
 // A single image is an open film (no end image), so it is its own "next". -1 = row i starts no film.
@@ -20,8 +21,10 @@ export const isCut = (rows, i, loop) => rows.length > 1 && hasFilm(rows.length, 
 
 export function pairOf(rows, i, loop) {
   const j = nextOf(rows.length, i, loop);
-  if (j >= 0 && isCut(rows, i, loop)) return rows[i].image ? [rows[i].image, "open"] : null;
-  return j >= 0 && rows[i].image && rows[j].image ? [rows[i].image, rows[j].image] : null;
+  // A row without an image is a black image ("black") - its prompt is typed by hand, the LLM has nothing to look at.
+  const img = (k) => rows[k].image || "black";
+  if (j >= 0 && isCut(rows, i, loop)) return [img(i), "open"];
+  return j >= 0 ? [img(i), img(j)] : null;
 }
 
 export const samePair = (a, b) => !!a && !!b && a[0] === b[0] && a[1] === b[1];
@@ -32,7 +35,8 @@ export const isStale = (rows, i, loop) => !!rows[i].prompt.trim() && !samePair(r
 // Row from the stored JSON entry plus its seconds.
 export const toRow = (e, sec) => ({
   image: String(e?.image || ""), prompt: String(e?.prompt || ""), own: !!e?.own,
-  pair: Array.isArray(e?.pair) && e.pair.length === 2 ? e.pair.map(String) : null, sec: sec > 0 ? sec : 0, cut: !!e?.cut,
+  pair: Array.isArray(e?.pair) && e.pair.length === 2 ? e.pair.map(String) : null, sec: sec > 0 ? sec : 0,
+  end: e?.end === "open" || e?.end === "image" ? e.end : "", cut: false,
 });
 
 // Drag: row `from` lands in gap `gap` (0 = above the first row). The row keeps its prompt and seconds - the film

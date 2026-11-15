@@ -12,7 +12,7 @@ import {
   MAX_IMAGES, emptyRow, hasFilm, isCut, isStale, moveRow, nextOf, pairOf, samePair,
 } from "./im_storyboard_model.js";
 import {
-  boardFormat, defaultSeconds, imageUrl, isLoop, readRows, uploadImage, writeRows,
+  boardFormat, defaultSeconds, imageUrl, isLoop, readRows, setRowCut, uploadImage, writeRows,
 } from "./im_storyboard_io.js";
 
 // LI_W x LI_H: preview box of a standard Load Image node (measured 2026-11-14: 16:9 = 283x159, 4:5 = 164x205)
@@ -96,7 +96,7 @@ function boardSize(node, rows, loop) {
 
 function signature(node) {
   const s = settingsNodeOf(node), v = (n, k) => imWidget(n, k)?.value;
-  return [v(node, "storyboard"), v(node, "loop"), v(node, "seconds"), v(node, "shot_seconds"), v(s, "aspect"), v(s, "long_side")].join("|");
+  return [v(node, "storyboard"), v(node, "film_ends"), v(node, "loop"), v(node, "seconds"), v(node, "shot_seconds"), v(s, "aspect"), v(s, "long_side")].join("|");
 }
 
 function commit(node, rows) { writeRows(node, rows); render(node); }
@@ -141,8 +141,8 @@ function remove(node, i) {
 
 function setCut(node, i, on) {
   const rows = readRows(node);
-  if (!!rows[i]?.cut === on) return;
-  rows[i].cut = on;
+  if (!rows[i] || rows[i].cut === on) return;
+  setRowCut(node, rows[i], on);
   commit(node, rows);
 }
 
@@ -253,7 +253,11 @@ function tileEl(node, rows, i) {
     t.onpointerdown = (e) => { if (e.button === 0) { e.stopPropagation(); startDrag(node, e, i, t); } };
     t.ondblclick = () => pickImage(node, i);
   } else {
-    t.appendChild(el("span", null, "+ image – click"));
+    // with a prompt the empty row renders as a black image
+    const black = !!r.prompt.trim();
+    if (black) t.style.background = "#000";
+    t.appendChild(el("span", null, black ? "black · click: image" : "+ image – click"));
+    t.title = black ? "No image: this film uses a black image (rises out of / ends in black). Click to load an image." : "";
     t.onclick = () => pickImage(node, i);
   }
   const x = el("div", "x", "✕");
@@ -317,6 +321,7 @@ function promptEl(node, rows, i, loop) {
   };
   const rg = Object.assign(el("button", "rg", busy ? "… writing" : "↻ Regenerate prompt"), { disabled: busy });
   rg.onclick = () => regen(node, [i]);
+  if (!r.image) Object.assign(rg, { disabled: true, title: "Black image: nothing for the LLM to look at – type the prompt" });
   box.append(hd, ta, rg);
   return box;
 }
@@ -397,7 +402,7 @@ export function addStoryboard(node) {
   bAll.title = "Writes every prompt except the ✎ manual ones (typed by you)";
   bAll.onclick = () => {
     const rows = readRows(node), loop = isLoop(node);
-    regen(node, rows.flatMap((r, i) => (pairOf(rows, i, loop) && !r.own ? [i] : [])));
+    regen(node, rows.flatMap((r, i) => (pairOf(rows, i, loop) && r.image && !r.own ? [i] : [])));   // black rows: by hand
   };
   tb.append(cnt, bAll, bLoad);
   const board = el("div", "imsb-bd");

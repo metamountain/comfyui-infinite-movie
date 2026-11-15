@@ -1,8 +1,8 @@
 // Director storyboard <-> widgets, server and Settings (the view is web/im_storyboard.js, the rules
-// web/im_storyboard_model.js). Widget `storyboard` = JSON [{image, prompt, own, pair, cut?}], image relative to ComfyUI's
+// web/im_storyboard_model.js). Widget `storyboard` = JSON [{image, prompt, own, pair, end?}], image relative to ComfyUI's
 // input folder ("" = empty); the seconds of each film live in the `shot_seconds` widget (Cut's ⏱ edits it too).
 import { api } from "../../scripts/api.js";
-import { fcParseShotSeconds, fcReviewToast, imParseStoryboard, imWidget, settingsNodeOf } from "./im_common.js";
+import { fcParseShotSeconds, fcReviewToast, imFilmEndsOpen, imParseStoryboard, imRowCut, imWidget, settingsNodeOf } from "./im_common.js";
 import { imResolveSize } from "./im_settings.js";
 import { DEFAULT_IMAGES, MAX_IMAGES, emptyRow, toRow } from "./im_storyboard_model.js";
 
@@ -19,13 +19,21 @@ function setWidget(node, name, text) {
 export function readRows(node) {
   const secs = fcParseShotSeconds(imWidget(node, "shot_seconds")?.value);
   const rows = imParseStoryboard(node).slice(0, MAX_IMAGES).map((e, i) => toRow(e, secs[i]));
-  return rows.length ? rows : Array.from({ length: DEFAULT_IMAGES }, emptyRow);
+  const out = rows.length ? rows : Array.from({ length: DEFAULT_IMAGES }, emptyRow);
+  for (const r of out) r.cut = imRowCut(node, r);
+  return out;
+}
+
+// Cut on/off by hand: stored only where it differs from the film_ends switch.
+export function setRowCut(node, row, on) {
+  row.end = on === imFilmEndsOpen(node) ? "" : on ? "open" : "image";
+  row.cut = on;
 }
 
 export function writeRows(node, rows) {
   rows = rows.slice(0, MAX_IMAGES);
-  setWidget(node, "storyboard", JSON.stringify(rows.map(({ image, prompt, own, pair, cut }) =>
-    (cut ? { image, prompt, own, pair, cut } : { image, prompt, own, pair }))));
+  setWidget(node, "storyboard", JSON.stringify(rows.map(({ image, prompt, own, pair, end }) =>
+    (end ? { image, prompt, own, pair, end } : { image, prompt, own, pair }))));
   const secs = rows.map((r) => r.sec);
   while (secs.length && !secs.at(-1)) secs.pop();
   setWidget(node, "shot_seconds", secs.join(", "));

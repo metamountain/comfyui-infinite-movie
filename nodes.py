@@ -242,6 +242,9 @@ def _resolve_film_name(settings):
         n = "film"
     return n
 
+
+FILM_ENDS_IMAGE, FILM_ENDS_OPEN = "start → end", "start → open"   # Director switch film_ends
+
 class InfiniteMovieRender(io.ComfyNode):
     """The Director: storyboard (images + one prompt per film) -> one engine render per film -> sync for Cut."""
 
@@ -290,6 +293,9 @@ class InfiniteMovieRender(io.ComfyNode):
                                         "Each mention adds 1000 to that film's seed."),
                 io.Combo.Input("variants", options=["1", "2"], default="1", advanced=True,
                                tooltip="'2' renders every film twice (seed and seed + 500) - pick A or B per film in Cut."),
+                io.Combo.Input("film_ends", options=[FILM_ENDS_IMAGE, FILM_ENDS_OPEN], default=FILM_ENDS_IMAGE,
+                               tooltip="How every film ends unless set by hand in the storyboard (✂ or dragging the prompt "
+                                       "header up to its image): at the next image, or open with a hard cut to the next film."),
             ],
             outputs=[
                 # sync is a link to the internal ShotsOut node hanging on the collector of all films: the Director
@@ -310,8 +316,8 @@ class InfiniteMovieRender(io.ComfyNode):
 
     @classmethod
     def execute(cls, images=None, storyboard="[]", loop=True, seconds=2.0, seed=42, reseed="", engine=None,
-                shot_seconds="", settings=None, variants="1", regen=""):
-        board = _storyboard.parse(storyboard)
+                shot_seconds="", settings=None, variants="1", regen="", film_ends=FILM_ENDS_IMAGE):
+        board = _storyboard.parse(storyboard, film_ends == FILM_ENDS_OPEN)
         if str(regen).strip():   # ↻ Regenerate / ✎ Write all: write these prompts, render nothing
             from .director_prompts import parse_indices, write_prompts
             return io.NodeOutput(None, ui={"im_prompts": write_prompts(board, parse_indices(regen), loop, settings)})
