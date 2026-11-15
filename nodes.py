@@ -238,6 +238,8 @@ def _resolve_film_name(settings):
     n = re.sub(r'[<>:"/\\|?*]', "_", n).strip() or "film"
     if n.lower().endswith(".mp4"):
         n = n[:-4] or "film"
+    if n in (".", ".."):
+        n = "film"
     return n
 
 class InfiniteMovieRender(io.ComfyNode):
@@ -340,7 +342,11 @@ class InfiniteMovieRender(io.ComfyNode):
         name = _resolve_film_name(settings)
         folder = film_folder(settings)
         output_dir = os.path.join(folder, "cache_movies", name)
-        os.makedirs(output_dir, exist_ok=True)
+        try:
+            os.makedirs(output_dir, exist_ok=True)
+        except OSError as e:
+            # A non-writable location must not surface as a raw PermissionError/FileExistsError traceback.
+            raise ValueError(f"Director: cannot create output folder '{output_dir}': {e}") from e
         print(f"[InfiniteMovie] {n_films} films, {width}x{height}, {length} frames ({seconds:g} s), "
               f"own lengths {film_seconds or '-'}, variants {variants}, preset {preset}, out {output_dir}")
         for k, p in enumerate(prompts):

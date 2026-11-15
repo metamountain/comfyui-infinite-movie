@@ -320,7 +320,14 @@ def _unique_output_path(folder: str, name: str, ext: str = ".mp4") -> str:
     if not os.path.isabs(folder):
         import folder_paths
         folder = os.path.join(folder_paths.get_output_directory(), folder)
-    os.makedirs(folder, exist_ok=True)
+        if not _inside(folder, folder_paths.get_output_directory()):
+            raise ValueError(f"save_folder must stay inside the ComfyUI output folder, got '{folder}'")
+    try:
+        os.makedirs(folder, exist_ok=True)
+    except OSError as e:
+        # A non-writable location (read-only drive, path blocked by a file) must not
+        # surface as a raw PermissionError/FileExistsError traceback.
+        raise ValueError(f"cannot create output folder '{folder}': {e}") from e
     base = os.path.join(folder, name)
     candidate = base + ext
     i = 1

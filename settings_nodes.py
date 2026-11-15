@@ -127,8 +127,8 @@ def get_setting(settings, key):
 def film_folder(settings) -> str:
     """116b1: film folder from settings > output_folder.
 
-    Empty -> "infinite_movie"; a relative name lies inside ComfyUI/output,
-    an absolute path stays as is.
+    Empty -> "infinite_movie"; a relative name lies inside ComfyUI/output
+    (one that escapes it raises ValueError), an absolute path stays as is.
     """
     import os
 
@@ -138,6 +138,9 @@ def film_folder(settings) -> str:
         folder = "infinite_movie"
     if not os.path.isabs(folder):
         folder = os.path.join(folder_paths.get_output_directory(), folder)
+        from .media import _inside
+        if not _inside(folder, folder_paths.get_output_directory()):
+            raise ValueError(f"output_folder must stay inside the ComfyUI output folder, got '{folder}'")
     return folder
 
 

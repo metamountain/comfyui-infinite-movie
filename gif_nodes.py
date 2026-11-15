@@ -178,7 +178,8 @@ def ffmpeg_args(ff: str, src: str, out: str, p: dict, max_seconds: float = 0.0) 
         per_frame = p["palette"].startswith("per frame")
         dither = "bayer:bayer_scale=3" if p["dither"] == "bayer" else p["dither"]
         chain += (f";[v]split[s0][s1];[s0]palettegen=max_colors={p['colors']}"
-                  f":stats_mode={'single' if per_frame else 'full'}[pal];"
+                  f":stats_mode={'single' if per_frame else 'full'}"
+                  f"{':reserve_transparent=0' if p['colors'] <= 2 else ''}[pal];"
                   f"[s1][pal]paletteuse=dither={dither}:diff_mode=rectangle{':new=1' if per_frame else ''}[out]")
         # GIF loop = extra plays (0 forever, -1 none); WebP loop = total plays – measured with PIL 2026-11-12
         loop = 0 if p["repeat"] == 0 else (-1 if p["repeat"] == 1 else p["repeat"] - 1)
@@ -273,6 +274,8 @@ def save_target(folder: str, filename: str, ext: str, out_dir: str | None = None
     folder = (folder or "").strip().strip('"') or "GIF"
     if not os.path.isabs(folder):
         folder = os.path.join(out_dir, folder)
+        if not _inside(folder, out_dir):
+            raise ValueError(f"save folder must stay inside the output folder, got '{folder}'")
     stem = "".join("_" if c in '<>:"/\\|?*' else c for c in os.path.splitext((filename or "").strip())[0])
     stem = stem.strip(" .") or "GIF#"
     if make:

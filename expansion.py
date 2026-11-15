@@ -717,9 +717,13 @@ def build_expansion_graph(unique_id: str, preset: str,
 
         # Key of everything that shapes the segment (shared by A and B except the seed):
         # InfiniteMovieSegmentSave only reuses an existing file when the key matches
-        # (seed / prompt / preset / images / length). 73: negative no longer applies.
+        # (seed / prompt / preset / engine / images / length). 73: negative no longer applies.
         h = hashlib.md5(seg_prompt.encode("utf-8"))
         h.update(preset.encode("utf-8"))
+        # The engine (model / LoRA / sampler / frame rate inside the template) and the fps shape
+        # the render too - hash them so a swapped model or changed fps never reuses a stale segment.
+        h.update(json.dumps(template, sort_keys=True, default=str).encode("utf-8"))
+        h.update(str(cfg.get("fps", "")).encode("utf-8"))
         if start_idx is None:
             h.update(f"after:{prev_key}".encode("utf-8"))   # pass 2 follows pass 1's exact result
         for t in ((images[start_idx] if start_idx is not None else None), end_tensor):
