@@ -59,7 +59,7 @@ def segment_path_b(output_dir, index):
     return segment_path_v(output_dir, index, "b")
 
 
-def _segment_plan(n_images: int, loop: bool, frames: list, length: int, open_films=(), empty=()) -> list:
+def _segment_plan(n_images: int, loop: bool, frames: list, length: int, open_films=(), empty=(), inherit=()) -> list:
     """Ordered films as (start_idx, end_idx, seg_length, kind); kind 'scene', 'loop', 'open', 'arrive' or
     'text'. Film k is frames[k] frames long (missing = length) - the loop film too (storyboard ⏱ on the last row).
 
@@ -70,6 +70,8 @@ def _segment_plan(n_images: int, loop: bool, frames: list, length: int, open_fil
     guidance: end empty (or open_films) -> 'open' (end_idx None), start empty -> 'arrive' (start_idx stays
     the row - None already means the previous film's last frame), both empty -> 'text' (end_idx None).
     The loop film follows the same rule. The one-image cases stay as they are.
+    An inherit frame (inherit, user 2026-11-15: "last frame of the previous video"): the film into it has an open
+    end, the film from it starts at that film's LAST FRAME (start_idx None, like pass 2 of a one-image loop).
     """
     if n_images == 1:
         ends = [(0, None, "open")] + ([(None, 0, "loop")] if loop else [])
@@ -77,9 +79,11 @@ def _segment_plan(n_images: int, loop: bool, frames: list, length: int, open_fil
         ends = [(i, i + 1, "scene") for i in range(n_images - 1)] + ([(n_images - 1, 0, "loop")] if loop else [])
         opens = set(open_films or ())
         empties = set(empty or ())
-        ends = [(a, None, "text" if a in empties else "open") if i in opens or b in empties
+        inh = set(inherit or ())
+        ends = [(a, None, "text" if a in empties else "open") if i in opens or b in empties or b in inh
                 else (a, b, "arrive" if a in empties else kind)
                 for i, (a, b, kind) in enumerate(ends)]
+        ends = [(None if a in inh else a, b, kind) for a, b, kind in ends]
     return [(a, b, frames[k] if k < len(frames) else length, kind) for k, (a, b, kind) in enumerate(ends)]
 
 
@@ -715,7 +719,7 @@ def build_expansion_graph(unique_id: str, preset: str,
                           template: dict | None = None,
                           cfg: dict | None = None,
                            variants: int = 1, films=None, prompts_v=None, open_films=None,
-                           empty=None) -> tuple[dict, bool]:
+                           empty=None, inherit=None) -> tuple[dict, bool]:
     """Build the full expansion graph for InfiniteMovieRender.
 
     Args:
@@ -762,7 +766,7 @@ def build_expansion_graph(unique_id: str, preset: str,
     n_images = len(images)
     # --- Per-segment graphs ---
     # films: film ids that are rendered (storyboard cut rows start none); the id keeps seed, file and prompt.
-    plan = [(k, *p) for k, p in enumerate(_segment_plan(n_images, loop, frames, length, open_films, empty))
+    plan = [(k, *p) for k, p in enumerate(_segment_plan(n_images, loop, frames, length, open_films, empty, inherit))
             if films is None or k in set(films)]
     n_segments = len(plan)
     if n_segments < 1:
@@ -774,8 +778,12 @@ def build_expansion_graph(unique_id: str, preset: str,
     renders = False                # True when at least one film is rendered (not reused from disk)
 
     prev_key, prev_save, prev_path = None, None, None   # previous segment (variant A)
+    prev_i = None
     for pos, (i, start_idx, end_idx, seg_length, kind) in enumerate(plan):
         end_tensor = images[end_idx] if end_idx is not None else None
+        if start_idx is None and (prev_path is None or (n_images > 1 and prev_i != i - 1)):
+            raise ValueError(f"Director: the inherit frame of film {i + 1} needs the film right before it "
+                             "(not the first row, no cut in between)")
         if start_idx is None:
             # 1-image loop, pass 2: start = last frame of the previous segment. Rendered in this run ->
             # link to its decoded frames (the segment waits for it); reused -> read it from the mp4.
@@ -835,6 +843,7 @@ def build_expansion_graph(unique_id: str, preset: str,
             graph[save_id_a]["inputs"]["key"] = key_a
         save_ids.append(save_id_a)
         prev_key, prev_save, prev_path = key_a, save_id_a, segment_path(output_dir, i)
+        prev_i = i
 
         # --- Variants B/C/D (151: seed A + per-letter offset, seg_XXX_<letter>.mp4) – only when variants >= 2 ---
         for letter in LETTERS[1:variants]:

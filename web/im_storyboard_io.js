@@ -60,7 +60,9 @@ export async function uploadImage(file, overwrite = false) {
 // "empty" (user 2026-11-15): a full black frame in exactly the film format of the images (fmt = Settings' pixel size,
 // e.g. 640x352), inserted on hover between two images and shown like every other preview - one file per size.
 export const isEmptyImage = (name) => /^empty_\d+x\d+\.png$/.test(String(name).split("/").pop());
-export async function emptyImage(fmt) {
+// "inherit" (user 2026-11-15): placeholder for the last frame of the film before (the render fills it in)
+export const isInheritImage = (name) => /^inherit_\d+x\d+\.png$/.test(String(name).split("/").pop());
+export async function emptyImage(fmt, prefix = "empty") {
   const k = Math.max(fmt.w, fmt.h) < 64 ? 1024 / Math.max(fmt.w, fmt.h) : 1;   // only a bare ratio known (no image yet)
   const w = Math.round(fmt.w * k), h = Math.round(fmt.h * k);
   const c = Object.assign(document.createElement("canvas"), { width: w, height: h });
@@ -68,7 +70,7 @@ export async function emptyImage(fmt) {
   g.fillStyle = "#000";
   g.fillRect(0, 0, w, h);
   const blob = await new Promise((r) => c.toBlob(r, "image/png"));
-  return uploadImage(new File([blob], `empty_${w}x${h}.png`, { type: "image/png" }), true);
+  return uploadImage(new File([blob], `${prefix}_${w}x${h}.png`, { type: "image/png" }), true);
 }
 
 // Film format from the Settings node in the Director's settings chain (user: "format comes from settings") -

@@ -12,7 +12,7 @@ import {
   MAX_IMAGES, boardGeometry, emptyRow, filmRows, hasFilm, isCut, isStale, moveRow, nextOf, pairOf, samePair,
 } from "./im_storyboard_model.js";
 import {
-  boardFormat, defaultSeconds, emptyImage, imageUrl, isEmptyImage, isLoop, readRows, uploadImage, writeRows,
+  boardFormat, defaultSeconds, emptyImage, imageUrl, isEmptyImage, isInheritImage, isLoop, readRows, uploadImage, writeRows,
 } from "./im_storyboard_io.js";
 import { PP_CSS } from "./im_prompt_progress.js";
 import { alignTwins } from "./im_twin.js";
@@ -138,10 +138,10 @@ function move(node, from, gap) {
 
 // User 2026-11-14: hover on the line between two images shows a plus, click = new image there.
 // aboveCut: a cut after image k stays below the new frame (the frame ends the film before the cut); else it stays above.
-async function insertAt(node, k, empty = false, aboveCut = false) {
+async function insertAt(node, k, empty = false, aboveCut = false, prefix = "empty") {
   if (readRows(node).length >= MAX_IMAGES) { fcReviewToast(`Max ${MAX_IMAGES} images`, "#e68929"); return; }
   const f = empty ? null : (await pickFiles(false))[0];
-  const name = empty ? await emptyImage(node._imsb.fmt) : f && await uploadImage(f);
+  const name = empty ? await emptyImage(node._imsb.fmt, prefix) : f && await uploadImage(f);
   if (!name) return;
   const rows = readRows(node);
   const moveCut = aboveCut && k > 0 && !!rows[k - 1]?.cut;
@@ -305,7 +305,7 @@ function tileEl(node, rows, i) {
     };
     const lb = el("div", "lb");
     const file = r.image.split("/").pop();
-    lb.append(el("i", null, st.fmt.label), isEmptyImage(file) ? "empty" : file);
+    lb.append(el("i", null, st.fmt.label), isEmptyImage(file) ? "empty" : isInheritImage(file) ? "inherit: last frame of the film before" : file);
     t.append(img, lb);
     t.onpointerdown = (e) => { if (e.button === 0) { e.stopPropagation(); startDrag(node, e, i, t); } };
     t.ondblclick = () => pickImage(node, i);
@@ -494,6 +494,9 @@ export function render(node) {
         () => insertAt(node, k, true, true));
       btn("ed", "▢↓", on ? "Empty frame below the cut: the next part starts from it" : "Insert an empty frame here (placeholder, no image)",
         () => insertAt(node, k, true, false));
+      // user 2026-11-15: a frame that becomes the LAST frame of the film before (seamless continuation)
+      btn("inh", "⤓ inherit", "Insert an inherit frame: the film before runs into it freely, the next film starts from its last frame",
+        () => insertAt(node, k, true, false, "inherit"));
     }
     if (cut) {
       const next = nextOf(rows.length, k - 1, loop) + 1;

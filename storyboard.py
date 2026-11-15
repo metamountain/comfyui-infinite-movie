@@ -46,6 +46,12 @@ def is_empty_image(name) -> bool:
     return re.match(r"^empty_\d+x\d+\.png$", name.rsplit("/", 1)[-1]) is not None
 
 
+def is_inherit_image(name) -> bool:
+    """The Director-UI's inherit placeholder ``inherit_<W>x<H>.png`` (user 2026-11-15: "last frame of the previous
+    video"): the film into it ends open, the film from it starts at that film's last frame (expansion)."""
+    return re.match(r"^inherit_\d+x\d+\.png$", str(name or "").rsplit("/", 1)[-1]) is not None
+
+
 def next_of(n: int, i: int, loop: bool) -> int:
     """End image of film i: the next one, with loop the last one back to the first. A single image is an open
     film (no end image), so it is its own "next". -1 = row i starts no film."""

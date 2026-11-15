@@ -32,7 +32,7 @@ export const filmRows = (rows, loop) => {
 };
 
 // An empty (black) frame of the Director UI (same rule as im_storyboard_io.isEmptyImage / storyboard.is_empty_image).
-const isEmptyName = (name) => /^empty_\d+x\d+\.png$/.test(String(name || "").split("/").pop());
+const isEmptyName = (name) => /^(empty|inherit)_\d+x\d+\.png$/.test(String(name || "").split("/").pop());   // placeholders: half a row
 
 // Cell layout (user 2026-11-15): every prompt is one film = one Cut row, every box runs from the middle of its image
 // to the middle of the next. An empty (black) frame is HALF a row tall ("fits exactly in between, less space"), so

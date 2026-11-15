@@ -152,8 +152,9 @@ def write_prompts(board, indices, loop, settings, node_id=None) -> list[dict]:
                 from .llm_nodes import shot_context
                 context = shot_context(plan, filled.index(i))
             is_cut = n > 1 and row.get("cut")   # open film: start image only, no end image
-            start_empty = sb.is_empty_image(row["image"])      # black placeholder: no start frame
-            end_empty = sb.is_empty_image(board[j]["image"])   # black placeholder: no end frame
+            # placeholders (empty, or inherit = the last frame of the film before - unknown before the render)
+            start_empty = sb.is_empty_image(row["image"]) or sb.is_inherit_image(row["image"])
+            end_empty = sb.is_empty_image(board[j]["image"]) or sb.is_inherit_image(board[j]["image"])
             if start_empty and (is_cut or end_empty):   # no image on either side: no LLM, prompt written by hand
                 raise ValueError("no image on either side - write this prompt yourself (text to video)")
             if v != "a":   # an independent take: same two images, its own way between them
