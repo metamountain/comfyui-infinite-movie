@@ -72,6 +72,8 @@ def _segment_plan(n_images: int, loop: bool, frames: list, length: int, open_fil
     The loop film follows the same rule. The one-image cases stay as they are.
     An inherit frame (inherit, user 2026-11-15: "last frame of the previous video"): the film into it has an open
     end, the film from it starts at that film's LAST FRAME (start_idx None, like pass 2 of a one-image loop).
+    Empty frame followed by an inherit frame (user 2026-11-15: "the film with an open end hands its end image over
+    as start image"): the film empty -> inherit starts at the last frame of the open film before, end free.
     """
     if n_images == 1:
         ends = [(0, None, "open")] + ([(None, 0, "loop")] if loop else [])
@@ -84,6 +86,8 @@ def _segment_plan(n_images: int, loop: bool, frames: list, length: int, open_fil
                 else (a, b, "arrive" if a in empties else kind)
                 for i, (a, b, kind) in enumerate(ends)]
         ends = [(None if a in inh else a, b, kind) for a, b, kind in ends]
+        ends = [(None, None, "open") if kind == "text" and a in empties and (a + 1) % n_images in inh else (a, b, kind)
+                for a, b, kind in ends]
     return [(a, b, frames[k] if k < len(frames) else length, kind) for k, (a, b, kind) in enumerate(ends)]
 
 
