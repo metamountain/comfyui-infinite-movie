@@ -351,7 +351,7 @@ function promptEl(node, rows, i, loop) {
   // black = empty (user 2026-11-15): an empty frame gives the engine nothing on that side - ∅ in the header
   const e0 = isEmptyImage(r.image), e1 = !cutRow && n > 1 && isEmptyImage(rows[j]?.image);
   const textOnly = e0 && (e1 || cutRow || n === 1);
-  hd.append(el("span", null, `${e0 ? "∅" : i + 1} → ${n === 1 ? "open" : cutRow ? "✂" : e1 ? "∅" : j + 1}`), bg, sec);
+  hd.append(el("span", null, `${e0 ? "∅" : i + 1} → ${n === 1 ? "open" : cutRow ? "open" : e1 ? "∅" : j + 1}`), bg, sec);
   // user 2026-11-15: no ✂ in the prompt box - cuts are set only between the images (hover ✂ in the image column)
   const busy = !!st.busy?.has(i);
   const ta = Object.assign(el("textarea"), { value: r.prompt, disabled: busy,
@@ -454,11 +454,10 @@ export function render(node) {
   for (let i = 0; i < rows.length; i++) {
     st.board.appendChild(tileEl(node, rows, i));
     if (hasFilm(rows.length, i, loop)) st.board.appendChild(promptEl(node, rows, i, loop));   // every image has a prompt
-    if (st.size.cells.cut[i] != null) {   // the cut: black line below image i, and below box i (where film i ends)
-      const c = el("div", "imsb-cut"), cb = el("div", "imsb-cut bx");
-      c.style.cssText = `top:${st.size.cells.cut[i] - 2}px;width:${iw}px`;
-      cb.style.cssText = `top:${st.size.cells.cutBox[i] - 2}px;left:${iw + GAP}px;width:${st.size.pw}px`;
-      st.board.append(c, cb);
+    if (st.size.cells.cut[i] != null) {   // the cut: one black line through both columns, below box i
+      const c = el("div", "imsb-cut");
+      c.style.cssText = `top:${st.size.cells.cut[i] - 2}px;width:${iw + GAP + st.size.pw}px`;
+      st.board.appendChild(c);
     }
   }
   // ✎ Write all over every prompt column (user 2026-11-15): each button writes only its own column (variant)

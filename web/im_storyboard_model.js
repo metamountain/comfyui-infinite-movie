@@ -30,19 +30,20 @@ export const filmRows = (rows, loop) => {
 };
 
 // Cell layout (user 2026-11-15): every prompt is one film = one Cut row, every box sits between its image and the
-// next (img[i] + row/2) with the same height - a cut row too. The cut is two black lines: cut[i] in the image
-// column (gap below image i), cutBox[i] in the prompt column and in Cut (gap below box i, where film i ends).
-// Film ids / seconds / seeds never shift. Cut mirrors box[], cutBox[].
+// next (img[i] + row/2) with the same height - a cut row too. A cut is ONE black line through image and prompt
+// column ("black must go all the way through"): below box i, and everything after it moves down half a row, so the
+// line never crosses a box. cut[i] = cutBox[i] = its y. Film ids / seconds / seeds never shift. Cut mirrors it.
 export function cellTops(rows, loop, row, gapPx = 10) {
-  const n = rows.length, img = [], box = [], cut = [], cutBox = [];
+  const n = rows.length, img = [], box = [], cut = [];
+  let off = 0;
   for (let i = 0; i < n; i++) {
     const c = isCut(rows, i, loop);
-    img.push(i * row);
+    img.push(i * row + off);
     box.push(hasFilm(n, i, loop) ? img[i] + row / 2 : null);
-    cut.push(c ? img[i] + row - gapPx / 2 : null);
-    cutBox.push(c ? img[i] + row * 1.5 - gapPx / 2 : null);
+    cut.push(c ? img[i] + row * 1.5 - gapPx / 2 : null);
+    if (c && i < n - 1) off += row / 2;
   }
-  return { img, box, cut, cutBox, end: n * row };
+  return { img, box, cut, cutBox: cut, end: n * row + off };
 }
 
 // One height system for the Director and Cut (user 2026-11-15): the tile = the film format contain-fitted into the
