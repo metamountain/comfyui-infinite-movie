@@ -42,29 +42,25 @@ const CSS = `
 .imsb-p { position:absolute; border-radius:5px; background:#262626; border:1px solid #4a4a4a; display:flex; flex-direction:column; padding:5px; gap:4px; }
 .imsb-p.loop { border-style:dashed; }
 .imsb-p.stale { border:2px solid #d93025; box-shadow:0 0 8px #d9302588; }
-.imsb-p .hd { display:flex; align-items:center; gap:5px; font-weight:700; }
+.imsb-p .hd { display:flex; align-items:center; gap:6px; font:700 13px system-ui; min-height:24px; }
 .imsb-p .bg { font:600 10px system-ui; border-radius:3px; padding:1px 5px; background:#333; color:#aaa; }
 .imsb-p .bg.none { display:none; }
 .imsb-p .bg.own { background:#e6c229; color:#111; } .imsb-p .bg.llm { background:#2f5d8a; color:#fff; }
-.imsb-p .red { display:none; color:#ff6b5e; font:700 10px system-ui; }
-.imsb-p.stale .red { display:inline; }
 .imsb-p .sec { margin-left:auto; display:flex; align-items:center; gap:3px; font-weight:400; }
-.imsb-p .sec input { width:44px; background:#1b1b1b; color:#ddd; border:1px solid #444; border-radius:3px; font:12px system-ui; padding:1px 3px; }
+.imsb-p .sec input { width:46px; background:#1b1b1b; color:#ddd; border:1px solid #444; border-radius:3px; font:13px system-ui; padding:2px 3px; }
 .imsb-p .sec input.own { color:#e6c229; font-weight:700; border-color:#e6c229; }
 .imsb-p textarea { flex:1; resize:none; background:#1b1b1b; color:#ddd; border:1px solid #444; border-radius:3px; font:12px system-ui; padding:4px; }
-.imsb-p .rg { height:28px; border-radius:4px; border:1px solid #4a4a4a; background:#2b2b2b; color:#ddd; font:600 13px system-ui; cursor:pointer; }
-.imsb-p .rg:hover { background:#383838; }
 .imsb-p .hd { cursor:ns-resize; }
 .imsb-p.lift { box-shadow:0 0 0 2px #000, 0 6px 16px #000a; z-index:4; }
 .imsb-p .hd input { cursor:auto; }
-.imsb-p .ct { cursor:pointer; padding:0 4px; border-radius:3px; color:#888; font:700 13px system-ui; }
+.imsb-p .ct { cursor:pointer; padding:1px 5px; border-radius:3px; color:#aaa; font:700 15px system-ui; }
+.imsb-p .ct.busy { cursor:progress; color:#666; }
 .imsb-p .ct:hover { background:#383838; color:#fff; }
 .imsb-p.cut { border-top:4px solid #000; }
 .imsb-p .ct.x-cut { position:relative; }
 .imsb-p .ct.x-cut::after, .imsb-ins span.cut.on::after { content:""; position:absolute; left:2px; right:2px; top:50%; height:2px; background:currentColor; transform:rotate(-45deg); }
 .imsb-cut { position:absolute; left:0; height:4px; border-radius:2px; background:#000; pointer-events:none; }
-.imsb-p.short .rg { display:none; }
-.imsb-p .lamp { display:inline-block; width:10px; height:10px; border-radius:50%; margin-right:7px; vertical-align:0; flex:none;
+.imsb-p .lamp { display:inline-block; width:10px; height:10px; border-radius:50%; margin:0 1px 0 2px; flex:none;
   background:radial-gradient(circle at 40% 35%, var(--c1) 0 18%, var(--c2) 45%, var(--c3) 100%); box-shadow:0 0 3px 1px var(--g), 0 0 9px 2px var(--g); }
 .imsb-p .lamp.ok { --c1:#eaffd9; --c2:#5ee05a; --c3:#1b7a26; --g:#49d84a88; }
 .imsb-p .lamp.wait { --c1:#fffbe0; --c2:#ffe45c; --c3:#a07a00; --g:#ffd23a88; }
@@ -360,8 +356,6 @@ function promptEl(node, rows, i, loop) {
   const badge = () => (r.own ? ["own", "✎ manual"] : r.prompt.trim() ? ["llm", "LLM"] : ["none", ""]);   // no prompt: no badge
   const bg = el("span", "bg " + badge()[0], badge()[1]);
   bg.title = "manual = you typed this prompt; ✎ Write all prompts keeps it. LLM = written by the model.";
-  const red = el("span", "red", "● doesn't fit");
-  red.title = "The images around this prompt changed – edit or regenerate it";
   const def = defaultSeconds(node);
   const inp = Object.assign(el("input", r.sec ? "own" : null), { type: "number", min: "0.5", max: "20", step: "0.5", value: String(r.sec || def) });
   inp.onchange = () => {
@@ -372,7 +366,7 @@ function promptEl(node, rows, i, loop) {
   inp.onkeydown = (e) => { e.stopPropagation(); if (e.key === "Enter") inp.blur(); };
   const sec = el("label", "sec", "⏱");
   sec.append(inp, "s");
-  hd.append(el("span", null, `${i + 1} → ${n === 1 || cut ? "open" : j + 1}`), bg, red, sec);
+  hd.append(el("span", null, `${i + 1} → ${n === 1 || cut ? "open" : j + 1}`), bg, sec);
   if (n > 1) {
     const ct = el("span", "ct" + (cut ? " x-cut" : ""), "✂");   // crossed ✂ = remove the cut
     ct.title = cutTitle(cut, i + 1, j + 1);
@@ -381,7 +375,7 @@ function promptEl(node, rows, i, loop) {
     hd.insertBefore(ct, sec);
     hd.title = "Drag: up next to the image (or down to the next image) = cut (film ends open) · between the images = transition";
     hd.onpointerdown = (e) => {
-      if (e.button !== 0 || e.target.closest("input, .ct")) return;
+      if (e.button !== 0 || e.target.closest("input, .ct, .lamp")) return;
       e.stopPropagation();
       dragPrompt(node, e, i, box);
     };
@@ -400,7 +394,6 @@ function promptEl(node, rows, i, loop) {
     box.classList.remove("stale");
     setLamp();
   };
-  const rg = Object.assign(el("button", "rg", busy ? "… writing" : "↻ Regenerate prompt"), { disabled: busy });
   // Prompt status lamp (user 2026-11-15): green = prompt fits its images, yellow = none yet / writing, red = doesn't fit
   const lamp = el("span", "lamp");
   const setLamp = () => {
@@ -411,17 +404,13 @@ function promptEl(node, rows, i, loop) {
     lamp.title = t;
   };
   setLamp();
-  rg.prepend(lamp);
-  rg.onclick = () => regen(node, [i]);
-  if (short) {   // no room for the button: ↻ in the header
-    const r2 = el("span", "ct", "↻");
-    r2.title = "Regenerate prompt";
-    r2.onpointerdown = (e) => e.stopPropagation();
-    r2.onclick = (e) => { e.stopPropagation(); regen(node, [i]); };
-    hd.insertBefore(r2, sec);
-    hd.insertBefore(lamp, r2);
-  }
-  box.append(hd, ta, rg);
+  // One layout for full and half boxes (user 2026-11-15): every control in the header, below only the text
+  const rg = el("span", "ct re" + (busy ? " busy" : ""), busy ? "…" : "↻");
+  rg.title = busy ? "Writing the prompt…" : "Regenerate prompt";
+  rg.onpointerdown = (e) => e.stopPropagation();
+  rg.onclick = (e) => { e.stopPropagation(); if (!busy) regen(node, [i]); };
+  hd.append(lamp, rg);
+  box.append(hd, ta);
   (st.boxes ||= [])[i] = box;
   return box;
 }

@@ -38,8 +38,10 @@ export function cellTops(rows, loop, row, gapPx = 10) {
 // One height system for the Director and Cut (user 2026-11-15): the tile = the film format contain-fitted into the
 // Load Image box, row = tile + gap, every prompt box / Cut row at tops[i] with heights[i] (half a row above a cut).
 export const TILE_W = 283, TILE_H = 205, ROW_GAP = 10;
+// Flat formats get taller tiles: half a row must hold a prompt box (header + 2 text lines) above a cut.
+export const MIN_TILE_H = 160;
 export function boardGeometry(fmt, rows, loop) {
-  const k = Math.min(TILE_W / fmt.w, TILE_H / fmt.h);
+  const k = Math.max(Math.min(TILE_W / fmt.w, TILE_H / fmt.h), MIN_TILE_H / fmt.h);
   const iw = Math.round(fmt.w * k), ih = Math.round(fmt.h * k), row = ih + ROW_GAP;
   const cells = cellTops(rows, loop, row, ROW_GAP);
   const heights = cells.box.map((t, i) => (t == null ? null : boxHeight(row, ih, cells.short[i])));
