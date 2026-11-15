@@ -84,8 +84,15 @@ export const IMV_W = 480, IMV_H = 480, IMV_NODE_W = IMV_W + 24;
 // own area height (properties.imv_h); the area is then as wide as the node. Without it the area stays 480×480.
 // With imv_h the area is a SQUARE (height = width), not as tall as the node.
 export const IMV_MIN_H = 200;
+// Film player: analysis square and video square as wide as the player; with properties.im_fit_h (AUTO LAYOUT, user
+// 2026-11-15: "previews together, group as tall as the Director") both shrink so the whole player fits that height.
+export const IMV_FILM_EXTRA = 100 + 16 + 16 + 26;   // analysis controls + gaps + timeline + bar (im_film)
+export function filmSquare(node, minW = 360) {
+  const w = Math.max(minW, Math.round((node?.size?.[0] || IMV_NODE_W) - 20)), fit = Number(node?.properties?.im_fit_h);
+  return fit > 0 ? Math.max(160, Math.min(w, Math.floor((fit - IMV_FILM_EXTRA) / 2))) : w;
+}
 function imvArea(node) {
-  if (imvIsFilm(node)) { const w = Math.round((node.size?.[0] || IMV_NODE_W) - 20); return [w, w]; }   // square as wide as the player
+  if (imvIsFilm(node)) { const s = filmSquare(node, 0); return [s, s]; }
   const h = Number(node?.properties?.imv_h);
   if (!(h >= IMV_MIN_H)) return [IMV_W, IMV_H];
   const w = Math.max(IMV_W, Math.round((node.size?.[0] || IMV_NODE_W) - 24));

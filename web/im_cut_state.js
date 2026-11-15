@@ -149,7 +149,7 @@ export function fcChooseLayout(node, entries) {
   const heights = entries.map(() => ih);
   const boardH = entries.length ? Math.max(...tops.map((t, i) => t + heights[i])) : 0;
   // 2026-11-13: no play field in Cut any more – the analysis viewer is its own widget (im_viz) below this one.
-  const domH = boardH + FC_CHOOSE_GAP + FC_CHOOSE_STATUS_H + FC_CHOOSE_GAP + FC_CHOOSE_BIG_H + 8;
+  const domH = (node._imHead || 0) + boardH + FC_CHOOSE_GAP + FC_CHOOSE_STATUS_H + FC_CHOOSE_GAP + FC_CHOOSE_BIG_H + 8;
   return { iw, ih, row, boardH, domH, tops, heights, cutY: g.cells.cut };
 }
 

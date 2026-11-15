@@ -4,13 +4,14 @@ import { fcReviewToast } from "./im_common.js";
 import { fcRenderLine, fcRun } from "./im_cut_state.js";
 import { imToggleWidget } from "./im_settings.js";
 import { imSyncSet, imvSeek, imvShotDur, imvTime } from "./im_sync.js";
+import { filmSquare } from "./im_viewer.js";
 // ---------------------------------------------------------------------------
 // InfiniteMovie.Film (2026-11-03): show the finished film + „Saved: …“ status.
 // Before the run: „Waiting for the film…“; while ComfyUI renders: „Rendering…“.
 // ---------------------------------------------------------------------------
 const FC_FILM_W = 360, FC_FILM_BAR_H = 26;
 // 2026-11-13 (user: "6 7 8 all players square"): the video is a square of the DOM width (node width - 20).
-const fcFilmSide = (node) => Math.max(FC_FILM_W, (node?.size?.[0] ?? 0) - 20);
+const fcFilmSide = (node) => filmSquare(node, FC_FILM_W);
 // Film or a single shot (sent by Cut's ▶ play) – only offered when the node hangs on Cut (user 2026-11-13).
 const fcFilmSource = (node) => (node.properties?.im_source === "shot" && node._fc_shot) ? "shot" : "film";
 const fcLinkOrigin = (node, name) => {

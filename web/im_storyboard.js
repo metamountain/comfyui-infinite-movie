@@ -15,6 +15,7 @@ import {
   boardFormat, defaultSeconds, emptyImage, imageUrl, isEmptyImage, isLoop, readRows, uploadImage, writeRows,
 } from "./im_storyboard_io.js";
 import { PP_CSS } from "./im_prompt_progress.js";
+import { alignTwins } from "./im_twin.js";
 
 // Tile = preview box of a standard Load Image node (TILE_W x TILE_H in im_storyboard_model.js, shared with Cut)
 const GAP = 10, PROMPT_W = 250, TOOLBAR_H = 66, MARGIN = 10;
@@ -67,7 +68,6 @@ const CSS = `
 .imsb-menu div:hover { background:#2f5d8a; }
 .imsb-menu div.off { color:#666; cursor:default; background:none; }
 .imsb-menu hr { border:0; border-top:1px solid #3a3a3a; margin:4px 2px; }
-.imsb-anchor { position:absolute; left:0; width:1px; height:0; pointer-events:none; }
 .imsb-ins { position:absolute; left:0; height:18px; z-index:3; cursor:pointer; display:flex; align-items:center; justify-content:center; }
 .imsb-ins span { display:none; width:22px; height:22px; margin:0 4px; border-radius:50%; background:#4af; color:#fff; font:700 17px/22px system-ui; text-align:center; box-shadow:0 0 0 3px #1b1b1b; position:relative; }
 .imsb-ins span.cut { background:#000; border:1px dashed #888; font-size:12px; line-height:20px; }
@@ -382,10 +382,6 @@ export function render(node) {
       st.board.appendChild(c);
     }
   }
-  // Mark for the auto layout: where prompt box 1 sits (Cut's first row mirrors it)
-  const anchor = el("div", "imsb-anchor");
-  anchor.style.top = `${st.size.cells.box[0] ?? row / 2}px`;
-  st.board.appendChild(anchor);
   // Hover between two tiles (user 2026-11-15): + = insert an image here, ✂ = cut here on/off (after the image above).
   for (let k = 1; k <= rows.length; k++) {   // k = n: below the last image
     const add = rows.length < MAX_IMAGES, cut = rows.length > 1 && hasFilm(rows.length, k - 1, loop), on = cut && rows[k - 1].cut;
@@ -416,6 +412,7 @@ export function render(node) {
   st.w = node.size[0];
   node.setSize([Math.max(w, node.size[0]), node.computeSize()[1]]);
   node.setDirtyCanvas?.(true, true);
+  alignTwins(node);   // Cut's rows follow (flexible head)
 }
 
 export function addStoryboard(node) {

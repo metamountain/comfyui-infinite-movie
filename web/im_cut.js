@@ -1,4 +1,5 @@
 import { app } from "../../scripts/app.js";
+import { alignTwins } from "./im_twin.js";
 import { api } from "../../scripts/api.js";
 import { FC_REVIEW_LINE_COLORS, fcQueueFixedSeeds, fcReviewToast, fcShotSecondsOf, getLink, imFilmRows, imParseStoryboard } from "./im_common.js";
 import { fcChooseDirectorOf, fcChooseEditPrompt, fcChooseEditSeconds, fcRerenderMarked } from "./im_cut_edit.js";
@@ -53,7 +54,7 @@ export function fcChooseRender(node) {
     // 124d: one row per film at the height of the Director's prompt box of that film (staggered half a row):
     // tiles on the left, info box on the right – Director and Cut read across.
     const board = document.createElement("div");
-    board.style.cssText = `position:relative;height:${boardH}px;`;
+    board.style.cssText = `position:relative;height:${boardH}px;margin-top:${node._imHead || 0}px;`;   // flexible head: flush with the Director (im_twin)
     el.appendChild(board);
     // Hard cut after a film: the next row is cut (no film) - live from the board, else the last run
     const sb = imParseStoryboard(fcChooseDirectorOf(node));
@@ -316,6 +317,7 @@ export function fcChooseRender(node) {
   const want = [nodeW, node.computeSize()[1]];
   if (Math.abs(node.size[0] - want[0]) > 1 || Math.abs(node.size[1] - want[1]) > 1) node.setSize(want);
   node.setDirtyCanvas(true, true);
+  alignTwins(node);
 }
 
 // 136: eye preview – the segment's own video as a big overlay over the whole Cut node DOM.
