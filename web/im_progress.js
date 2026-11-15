@@ -75,7 +75,20 @@ app.registerExtension({
         }
         return;
       }
-      const c = chainOf(typeof d === "object" ? d : { node: d });
+      track(chainOf(typeof d === "object" ? d : { node: d }));
+    });
+    // The frontend reduces "executing"/"progress" to the display node (the Director), so the segment ids
+    // "<render>_s<i>_…" only arrive in "progress_state" (one entry per started node, with its real id).
+    api.addEventListener("progress_state", (e) => {
+      for (const s of Object.values(e.detail?.nodes || {})) {
+        if (s?.state !== "running") continue;
+        const c = chainOf({ node: s.node_id });
+        if (!c?.node || c.seg == null) continue;
+        track(c);
+        if (s.max > 1) { c.node._fcProg.step = s.value; c.node._fcProg.steps = s.max; }
+      }
+    });
+    function track(c) {
       if (!c?.node) return;
       const p = c.node._fcProg;
       const now = Date.now();
@@ -87,7 +100,7 @@ app.registerExtension({
         p.seg = c.seg; p.segStart = now; p.step = 0; p.steps = 0; p.phase = "render";
       }
       c.node.setDirtyCanvas(true, true);
-    });
+    }
     api.addEventListener("infinite_movie.render_plan", (e) => {
       const node = progressFor(e.detail?.node);
       if (!node) return;

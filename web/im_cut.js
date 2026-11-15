@@ -538,7 +538,14 @@ api.addEventListener("executing", (e) => {
     for (const n of app.graph?._nodes || []) if (n._fc_live_run) n._fc_live_run = false;
     return;
   }
-  const m = String(typeof d === "object" ? d.node : d).match(/^(\d+)_/);
+  liveRunStart(typeof d === "object" ? d.node : d);
+});
+// "executing" only carries the display node; the expansion ids come with "progress_state"
+api.addEventListener("progress_state", (e) => {
+  for (const s of Object.values(e.detail?.nodes || {})) liveRunStart(s?.node_id);
+});
+function liveRunStart(id) {
+  const m = String(id ?? "").match(/^(\d+)_/);
   if (!m) return;
   const dir = app.graph?.getNodeById?.(Number(m[1]));
   if (dir?.comfyClass !== "InfiniteMovieRender" || dir._fc_live_run) return;
@@ -549,5 +556,5 @@ api.addEventListener("executing", (e) => {
     c._fc_choose_sig = null;
     fcChooseRender(c);
   }
-});
+}
 
