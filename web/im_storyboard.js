@@ -9,14 +9,14 @@ import { app } from "../../scripts/app.js";
 import { api } from "../../scripts/api.js";
 import { fcQueueFixedSeeds, fcReviewToast, imWidget, settingsNodeOf } from "./im_common.js";
 import {
-  MAX_IMAGES, cellTops, emptyRow, hasFilm, isCut, isStale, moveRow, nextOf, pairOf, samePair,
+  MAX_IMAGES, boardGeometry, boxHeight, emptyRow, hasFilm, isCut, isStale, moveRow, nextOf, pairOf, samePair,
 } from "./im_storyboard_model.js";
 import {
   boardFormat, defaultSeconds, imageUrl, isLoop, readRows, uploadImage, writeRows,
 } from "./im_storyboard_io.js";
 
-// LI_W x LI_H: preview box of a standard Load Image node (measured 2026-11-14: 16:9 = 283x159, 4:5 = 164x205)
-const LI_W = 283, LI_H = 205, GAP = 10, PROMPT_W = 250, TOOLBAR_H = 66, MARGIN = 10;
+// Tile = preview box of a standard Load Image node (TILE_W x TILE_H in im_storyboard_model.js, shared with Cut)
+const GAP = 10, PROMPT_W = 250, TOOLBAR_H = 66, MARGIN = 10;
 
 const CSS = `
 .imsb { position:relative; font:12px system-ui,sans-serif; color:#ddd; box-sizing:border-box; padding:0 ${MARGIN}px; }
@@ -43,6 +43,7 @@ const CSS = `
 .imsb-p.stale { border:2px solid #d93025; box-shadow:0 0 8px #d9302588; }
 .imsb-p .hd { display:flex; align-items:center; gap:5px; font-weight:700; }
 .imsb-p .bg { font:600 10px system-ui; border-radius:3px; padding:1px 5px; background:#333; color:#aaa; }
+.imsb-p .bg.none { display:none; }
 .imsb-p .bg.own { background:#e6c229; color:#111; } .imsb-p .bg.llm { background:#2f5d8a; color:#fff; }
 .imsb-p .red { display:none; color:#ff6b5e; font:700 10px system-ui; }
 .imsb-p.stale .red { display:inline; }
@@ -53,13 +54,20 @@ const CSS = `
 .imsb-p .rg { height:28px; border-radius:4px; border:1px solid #4a4a4a; background:#2b2b2b; color:#ddd; font:600 13px system-ui; cursor:pointer; }
 .imsb-p .rg:hover { background:#383838; }
 .imsb-p .hd { cursor:ns-resize; }
+.imsb-p.lift { box-shadow:0 0 0 2px #000, 0 6px 16px #000a; z-index:4; }
 .imsb-p .hd input { cursor:auto; }
 .imsb-p .ct { cursor:pointer; padding:0 4px; border-radius:3px; color:#888; font:700 13px system-ui; }
 .imsb-p .ct:hover { background:#383838; color:#fff; }
 .imsb-p.cut { border-top:4px solid #000; }
-.imsb-p.cut .ct { background:#000; color:#fff; }
+.imsb-p .ct.x-cut { position:relative; }
+.imsb-p .ct.x-cut::after, .imsb-ins span.cut.on::after { content:""; position:absolute; left:2px; right:2px; top:50%; height:2px; background:currentColor; transform:rotate(-45deg); }
 .imsb-cut { position:absolute; left:0; height:4px; border-radius:2px; background:#000; pointer-events:none; }
 .imsb-p.short .rg { display:none; }
+.imsb-p .lamp { display:inline-block; width:10px; height:10px; border-radius:50%; margin-right:7px; vertical-align:0; flex:none;
+  background:radial-gradient(circle at 40% 35%, var(--c1) 0 18%, var(--c2) 45%, var(--c3) 100%); box-shadow:0 0 3px 1px var(--g), 0 0 9px 2px var(--g); }
+.imsb-p .lamp.ok { --c1:#eaffd9; --c2:#5ee05a; --c3:#1b7a26; --g:#49d84a88; }
+.imsb-p .lamp.wait { --c1:#fffbe0; --c2:#ffe45c; --c3:#a07a00; --g:#ffd23a88; }
+.imsb-p .lamp.bad { --c1:#ffe0ea; --c2:#ff6b8a; --c3:#9c1020; --g:#ff3b5c88; }
 .imsb-menu { position:fixed; z-index:10000; min-width:210px; background:#1f1f1f; border:1px solid #4a4a4a; border-radius:6px; padding:4px; box-shadow:0 6px 18px #000a; font:13px system-ui,sans-serif; color:#ddd; }
 .imsb-menu div { padding:6px 10px; border-radius:4px; cursor:pointer; white-space:nowrap; }
 .imsb-menu div:hover { background:#2f5d8a; }
@@ -69,7 +77,7 @@ const CSS = `
 .imsb-ins { position:absolute; left:0; height:18px; z-index:3; cursor:pointer; display:flex; align-items:center; justify-content:center; }
 .imsb-ins span { display:none; width:22px; height:22px; margin:0 4px; border-radius:50%; background:#4af; color:#fff; font:700 17px/22px system-ui; text-align:center; box-shadow:0 0 0 3px #1b1b1b; position:relative; }
 .imsb-ins span.cut { background:#000; border:1px dashed #888; font-size:12px; line-height:20px; }
-.imsb-ins span.cut.on { background:#fff; color:#000; border-style:solid; }
+.imsb-ins span.cut.on { border-style:solid; }
 .imsb-ins:hover span { display:block; }
 .imsb-ins span:hover { transform:scale(1.2); }
 .imsb-ins:hover::before { content:""; position:absolute; left:0; right:0; top:7px; height:4px; background:#4af8; border-radius:2px; }
@@ -91,14 +99,11 @@ function pickFiles(multiple) {
 
 // Tile = the film format contain-fitted into the Load Image box; the prompt column fills the rest of the node.
 function boardSize(node, rows, loop) {
-  const { fmt } = node._imsb, n = rows.length;
-  const k = Math.min(LI_W / fmt.w, LI_H / fmt.h);
-  const iw = Math.round(fmt.w * k), ih = Math.round(fmt.h * k), row = ih + GAP;
+  const n = rows.length, g = boardGeometry(node._imsb.fmt, rows, loop), { iw, cells } = g;   // shared with Cut
   const pw = Math.max(PROMPT_W, Math.round(node.size[0]) - iw - GAP - 2 * MARGIN);
-  const cells = cellTops(rows, loop, row);
   // + room for the insert strip below the last tile; a prompt box may reach further down
-  const h = Math.max(n ? cells.end - GAP + (n < MAX_IMAGES ? GAP / 2 + 10 : 0) : 0, ...cells.box.filter((t) => t != null).map((t) => t + ih));
-  return { iw, ih, row, pw, h, w: iw + GAP + PROMPT_W + 2 * MARGIN, cells };
+  const h = Math.max(n ? cells.end - GAP + (n < MAX_IMAGES ? GAP / 2 + 10 : 0) : 0, ...g.tops.map((t, i) => (t == null ? 0 : t + g.heights[i])));
+  return { ...g, pw, h, w: iw + GAP + PROMPT_W + 2 * MARGIN };
 }
 
 function signature(node) {
@@ -194,6 +199,40 @@ function remove(node, i) {
   rows.splice(i, 1);
   commit(node, rows.length ? rows : [emptyRow()]);
 }
+
+// Prompt header drag (user 2026-11-15: "add drag again"): the box snaps live to one of its two slots - next to its
+// image (cut, film ends open) or between its image and the next (transition) - and stays where it is dropped. The box
+// above shortens live, as it will after the drop.
+function dragPrompt(node, e, i, box) {
+  const st = node._imsb, bd = st.board, { row, ih } = st.size, y0 = e.clientY, top0 = parseFloat(box.style.top);
+  const lo = st.size.cells.img[i], hi = lo + row / 2;
+  const prev = !readRows(node)[i - 1]?.cut ? st.boxes?.[i - 1] : null;   // a transition box right above
+  const scale = () => (bd.getBoundingClientRect().height / bd.offsetHeight) || 1;
+  let cut = top0 < lo + row / 4;
+  box.classList.add("lift");
+  const onMove = (ev) => {
+    cut = top0 + (ev.clientY - y0) / scale() < lo + row / 4;
+    box.style.top = `${cut ? lo : hi}px`;
+    box.classList.toggle("cut", cut);
+    if (prev) { prev.style.height = `${boxHeight(row, ih, cut)}px`; prev.classList.toggle("short", cut); }
+  };
+  const end = () => {
+    window.removeEventListener("pointermove", onMove, true);
+    window.removeEventListener("pointerup", end, true);
+    window.removeEventListener("pointercancel", end, true);
+    box.classList.remove("lift");
+    setCut(node, i, cut);
+    render(node);
+  };
+  window.addEventListener("pointermove", onMove, true);
+  window.addEventListener("pointerup", end, true);
+  window.addEventListener("pointercancel", end, true);
+}
+
+// One wording for every cut toggle (prompt header and hover strip): what a click does now.
+const cutTitle = (on, film, next) => (on
+  ? `Remove cut: film ${film} goes to image ${next} again`
+  : `Cut: film ${film} ends open (no end image), image ${next} starts the next film fresh`);
 
 function setCut(node, i, on) {
   const rows = readRows(node);
@@ -303,15 +342,17 @@ function tileEl(node, rows, i) {
   return t;
 }
 
+const words = (t) => (t || "").trim().split(/\s+/).filter(Boolean).length;
+
 function promptEl(node, rows, i, loop) {
   const st = node._imsb, r = rows[i], n = rows.length, j = nextOf(n, i, loop), { iw, ih, row, pw } = st.size;
   const cut = isCut(rows, i, loop);
   const box = el("div", "imsb-p" + (j === 0 && n > 1 && !cut ? " loop" : "") + (isStale(rows, i, loop) ? " stale" : "") + (cut ? " cut" : ""));
   const short = st.size.cells.short[i];   // the cut box below sits next to its image: this one ends where it starts
   if (short) box.classList.add("short");
-  box.style.cssText = `left:${iw + GAP}px;top:${st.size.cells.box[i]}px;height:${short ? row / 2 - GAP : ih}px;width:${pw}px`;
+  box.style.cssText = `left:${iw + GAP}px;top:${st.size.cells.box[i]}px;height:${st.size.heights[i]}px;width:${pw}px`;
   const hd = el("div", "hd");
-  const badge = () => (r.own ? ["own", "✎ manual"] : r.prompt.trim() ? ["llm", "LLM"] : ["", "empty"]);
+  const badge = () => (r.own ? ["own", "✎ manual"] : r.prompt.trim() ? ["llm", "LLM"] : ["none", ""]);   // no prompt: no badge
   const bg = el("span", "bg " + badge()[0], badge()[1]);
   bg.title = "manual = you typed this prompt; ✎ Write all prompts keeps it. LLM = written by the model.";
   const red = el("span", "red", "● doesn't fit");
@@ -328,12 +369,17 @@ function promptEl(node, rows, i, loop) {
   sec.append(inp, "s");
   hd.append(el("span", null, `${i + 1} → ${n === 1 || cut ? "open" : j + 1}`), bg, red, sec);
   if (n > 1) {
-    const ct = el("span", "ct", "✂");
-    ct.title = cut ? "Cut: this film ends open, a hard cut follows – click to join it to the next image again"
-      : "Cut: this film ends open (no end image), the next film starts fresh at its own image";
+    const ct = el("span", "ct" + (cut ? " x-cut" : ""), "✂");   // crossed ✂ = remove the cut
+    ct.title = cutTitle(cut, i + 1, j + 1);
     ct.onpointerdown = (e) => e.stopPropagation();
     ct.onclick = (e) => { e.stopPropagation(); setCut(node, i, !cut); };
     hd.insertBefore(ct, sec);
+    hd.title = "Drag: up next to the image = cut (film ends open) · down between the images = transition to the next image";
+    hd.onpointerdown = (e) => {
+      if (e.button !== 0 || e.target.closest("input, .ct")) return;
+      e.stopPropagation();
+      dragPrompt(node, e, i, box);
+    };
   }
   const busy = !!st.busy?.has(i);
   const ta = Object.assign(el("textarea"), { value: r.prompt, disabled: busy,
@@ -347,8 +393,20 @@ function promptEl(node, rows, i, loop) {
     st.sig = signature(node);
     [bg.className, bg.textContent] = ["bg " + badge()[0], badge()[1]];
     box.classList.remove("stale");
+    setLamp();
   };
   const rg = Object.assign(el("button", "rg", busy ? "… writing" : "↻ Regenerate prompt"), { disabled: busy });
+  // Prompt status lamp (user 2026-11-15): green = prompt fits its images, yellow = none yet / writing, red = doesn't fit
+  const lamp = el("span", "lamp");
+  const setLamp = () => {
+    const [c, t] = busy ? ["wait", "Writing the prompt…"] : box.classList.contains("stale") ? ["bad", "Doesn't fit: the images around this prompt changed – edit or regenerate it"]
+      : words(readRows(node)[i]?.prompt) >= 5 ? ["ok", "Prompt ready"]
+      : words(readRows(node)[i]?.prompt) ? ["wait", "Prompt very short (under 5 words) – add detail or regenerate"] : ["wait", "No prompt yet – Run or ↻ writes one"];
+    lamp.className = "lamp " + c;
+    lamp.title = t;
+  };
+  setLamp();
+  rg.prepend(lamp);
   rg.onclick = () => regen(node, [i]);
   if (short) {   // no room for the button: ↻ in the header
     const r2 = el("span", "ct", "↻");
@@ -356,8 +414,10 @@ function promptEl(node, rows, i, loop) {
     r2.onpointerdown = (e) => e.stopPropagation();
     r2.onclick = (e) => { e.stopPropagation(); regen(node, [i]); };
     hd.insertBefore(r2, sec);
+    hd.insertBefore(lamp, r2);
   }
   box.append(hd, ta, rg);
+  (st.boxes ||= [])[i] = box;
   return box;
 }
 
@@ -370,6 +430,7 @@ export function render(node) {
   const { iw, row, h, w } = st.size;
   st.cnt.textContent = String(rows.length);
   st.board.replaceChildren();
+  st.boxes = [];
   st.board.style.height = `${h}px`;
   st.gap.style.width = `${iw + 8}px`;
   for (let i = 0; i < rows.length; i++) {
@@ -377,13 +438,13 @@ export function render(node) {
     if (hasFilm(rows.length, i, loop)) st.board.appendChild(promptEl(node, rows, i, loop));
     if (st.size.cells.cut[i] != null) {   // the cut: a thin black line in the gap below image i
       const c = el("div", "imsb-cut");
-      c.style.cssText = `top:${st.size.cells.cut[i] - 2}px;width:${iw}px`;
+      c.style.cssText = `top:${st.size.cells.cut[i] - 2}px;width:${iw + GAP + st.size.pw}px`;   // whole width
       st.board.appendChild(c);
     }
   }
   // Mark for the auto layout: where prompt box 1 sits (Cut's first row mirrors it)
   const anchor = el("div", "imsb-anchor");
-  anchor.style.top = `${row / 2}px`;
+  anchor.style.top = `${st.size.cells.box[0] ?? row / 2}px`;
   st.board.appendChild(anchor);
   // Hover between two tiles (user 2026-11-15): + = insert an image here, ✂ = cut here on/off (after the image above).
   for (let k = 1; k <= rows.length; k++) {   // k = n: below the last image
@@ -400,7 +461,7 @@ export function render(node) {
     }
     if (cut) {
       const c = el("span", "cut" + (on ? " on" : ""), "✂");
-      c.title = on ? "Remove the cut here" : `Cut here: film ${k} ends open, a hard cut follows`;
+      c.title = cutTitle(on, k, nextOf(rows.length, k - 1, loop) + 1);
       c.onclick = () => setCut(node, k - 1, !on);
       z.appendChild(c);
     }

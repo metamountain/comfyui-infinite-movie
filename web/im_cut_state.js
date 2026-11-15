@@ -7,11 +7,10 @@ import { fmtTime, renderEstimate } from "./im_progress.js";
 import { IMV_NODE_W, imvDraw, imvStop } from "./im_viewer.js";
 import { fcChooseDirectorOf } from "./im_cut_edit.js";
 import { boardFormat } from "./im_storyboard_io.js";
-import { cellTops } from "./im_storyboard_model.js";
+import { boardGeometry } from "./im_storyboard_model.js";
 import { imParseStoryboard } from "./im_common.js";
 // 124d: one row per film (mirror of the Director's prompt boxes): tile box 283×205 scaled to the
 // connected Director's format, rows staggered half a row, node width fixed 672.
-const FC_CHOOSE_LI_W = 283, FC_CHOOSE_LI_H = 205;
 export const FC_CHOOSE_ROW_GAP = 10;
 export const FC_CHOOSE_NODE_W = 672;
 export const FC_CHOOSE_GAP = 4;
@@ -140,19 +139,17 @@ export function fcChooseSig(e) { return e.length + (e[0]?.placeholder ? "p" : "r
 // 124d: one row per film (mirror of the Director's prompt boxes): the tile box 283×205 is scaled to the
 // connected Director's format (Settings node via boardFormat), rows staggered half a row, node width fixed 672.
 export function fcChooseLayout(node, entries) {
-  const fmt = boardFormat(fcChooseDirectorOf(node), null) || { w: 4, h: 5 };
-  const k = Math.min(FC_CHOOSE_LI_W / fmt.w, FC_CHOOSE_LI_H / fmt.h);
-  const iw = Math.round(fmt.w * k), ih = Math.round(fmt.h * k);
-  const row = ih + FC_CHOOSE_ROW_GAP;
-  // rows mirror the Director's prompt boxes, including the empty ✂ tiles of cut films (cellTops)
+  // Same height system as the Director (boardGeometry): its resolved format (incl. "from images" = its first tile),
+  // rows = its prompt boxes, cut films next to their image, half rows above a cut.
   const dir = fcChooseDirectorOf(node), sb = imParseStoryboard(dir).map((r) => ({ ...r, cut: !!r.cut }));
-  const cells = cellTops(sb, !!dir?.widgets?.find((w) => w.name === "loop")?.value, row);
-  const tops = entries.map((_, i) => cells.box[i] ?? i * row + row / 2);
-  const heights = entries.map((_, i) => (cells.short[i] ? row / 2 - FC_CHOOSE_ROW_GAP : ih));   // half row above a cut
+  const fmt = boardFormat(dir, dir?._imsb?.img0 || null) || { w: 4, h: 5 };   // fresh, as the Director computes it
+  const g = boardGeometry(fmt, sb, !!dir?.widgets?.find((w) => w.name === "loop")?.value), { iw, ih, row } = g;
+  const tops = entries.map((_, i) => g.tops[i] ?? i * row + row / 2);
+  const heights = entries.map((_, i) => g.heights[i] ?? ih);
   const boardH = entries.length ? Math.max(...tops.map((t, i) => t + heights[i])) : 0;
   // 2026-11-13: no play field in Cut any more – the analysis viewer is its own widget (im_viz) below this one.
   const domH = boardH + FC_CHOOSE_GAP + FC_CHOOSE_STATUS_H + FC_CHOOSE_GAP + FC_CHOOSE_BIG_H + 8;
-  return { iw, ih, row, boardH, domH, sheet: null, tops, heights };
+  return { iw, ih, row, boardH, domH, sheet: null, tops, heights, cutY: g.cells.cut };
 }
 // 124d: the 3×3 sheet row is gone (one row per film) – the sheet is reached via the analysis viewer.
 function fcChooseSheetSize() { return null; }

@@ -35,6 +35,18 @@ export function cellTops(rows, loop, row, gapPx = 10) {
   return { img, box, cut, short, end: n * row };
 }
 
+// One height system for the Director and Cut (user 2026-11-15): the tile = the film format contain-fitted into the
+// Load Image box, row = tile + gap, every prompt box / Cut row at tops[i] with heights[i] (half a row above a cut).
+export const TILE_W = 283, TILE_H = 205, ROW_GAP = 10;
+export function boardGeometry(fmt, rows, loop) {
+  const k = Math.min(TILE_W / fmt.w, TILE_H / fmt.h);
+  const iw = Math.round(fmt.w * k), ih = Math.round(fmt.h * k), row = ih + ROW_GAP;
+  const cells = cellTops(rows, loop, row, ROW_GAP);
+  const heights = cells.box.map((t, i) => (t == null ? null : boxHeight(row, ih, cells.short[i])));
+  return { iw, ih, row, cells, tops: cells.box, heights };
+}
+export const boxHeight = (row, ih, short) => (short ? row / 2 - ROW_GAP : ih);
+
 export function pairOf(rows, i, loop) {
   const j = nextOf(rows.length, i, loop);
   if (j >= 0 && isCut(rows, i, loop)) return rows[i].image ? [rows[i].image, "open"] : null;

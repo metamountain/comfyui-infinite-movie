@@ -43,7 +43,7 @@ export function fcChooseRender(node) {
   const entries = fcChooseEntries(node);
   const sig = fcChooseSig(entries) + fcCutSig(node);
   node._fc_choose_sig = sig;
-  const { iw, ih, row, boardH, tops, heights } = fcChooseLayout(node, entries);
+  const { iw, ih, row, boardH, tops, heights, cutY } = fcChooseLayout(node, entries);
   const marked = node.properties.marked || [];
   const choices = fcChooseGetChoices(node);
   el.innerHTML = "";
@@ -65,7 +65,7 @@ export function fcChooseRender(node) {
         const ln = document.createElement("div");
         ln.className = "fc-cut-line";
         ln.title = "Hard cut: this film ends open, the next one starts fresh at its own image";
-        ln.style.cssText = `position:absolute;left:0;right:0;top:${top + ih + (row - ih) / 2 - 2}px;height:4px;` +
+        ln.style.cssText = `position:absolute;left:0;right:0;top:${(cutY[i] ?? top + ih + (row - ih) / 2) - 2}px;height:4px;` +
           "background:#000;border-radius:2px;pointer-events:none;";
         board.appendChild(ln);
       }
