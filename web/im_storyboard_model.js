@@ -46,12 +46,16 @@ export function cellTops(rows, loop, row, gapPx = 10) {
     img.push(y);
     y += h[i];
   }
+  const starts = (k) => k >= 0 && k < n && hasFilm(n, k, loop) && !isCut(rows, k, loop);   // a film starts at tile k
+  const half = (k) => h[k] < row;   // an empty frame
   for (let i = 0; i < n; i++) {
-    const c = isCut(rows, i, loop), j = nextOf(n, i, loop), film = hasFilm(n, i, loop) && !c;
-    const top = img[i] + h[i] / 2;
+    const c = isCut(rows, i, loop), j = nextOf(n, i, loop), film = starts(i);
+    // from the middle of its tile to the middle of the next. user 2026-11-15 ("2 empty frames half high = prompt
+    // window high"): an empty frame no other film shares is covered whole, so the box keeps its full height
+    const top = half(i) && !starts(i - 1) ? img[i] : img[i] + h[i] / 2;
+    const bottom = j === i + 1 ? (half(j) && !starts(j) ? img[j] + h[j] : img[j] + h[j] / 2) : top + row;   // loop / single: a whole row
     box.push(film ? top : null);
-    // to the middle of the next tile; the loop film (last -> first) and a single image keep a whole row
-    bh.push(film ? (j === i + 1 ? img[j] + h[j] / 2 - top : row) - gapPx : null);
+    bh.push(film ? bottom - top - gapPx : null);
     cut.push(c ? img[i] + h[i] - gapPx / 2 : null);   // empty frames do not cut (several in a row = one sequence)
   }
   return { img, hts: h.map((x) => x - gapPx), box, bh, cut, cutBox: cut, end: y };
