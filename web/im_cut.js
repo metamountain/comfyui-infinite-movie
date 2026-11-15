@@ -2,7 +2,7 @@ import { app } from "../../scripts/app.js";
 import { api } from "../../scripts/api.js";
 import { FC_REVIEW_LINE_COLORS, fcQueueFixedSeeds, fcReviewToast, fcShotSecondsOf, getLink, imFilmCount, imParseStoryboard } from "./im_common.js";
 import { fcChooseDirectorOf, fcChooseEditPrompt, fcChooseEditSeconds, fcRerenderMarked } from "./im_cut_edit.js";
-import { FC_CHOOSE_BIG_H, FC_CHOOSE_GAP, FC_CHOOSE_NODE_W, FC_CHOOSE_PAD, FC_CHOOSE_ROW_GAP, FC_CHOOSE_STATUS_H, fcAsmFocus, fcChooseApplyActive, fcChooseEff, fcChooseEffective, fcChooseEntries, fcChooseFocus, fcChooseGetChoices, fcChooseLayout, fcChoosePick, fcChoosePlay, fcChooseQuality, fcChooseSig, fcChooseStableUrl, fcChooseStatus, fcChooseWidth, fcRun } from "./im_cut_state.js";
+import { FC_CHOOSE_BIG_H, FC_CHOOSE_GAP, FC_CHOOSE_PAD, FC_CHOOSE_ROW_GAP, FC_CHOOSE_STATUS_H, fcAsmFocus, fcChooseApplyActive, fcChooseEff, fcChooseEffective, fcChooseEntries, fcChooseFocus, fcChooseGetChoices, fcChooseLayout, fcChoosePick, fcChoosePlay, fcChooseQuality, fcChooseSig, fcChooseStableUrl, fcChooseStatus, fcChooseWidth, fcRun } from "./im_cut_state.js";
 import { fcDownstreamOutputs } from "./im_film.js";
 import { fmtTime, renderEstimate } from "./im_progress.js";
 import { imToggleWidget } from "./im_settings.js";
@@ -44,6 +44,7 @@ export function fcChooseRender(node) {
   const sig = fcChooseSig(entries) + fcCutSig(node);
   node._fc_choose_sig = sig;
   const { iw, ih, row, boardH, tops, heights, cutY } = fcChooseLayout(node, entries);
+  const nodeW = fcChooseWidth(node, entries);
   const marked = node.properties.marked || [];
   const choices = fcChooseGetChoices(node);
   el.innerHTML = "";
@@ -210,7 +211,7 @@ export function fcChooseRender(node) {
       const ix = letters.length * (iw + FC_CHOOSE_ROW_GAP);
       const info = document.createElement("div");
       info.className = "fc-info";
-      info.style.cssText = `position:absolute;top:${top}px;left:${ix}px;width:${FC_CHOOSE_NODE_W - FC_CHOOSE_PAD - ix}px;height:${rh}px;` +
+      info.style.cssText = `position:absolute;top:${top}px;left:${ix}px;width:${nodeW - FC_CHOOSE_PAD - ix}px;height:${rh}px;` +
         "box-sizing:border-box;background:#262626;border:1px solid #4a4a4a;border-radius:5px;padding:6px;" +
         "display:flex;flex-direction:column;gap:6px;font:12px sans-serif;color:#bbb;overflow:hidden;";
       const effV = e.placeholder ? {} : (e[eff] || e.a || {});
@@ -331,7 +332,7 @@ export function fcChooseRender(node) {
   fcChooseStatus(node);
   fcChooseApplyActive(node);
   // Width = all shots (fixed image size), height = content.
-  const want = [fcChooseWidth(entries.length), node.computeSize()[1]];
+  const want = [nodeW, node.computeSize()[1]];
   if (Math.abs(node.size[0] - want[0]) > 1 || Math.abs(node.size[1] - want[1]) > 1) node.setSize(want);
   node.setDirtyCanvas(true, true);
 }
@@ -461,7 +462,7 @@ app.registerExtension({
     nodeType.prototype.onResize = function (size) {
       const r = origResize ? origResize.apply(this, arguments) : undefined;
       if (this._fc_choose_el) {
-        const w = fcChooseWidth(fcChooseEntries(this).length);
+        const w = fcChooseWidth(this, fcChooseEntries(this));
         if (Math.abs(size[0] - w) > 1) size[0] = w;
       }
       return r;
