@@ -226,8 +226,11 @@ def generate(image_from, image_to, model_name: str, keywords: str = "", camera: 
     load = load or _load_model
     gen = gen or _gen
     open_shot = image_to is None                  # 1 image without loop: open shot, no end image
+    arrive_shot = image_from is None and image_to is not None   # empty (black) start frame: arrive at the end image
     if open_shot:
         image_to = image_from                     # description: start = end (scene of the single image)
+    elif arrive_shot:
+        image_from = image_to                     # description: start = end (scene of the single image)
     images = _pair(image_from, image_to) if (gen is _gen or getattr(gen, "needs_images", False)) else None
     hint = f"\nKeywords: {keywords.strip()}" if keywords and keywords.strip() else ""
     frames = "Image 1 is the first frame and image 2 the last frame of one video shot."
@@ -236,6 +239,12 @@ def generate(image_from, image_to, model_name: str, keywords: str = "", camera: 
         story_frames = ("This image is the first frame of one video shot; the shot has no fixed last frame. Invent "
                         "one clear, visible change that happens after this moment (follow the instructions). Never "
                         "say that nothing happens, nothing changes or the scene stays still.")
+        story_images = images[:1] if images is not None else None
+    elif arrive_shot:
+        story_frames = ("This image is the last frame of one video shot; the shot has no fixed first frame. Invent "
+                        "one clear, visible change that happens before this moment, arriving at this image "
+                        "(follow the instructions). Never say that nothing happens, nothing changes or the scene "
+                        "stays still.")
         story_images = images[:1] if images is not None else None
     elif _same_image(image_from, image_to):
         # single-image loop (user 2026-11-04: "No time-lapse occurs; the two frames are identical" /

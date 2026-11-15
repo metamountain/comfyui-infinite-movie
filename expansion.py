@@ -59,22 +59,27 @@ def segment_path_b(output_dir, index):
     return segment_path_v(output_dir, index, "b")
 
 
-def _segment_plan(n_images: int, loop: bool, frames: list, length: int, open_films=()) -> list:
-    """Ordered films as (start_idx, end_idx, seg_length, kind); kind 'scene', 'loop' or 'open'. Film k is
-    frames[k] frames long (missing = length) - the loop film too (storyboard ⏱ on the last row).
+def _segment_plan(n_images: int, loop: bool, frames: list, length: int, open_films=(), empty=()) -> list:
+    """Ordered films as (start_idx, end_idx, seg_length, kind); kind 'scene', 'loop', 'open', 'arrive' or
+    'text'. Film k is frames[k] frames long (missing = length) - the loop film too (storyboard ⏱ on the last row).
 
     One image without loop = an 'open' film: start image + prompt, no end image (end_idx None).
     A cut row with a prompt (open_films, user 2026-11-15) is 'open' too: start image only, no end image;
     the hard cut after it is handled by the Cut node (storyboard.hard_cuts).
-    One image + loop = two passes (user 2026-11-09): the open film, then one from its LAST FRAME back to the
-    image (start_idx None = previous film's last frame) - image -> itself in one film reads as "nothing happens".
+    An empty (black placeholder) frame on a side (empty, user 2026-11-15: "schwarz heißt leer") drops that
+    guidance: end empty (or open_films) -> 'open' (end_idx None), start empty -> 'arrive' (start_idx stays
+    the row - None already means the previous film's last frame), both empty -> 'text' (end_idx None).
+    The loop film follows the same rule. The one-image cases stay as they are.
     """
     if n_images == 1:
         ends = [(0, None, "open")] + ([(None, 0, "loop")] if loop else [])
     else:
         ends = [(i, i + 1, "scene") for i in range(n_images - 1)] + ([(n_images - 1, 0, "loop")] if loop else [])
         opens = set(open_films or ())
-        ends = [(a, None, "open") if i in opens else (a, b, kind) for i, (a, b, kind) in enumerate(ends)]
+        empties = set(empty or ())
+        ends = [(a, None, "text" if a in empties else "open") if i in opens or b in empties
+                else (a, b, "arrive" if a in empties else kind)
+                for i, (a, b, kind) in enumerate(ends)]
     return [(a, b, frames[k] if k < len(frames) else length, kind) for k, (a, b, kind) in enumerate(ends)]
 
 
@@ -496,6 +501,15 @@ _END_OPTIONAL = {"WanFirstLastFrameToVideo": "end_image", "WanFunInpaintToVideo"
 # class -> {output slot: input to pass through} (node bypassed, its guide disappears)
 _END_BYPASS = {"LTXVAddGuide": {0: "positive", 1: "negative", 2: "latent"}}
 
+# Empty (black placeholder) start frame (user 2026-11-15: "schwarz heißt leer"): image nodes between the
+# start-image loader and the conditioning node are dropped with it; the conditioning node loses the start image.
+_START_PASSTHROUGH = _END_PASSTHROUGH
+# class -> optional start-image input (deleted -> the node runs without a start frame)
+_START_OPTIONAL = {"WanFirstLastFrameToVideo": "start_image", "WanFunInpaintToVideo": "start_image",
+                   "MiniMaxH3ImageToVideo": "first_frame"}   # optional in comfy_extras/nodes_minimax_h3.py:148
+# class -> {output slot: input to pass through} (node bypassed, its guide disappears)
+_START_BYPASS = {"LTXVAddGuide": {0: "positive", 1: "negative", 2: "latent"}}
+
 
 def _drop_end_image(graph: dict, source_id: str) -> None:
     """Remove the end-image loader and everything that only exists to feed the end
@@ -520,8 +534,36 @@ def _drop_end_image(graph: dict, source_id: str) -> None:
                 graph.pop(nid, None)
             else:
                 raise ValueError(
-                    f"InfiniteMovieRender: 1 image without loop needs an engine that can run "
-                    f"without an end image; '{cls}.{key}' needs it. Turn loop on or add an image.")
+                    f"InfiniteMovieRender: an empty (black) start/end frame needs an engine that can run "
+                    f"without it; '{cls}.{key}' needs it.")
+    graph.pop(source_id, None)
+
+
+def _drop_start_image(graph: dict, source_id: str) -> None:
+    """Remove the start-image loader and everything that only exists to feed the start
+    frame into the model (empty start frame: end image + prompt, start not defined)."""
+    for nid, n in list(graph.items()):
+        if nid not in graph:
+            continue
+        for key, value in list(n.get("inputs", {}).items()):
+            if not (is_link(value) and value[0] == source_id):
+                continue
+            cls = n["class_type"]
+            if cls in _START_PASSTHROUGH:
+                _drop_start_image(graph, nid)
+            elif _START_OPTIONAL.get(cls) == key:
+                del n["inputs"][key]
+            elif cls in _START_BYPASS:
+                bypass = _START_BYPASS[cls]
+                for cid, c in graph.items():
+                    for ck, cv in list(c.get("inputs", {}).items()):
+                        if is_link(cv) and cv[0] == nid:
+                            c["inputs"][ck] = n["inputs"][bypass[cv[1]]]
+                graph.pop(nid, None)
+            else:
+                raise ValueError(
+                    f"InfiniteMovieRender: an empty (black) start/end frame needs an engine that can run "
+                    f"without it; '{cls}.{key}' needs it.")
     graph.pop(source_id, None)
 
 
@@ -568,10 +610,14 @@ def _set_trigger(graph: dict, nid: str, src: str) -> None:
 def build_segment(template: dict, cfg: dict, prefix: str,
                   start_tensor, end_tensor,
                   prompt: str,
-                  seed: int, width: int, height: int, length: int) -> dict:
+                  seed: int, width: int, height: int, length: int,
+                  kind: str = "scene") -> dict:
     """Build one segment graph (prefixed copy of the template) with the
     LoadImage outputs replaced by literal tensors and the SaveImage node
     replaced by a InfiniteMovieSegmentSave node.
+
+    kind (from _segment_plan): 'arrive' drops the start image (end image + prompt only),
+    'text' drops both (prompt only); 'open' drops the end image as before (end_tensor None).
 
     Returns (segment_graph, save_node_id).
     """
@@ -592,7 +638,10 @@ def build_segment(template: dict, cfg: dict, prefix: str,
     end_src = _find_loadimage_by_marker(template, cfg["end_image_marker"])
     if start_src is None or end_src is None:
         raise ValueError("Template missing LoadImage markers for preset")
-    _replace_links_to(seg, prefix + start_src, start_tensor)
+    if kind in ("arrive", "text"):
+        _drop_start_image(seg, prefix + start_src)
+    else:
+        _replace_links_to(seg, prefix + start_src, start_tensor)
     if end_tensor is None:
         _drop_end_image(seg, prefix + end_src)
     else:
@@ -665,7 +714,8 @@ def build_expansion_graph(unique_id: str, preset: str,
                           seed_bumps: dict | None = None,
                           template: dict | None = None,
                           cfg: dict | None = None,
-                           variants: int = 1, films=None, prompts_v=None, open_films=None) -> tuple[dict, bool]:
+                           variants: int = 1, films=None, prompts_v=None, open_films=None,
+                           empty=None) -> tuple[dict, bool]:
     """Build the full expansion graph for InfiniteMovieRender.
 
     Args:
@@ -688,6 +738,8 @@ def build_expansion_graph(unique_id: str, preset: str,
             each bump adds 1000 to that segment's seed, the others keep theirs.
         open_films: film ids of cut rows with a prompt (storyboard.open_films): they render an open film
             (start image only, end_idx None), a hard cut follows (storyboard.hard_cuts).
+        empty: row indices whose image is the black placeholder (storyboard.is_empty_image): the frame on
+            that side is dropped from the engine (kinds 'arrive' / 'text', user 2026-11-15).
 
     Ordering note: a InfiniteMovieSegmentPaths collector is ALWAYS built and links one
     Autogrow input per segment to the corresponding InfiniteMovieSegmentSave output, so
@@ -710,7 +762,7 @@ def build_expansion_graph(unique_id: str, preset: str,
     n_images = len(images)
     # --- Per-segment graphs ---
     # films: film ids that are rendered (storyboard cut rows start none); the id keeps seed, file and prompt.
-    plan = [(k, *p) for k, p in enumerate(_segment_plan(n_images, loop, frames, length, open_films))
+    plan = [(k, *p) for k, p in enumerate(_segment_plan(n_images, loop, frames, length, open_films, empty))
             if films is None or k in set(films)]
     n_segments = len(plan)
     if n_segments < 1:
@@ -772,6 +824,7 @@ def build_expansion_graph(unique_id: str, preset: str,
                 prompt=seg_prompt,
                 seed=seg_seed,
                 width=width, height=height, length=seg_length,
+                kind=kind,
             )
             renders = True
             # Add the segment to the graph, then fill in the save path / index.
@@ -805,6 +858,7 @@ def build_expansion_graph(unique_id: str, preset: str,
                     prompt=prompt_v,
                     seed=seed_v,
                     width=width, height=height, length=seg_length,
+                    kind=kind,
                 )
                 renders = True
                 graph.update(seg_v)

@@ -199,6 +199,8 @@ const cutTitle = (on, film, next) => (on
   ? `Remove cut: film ${film} → ${next} comes back`
   : `Cut after image ${film}: hard cut, image ${next} starts fresh. Prompt ${film} empty = no film, text = open film from image ${film}`);
 const CUT_HINT = "Empty = no film, just the hard cut. Text = open film from this image (no end image), then the cut";
+const TEXT_HINT = "No image on either side: write this prompt yourself (text to video)";
+const hint = (cutRow, textOnly) => (textOnly ? TEXT_HINT : cutRow ? CUT_HINT : "What happens from this image to the next…");
 
 function setCut(node, i, on) {
   const rows = readRows(node);
@@ -232,7 +234,8 @@ async function regen(node, idx) {
 // One prompt column: A = every prompt except the manual ones; B-D = the empty fields, all filled = the whole column.
 function writeColumn(node, l) {
   // cut rows are never filled by Write all (empty = no film is a choice) - ↻ on the box writes an open shot
-  const rows = readRows(node), loop = isLoop(node), films = rows.flatMap((r, i) => (pairOf(rows, i, loop) && !isCut(rows, i, loop) ? [i] : []));
+  const rows = readRows(node), loop = isLoop(node), films = rows.flatMap((r, i) => (pairOf(rows, i, loop) && !isCut(rows, i, loop)
+    && !(isEmptyImage(r.image) && isEmptyImage(rows[nextOf(rows.length, i, loop)]?.image)) ? [i] : []));   // ∅ → ∅: yours
   if (l === "a") return regen(node, films.filter((i) => !rows[i].own));
   const empty = films.filter((i) => !String(rows[i][`prompt_${l}`] || "").trim());
   regen(node, (empty.length ? empty : films).map((i) => [i, l]));
@@ -345,11 +348,14 @@ function promptEl(node, rows, i, loop) {
   const noFilm = () => box.classList.toggle("nofilm", cutRow && !readRows(node)[i]?.prompt.trim());
   box.classList.toggle("cut", cutRow);
   noFilm();
-  hd.append(el("span", null, `${i + 1} → ${n === 1 ? "open" : cutRow ? "✂" : j + 1}`), bg, sec);
+  // black = empty (user 2026-11-15): an empty frame gives the engine nothing on that side - ∅ in the header
+  const e0 = isEmptyImage(r.image), e1 = !cutRow && n > 1 && isEmptyImage(rows[j]?.image);
+  const textOnly = e0 && (e1 || cutRow || n === 1);
+  hd.append(el("span", null, `${e0 ? "∅" : i + 1} → ${n === 1 ? "open" : cutRow ? "✂" : e1 ? "∅" : j + 1}`), bg, sec);
   // user 2026-11-15: no ✂ in the prompt box - cuts are set only between the images (hover ✂ in the image column)
   const busy = !!st.busy?.has(i);
   const ta = Object.assign(el("textarea"), { value: r.prompt, disabled: busy,
-    placeholder: busy ? "writing…" : cutRow ? CUT_HINT : "What happens from this image to the next…" });
+    placeholder: busy ? "writing…" : hint(cutRow, textOnly) });
   ta.onkeydown = (e) => e.stopPropagation();
   ta.oninput = () => {
     const now = readRows(node);
@@ -397,7 +403,7 @@ function promptEl(node, rows, i, loop) {
       c.append(h, field);
       vs.append(c);
     };
-    ta.placeholder = busy ? "writing…" : cutRow ? CUT_HINT : "What happens from this image to the next…";
+    ta.placeholder = busy ? "writing…" : hint(cutRow, textOnly);
     col("a", ta);
     rg.remove();   // the columns have their own ↻
     const fields = [];

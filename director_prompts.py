@@ -91,6 +91,8 @@ def write_prompts(board, indices, loop, settings, node_id=None) -> list[dict]:
     the generation fails - the others still run. Rows that start no film (the last one without loop) are left out.
     A cut row (n > 1) writes an open film: image_to None (no end image), pair [image, ""] (user 2026-11-15:
     "kein Bild ohne Prompt" - an empty prompt leaves the row without a film).
+    An empty (black placeholder) image on a side (user 2026-11-15: "schwarz heißt leer") drops it: start empty
+    -> image_from None, end empty -> image_to None, both empty -> an error without LLM (text to video).
     Variants B-D (user 2026-11-15: "separate"): an independent prompt from the same two images, its own seed, no
     manual keywords from A. Only the images of these films are loaded."""
     from . import storyboard as sb
@@ -150,8 +152,16 @@ def write_prompts(board, indices, loop, settings, node_id=None) -> list[dict]:
                 from .llm_nodes import shot_context
                 context = shot_context(plan, filled.index(i))
             is_cut = n > 1 and row.get("cut")   # open film: start image only, no end image
+            start_empty = sb.is_empty_image(row["image"])      # black placeholder: no start frame
+            end_empty = sb.is_empty_image(board[j]["image"])   # black placeholder: no end frame
+            if start_empty and (is_cut or end_empty):   # no image on either side: no LLM, prompt written by hand
+                raise ValueError("no image on either side - write this prompt yourself (text to video)")
             if v != "a":   # an independent take: same two images, its own way between them
-                if is_cut:
+                if start_empty:
+                    context = (context + "\n" if context else "") + (
+                        f"This is alternative take {v.upper()} of this shot: find your own way arriving at image 1 "
+                        "(open start, no start image) - do not just repeat the obvious version.")
+                elif is_cut:
                     context = (context + "\n" if context else "") + (
                         f"This is alternative take {v.upper()} of this shot: find your own way onward from image 1 "
                         "(open end, no end image) - do not just repeat the obvious version.")
@@ -160,8 +170,8 @@ def write_prompts(board, indices, loop, settings, node_id=None) -> list[dict]:
                         f"This is alternative take {v.upper()} of this shot: find your own way from image 1 to image 2 "
                         "(action, timing, camera) - do not just repeat the obvious version.")
             keywords = " ".join(row["prompt"].split()) if v == "a" and row["own"] else ""
-            image_from = image(i)
-            image_to = None if is_cut else image(j)
+            image_from = None if start_empty else image(i)
+            image_to = None if (is_cut or end_empty) else image(j)
             text, _desc, _warning = generate(
                 image_from, image_to, cfg["model_name"], keywords,
                 camera=cfg["camera"], instruction=cfg["instruction"], max_words=cfg["max_words"],

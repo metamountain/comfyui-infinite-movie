@@ -348,13 +348,14 @@ class InfiniteMovieRender(io.ComfyNode):
 
         films = _storyboard.film_rows(board, loop)   # rows marked cut start no film (unless open): hard cut after
         open_films = _storyboard.open_films(board, loop)   # cut rows with a prompt: open film, then a hard cut
+        empty = [i for i, r in enumerate(board) if _storyboard.is_empty_image(r["image"])]   # black placeholder: no frame
         if not films:
             raise ValueError("Director: every film is cut - write a prompt in a cut box or remove a cut")
         graph, renders = build_expansion_graph(
             unique_id=uid, preset=preset, images=tensors, prompts=prompts, seed=seed,
             width=width, height=height, length=length, loop=loop, output_dir=output_dir,
             frames=frames, seed_bumps=_parse_reseed(reseed), template=template, cfg=cfg,
-            variants=variants, films=films, prompts_v=prompts_v, open_films=open_films)
+            variants=variants, films=films, prompts_v=prompts_v, open_films=open_films, empty=empty)
         # GPU only when something renders (all films reused -> no waiting, no unloading)
         if renders:
             vram.wait_acquire(min_free_mb=get_setting(settings, "min_free_mb"),

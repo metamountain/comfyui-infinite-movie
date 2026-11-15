@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 
 import numpy as np
 
@@ -35,6 +36,14 @@ def parse(text) -> list[dict]:
              "prompt_d": str(e.get("prompt_d") or ""), "own": bool(e.get("own")),
              "cut": bool(e.get("cut"))}
             for e in data if isinstance(e, dict)][:MAX_IMAGES]
+
+
+def is_empty_image(name) -> bool:
+    """True for the Director-UI's black placeholder (web/im_storyboard_io.js): a row whose image name is
+    ``empty_<W>x<H>.png`` (checked after the last ``/``) is EMPTY - the film runs without that frame
+    (expansion kinds 'arrive' / 'text'). The file itself exists (black); only the guidance is dropped."""
+    name = str(name or "")
+    return re.match(r"^empty_\d+x\d+\.png$", name.rsplit("/", 1)[-1]) is not None
 
 
 def next_of(n: int, i: int, loop: bool) -> int:
