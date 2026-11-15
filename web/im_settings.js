@@ -99,80 +99,6 @@ app.registerExtension({
   },
 });
 
-// 66 (2026-11-03): folder browser as an in-page dialog. The server only delivers folder names
-// (POST /infinite_movie/list_dirs, only from this machine). Grayscale, ComfyUI color variables.
-export function fcPickFolder(start, heading = "Output folder for the finished film") {
-  return new Promise((resolve) => {
-    const bg = document.createElement("div");
-    bg.style.cssText = "position:fixed;inset:0;z-index:10000;background:rgba(0,0,0,.55);display:flex;align-items:center;justify-content:center";
-    const box = document.createElement("div");
-    box.style.cssText = "width:min(560px,92vw);max-height:76vh;display:flex;flex-direction:column;gap:8px;padding:14px;" +
-      "background:var(--comfy-menu-bg,#222);color:var(--input-text,#ddd);border:1px solid var(--border-color,#555);border-radius:8px;font:13px sans-serif";
-    const title = document.createElement("div");
-    title.textContent = heading;
-    title.style.cssText = "font-weight:600;font-size:14px";
-    const cur = document.createElement("div");
-    cur.style.cssText = "padding:6px 8px;background:var(--comfy-input-bg,#111);border-radius:4px;word-break:break-all;min-height:18px";
-    const list = document.createElement("div");
-    list.style.cssText = "overflow:auto;flex:1;min-height:200px;border:1px solid var(--border-color,#444);border-radius:4px";
-    const err = document.createElement("div");
-    err.style.cssText = "color:#bbb;font-size:12px;min-height:14px";
-    const row = document.createElement("div");
-    row.style.cssText = "display:flex;gap:8px;justify-content:flex-end";
-    const mk = (txt, primary) => {
-      const b = document.createElement("button");
-      b.textContent = txt;
-      b.style.cssText = "padding:6px 14px;border-radius:4px;cursor:pointer;border:1px solid var(--border-color,#555);" +
-        (primary ? "background:#ddd;color:#111;font-weight:600" : "background:var(--comfy-input-bg,#333);color:inherit");
-      return b;
-    };
-    const cancel = mk("Cancel"), use = mk("Use this folder", true);
-    row.append(cancel, use);
-    box.append(title, cur, list, err, row);
-    bg.append(box);
-    document.body.append(bg);
-    let path = "";
-    const close = (v) => { bg.remove(); resolve(v); };
-    cancel.onclick = () => close(null);
-    bg.onclick = (e) => { if (e.target === bg) close(null); };
-    use.onclick = () => { if (path) close(path); };
-    const item = (label, target, dim) => {
-      const d = document.createElement("div");
-      d.textContent = label;
-      d.style.cssText = "padding:5px 10px;cursor:pointer;border-bottom:1px solid rgba(255,255,255,.05)" + (dim ? ";color:#999" : "");
-      d.onmouseenter = () => (d.style.background = "rgba(255,255,255,.08)");
-      d.onmouseleave = () => (d.style.background = "");
-      d.onclick = () => go(target);
-      list.append(d);
-    };
-    const go = async (p) => {
-      err.textContent = "";
-      let j;
-      try {
-        const r = await api.fetchApi("/infinite_movie/list_dirs", { method: "POST", body: JSON.stringify({ path: p }) });
-        j = await r.json();
-      } catch (e) {
-        j = { ok: false, error: String(e) };
-      }
-      if (!j.ok) {
-        err.textContent = j.error || "cannot open folder";
-        if (p) return go("");   // invalid start folder -> drives
-        return;
-      }
-      path = j.path || "";
-      cur.textContent = path || "(choose a drive)";
-      use.disabled = !path;
-      use.style.opacity = path ? "1" : ".4";
-      list.innerHTML = "";
-      if (path) item("⬆  ..", j.parent || "", true);
-      for (const q of j.quick || []) item("★  " + q, q, false);
-      for (const d of j.dirs || []) item("📁  " + d, path ? (path.replace(/[\\/]+$/, "") + "\\" + d) : d, false);
-      if (path && !(j.dirs || []).length) { const e = document.createElement("div"); e.textContent = "(no subfolders)"; e.style.cssText = "padding:8px 10px;color:#888"; list.append(e); }
-    };
-    go(start || "");
-  });
-}
-
 // 63 (2026-11-03): Settings › output_folder – the "📂 Choose folder" button opens a
 // native folder dialog on the ComfyUI machine (POST /infinite_movie/choose_folder)
 // and enters the path into the output_folder field. Assemble writes the finished
@@ -188,8 +114,14 @@ app.registerExtension({
     const w = node.widgets?.find((x) => x.name === "output_folder");
     if (!w) return;
     const btn = node.addWidget("button", "📂 Choose folder", null, async () => {
-      // 66: folder browser in the browser (the native dialog stayed invisible behind the browser)
-      const path = await fcPickFolder(String(w.value ?? ""));
+      // user 2026-11-15: the normal Windows folder dialog (like Preview Image MM), no folder browser in the page
+      let d;
+      try {
+        d = await (await api.fetchApi("/infinite_movie/folder_dialog", { method: "POST", body: JSON.stringify({ path: String(w.value ?? "") }) })).json();
+      } catch (e) { d = { ok: false, message: String(e) }; }
+      if (d.local === false) { fcReviewToast("Folder dialog only on the ComfyUI computer - type the path into output_folder", "#e68929"); return; }
+      if (!d.ok) { fcReviewToast(`Folder dialog failed: ${d.message || "?"}`, "#d93025"); return; }
+      const path = d.path;
       if (path) {
         w.value = path;
         w.callback?.(w.value);

@@ -209,10 +209,8 @@ class InfiniteMovieSettings(io.ComfyNode):
         return io.NodeOutput(out)
 
 
-# 66 (2026-11-03): folder browser IN the browser (a native dialog from the background process stayed
-# stuck invisibly – Windows will not bring it to the front).
-# browser; the server serves only FOLDER NAMES (no files), and only for requests from this computer
-# (loopback or own IP – the user opens ComfyUI via the LAN IP).
+# Addresses of this computer: the folder dialog opens only for a browser on the ComfyUI computer
+# (loopback or own IP - the user opens ComfyUI via the LAN IP).
 def _own_addresses() -> set:
     import socket
     own = {"127.0.0.1", "::1", "localhost"}
@@ -228,61 +226,108 @@ def _own_addresses() -> set:
     return own
 
 
-def list_dirs(path: str) -> dict:
-    """Subfolders of `path` (names only, sorted, without hidden ones). Empty = drives + shortcuts."""
-    import os
-    import string
-    path = (path or "").strip()
-    if not path:
-        drives = [f"{d}:\\" for d in string.ascii_uppercase if os.path.isdir(f"{d}:\\")]
-        quick = []
-        try:
-            import folder_paths
-            quick.append(folder_paths.get_output_directory())
-        except Exception:  # noqa: BLE001
-            pass
-        return {"ok": True, "path": "", "parent": None, "dirs": drives,
-                "quick": [q for q in quick if os.path.isdir(q)]}
-    path = os.path.abspath(path)
-    if not os.path.isdir(path):
-        return {"ok": False, "error": f"not a folder: {path}"}
-    dirs = []
-    try:
-        with os.scandir(path) as it:
-            for e in it:
-                try:
-                    if e.is_dir() and not e.name.startswith((".", "$")):
-                        dirs.append(e.name)
-                except OSError:
-                    continue
-    except OSError as e:
-        return {"ok": False, "error": str(e)}
-    dirs.sort(key=str.lower)
-    parent = os.path.dirname(path)
-    if parent == path:
-        parent = ""   # drive root -> back to the drive list
-    return {"ok": True, "path": path, "parent": parent, "dirs": dirs[:1000]}
+# user 2026-11-15: no folder browser in the page - the normal Windows folder dialog (like Preview Image MM's
+# "save as..."). Own process: a small topmost owner window + ALT tap bring the dialog to the front.
+_WIN_FOLDER_SCRIPT = r'''
+import ctypes, json, os, sys
+from ctypes import wintypes
+start_dir = sys.argv[1]
+user32 = ctypes.WinDLL("user32", use_last_error=True)
+shell32 = ctypes.WinDLL("shell32")
+ole32 = ctypes.WinDLL("ole32")
+kernel32 = ctypes.WinDLL("kernel32")
+user32.CreateWindowExW.restype = wintypes.HWND
+user32.CreateWindowExW.argtypes = [wintypes.DWORD, wintypes.LPCWSTR, wintypes.LPCWSTR, wintypes.DWORD,
+                                   ctypes.c_int, ctypes.c_int, ctypes.c_int, ctypes.c_int,
+                                   wintypes.HWND, wintypes.HMENU, wintypes.HINSTANCE, wintypes.LPVOID]
+user32.SendMessageW.argtypes = [wintypes.HWND, wintypes.UINT, wintypes.WPARAM, wintypes.LPARAM]
+kernel32.GetModuleHandleW.restype = wintypes.HMODULE
+BFFCALLBACK = ctypes.WINFUNCTYPE(ctypes.c_int, wintypes.HWND, wintypes.UINT, wintypes.LPARAM, wintypes.LPARAM)
+
+
+class BROWSEINFOW(ctypes.Structure):
+    _fields_ = [("hwndOwner", wintypes.HWND), ("pidlRoot", ctypes.c_void_p), ("pszDisplayName", wintypes.LPWSTR),
+                ("lpszTitle", wintypes.LPCWSTR), ("ulFlags", wintypes.UINT), ("lpfn", BFFCALLBACK),
+                ("lParam", wintypes.LPARAM), ("iImage", ctypes.c_int)]
+
+
+start_buf = ctypes.create_unicode_buffer(start_dir if os.path.isdir(start_dir) else "")
+
+
+def _cb(hwnd, msg, lp, data):
+    if msg == 1 and start_buf.value:   # BFFM_INITIALIZED -> BFFM_SETSELECTIONW
+        user32.SendMessageW(hwnd, 0x467, 1, ctypes.addressof(start_buf))
+    return 0
+
+
+cb = BFFCALLBACK(_cb)
+ole32.CoInitialize(None)
+owner = user32.CreateWindowExW(0x88, "STATIC", "Infinite Movie", 0x80000000, 0, 0, 0, 0,
+                               None, None, kernel32.GetModuleHandleW(None), None)
+user32.keybd_event(0x12, 0, 0, 0)
+user32.keybd_event(0x12, 0, 2, 0)
+user32.SetForegroundWindow(owner)
+name = ctypes.create_unicode_buffer(260)
+bi = BROWSEINFOW(owner, None, ctypes.cast(name, wintypes.LPWSTR), "Output folder for the finished film",
+                 0x1 | 0x40, cb, 0, 0)   # RETURNONLYFSDIRS | NEWDIALOGSTYLE
+shell32.SHBrowseForFolderW.restype = ctypes.c_void_p
+shell32.SHGetPathFromIDListW.argtypes = [ctypes.c_void_p, wintypes.LPWSTR]
+pidl = shell32.SHBrowseForFolderW(ctypes.byref(bi))
+out = ""
+if pidl:
+    path = ctypes.create_unicode_buffer(32768)
+    if shell32.SHGetPathFromIDListW(pidl, path):
+        out = path.value
+    ole32.CoTaskMemFree(ctypes.c_void_p(pidl))
+user32.DestroyWindow(owner)
+sys.stdout.write("\nIMFOLDER:" + json.dumps(out) + "\n")
+'''
+
+
+def folder_dialog(start_dir: str) -> str:
+    """The Windows folder dialog on the ComfyUI computer, starting in start_dir. '' = cancelled."""
+    import json
+    import subprocess
+    import sys
+    r = subprocess.run([sys.executable, "-I", "-c", _WIN_FOLDER_SCRIPT, start_dir or ""],
+                       capture_output=True, text=True, encoding="utf-8", timeout=3600)
+    lines = [x[9:] for x in (r.stdout or "").splitlines() if x.startswith("IMFOLDER:")]
+    if r.returncode != 0 or not lines:
+        raise RuntimeError(f"folder dialog failed: {(r.stderr or '').strip()[-300:]}")
+    return json.loads(lines[-1])
 
 
 def _register_choose_folder_route():
     import asyncio
+    import os
     try:
         from aiohttp import web
         from server import PromptServer
 
-        @PromptServer.instance.routes.post("/infinite_movie/list_dirs")
-        async def _list_dirs(request):
-            if (request.remote or "") not in _own_addresses():
-                return web.json_response({"ok": False, "error": "folder browsing only from this computer"},
-                                         status=403)
+        @PromptServer.instance.routes.post("/infinite_movie/folder_dialog")
+        async def _folder_dialog(request):
+            # only for a browser on the ComfyUI computer (the dialog opens there) and only on Windows
+            if (request.remote or "") not in _own_addresses() or os.name != "nt":
+                return web.json_response({"ok": False, "local": False})
             try:
                 data = await request.json()
             except Exception:  # noqa: BLE001
                 data = {}
-            res = await asyncio.to_thread(list_dirs, str(data.get("path", "") or ""))
-            return web.json_response(res)
+            start = str(data.get("path", "") or "").strip().strip('"')
+            if start and not os.path.isabs(start):
+                try:
+                    import folder_paths
+                    start = os.path.join(folder_paths.get_output_directory(), start)
+                except Exception:  # noqa: BLE001
+                    start = ""
+            while start and not os.path.isdir(start) and os.path.dirname(start) != start:
+                start = os.path.dirname(start)   # not created yet -> its parent
+            try:
+                return web.json_response({"ok": True, "path": await asyncio.to_thread(folder_dialog, start)})
+            except Exception as e:  # noqa: BLE001
+                return web.json_response({"ok": False, "message": str(e)})
     except Exception as e:  # noqa: BLE001 - without a server (unit tests) no route
-        print(f"[InfiniteMovieSettings] list_dirs route not registered: {e}")
+        print(f"[InfiniteMovieSettings] folder_dialog route not registered: {e}")
 
 
 _register_choose_folder_route()
