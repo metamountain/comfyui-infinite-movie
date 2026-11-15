@@ -66,8 +66,11 @@ export function fcChooseRender(node) {
     const emptyCut = (r) => !!sb[r]?.cut && !String(sb[r].prompt || "").trim();   // a cut row without its own film
     const cutRowOf = (e) => (isOpenFilm(e) ? ownRow(e) : sb.length > 1 && emptyCut(nextRow(e)) ? nextRow(e) : -1);
     const isCut = (e) => (sb.length > 1 ? cutRowOf(e) >= 0 : !!e.cut);
+    // user 2026-11-15 ("Filme sollen gleich hoch sein, gleiches AR"): every film tile one size in the film's format -
+    // as tall as the smallest prompt box (boxes next to empty frames are shorter), centred on its box i
+    const th = Math.min(ih, ...heights), tw = Math.round(iw * th / ih), tx = (iw - tw) / 2;
     entries.forEach((e, i) => {
-      const top = tops[i], rh = heights[i];   // = the Director's prompt box i
+      const rh = th, top = tops[i] + (heights[i] - th) / 2;
       const cut = isCut(e);
       if (cut) {
         // the Director's cut line, mirrored: thin black line in the gap below this film's row
@@ -123,7 +126,7 @@ export function fcChooseRender(node) {
           imSyncSet("seg", i);
         });
         t.addEventListener("mouseleave", () => { node._fc_choose_active = -1; fcChooseApplyActive(node); imSyncSet("film", null); });
-        t.style.cssText = `position:absolute;top:${top}px;left:${letters.indexOf(k) * (iw + FC_CHOOSE_ROW_GAP)}px;width:${iw}px;height:${rh}px;background:#1a1a1a;border-radius:3px;` +
+        t.style.cssText = `position:absolute;top:${top}px;left:${letters.indexOf(k) * (iw + FC_CHOOSE_ROW_GAP) + tx}px;width:${tw}px;height:${rh}px;background:#1a1a1a;border-radius:3px;` +
           `overflow:hidden;box-sizing:border-box;cursor:${e.placeholder ? "default" : "pointer"};` +
           (e.placeholder ? "border:1px dashed #555;" : isMarked ? "outline:5px solid #d93025;outline-offset:-5px;"
             : sel || !e.has_variants ? "outline:5px solid #2ea043;outline-offset:-5px;" : "");
