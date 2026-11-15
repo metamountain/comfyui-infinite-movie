@@ -12,7 +12,7 @@ import {
   MAX_IMAGES, boardGeometry, emptyRow, hasFilm, isCut, isStale, moveRow, nextOf, pairOf, samePair,
 } from "./im_storyboard_model.js";
 import {
-  boardFormat, defaultSeconds, imageUrl, isLoop, readRows, uploadImage, writeRows,
+  boardFormat, defaultSeconds, emptyImage, imageUrl, isEmptyImage, isLoop, readRows, uploadImage, writeRows,
 } from "./im_storyboard_io.js";
 import { PP_CSS } from "./im_prompt_progress.js";
 
@@ -73,6 +73,7 @@ const CSS = `
 .imsb-ins span { display:none; width:22px; height:22px; margin:0 4px; border-radius:50%; background:#4af; color:#fff; font:700 17px/22px system-ui; text-align:center; box-shadow:0 0 0 3px #1b1b1b; position:relative; }
 .imsb-ins span.cut { background:#000; border:1px dashed #888; font-size:12px; line-height:20px; }
 .imsb-ins span.cut.on { border-style:solid; }
+.imsb-ins span.empty { width:auto; padding:0 7px; border-radius:11px; background:#000; border:1px solid #888; font:600 11px/20px system-ui; }
 .imsb-ins:hover span { display:block; }
 .imsb-ins span:hover { transform:scale(1.2); }
 .imsb-ins:hover::before { content:""; position:absolute; left:0; right:0; top:7px; height:4px; background:#4af8; border-radius:2px; }
@@ -129,10 +130,10 @@ function move(node, from, gap) {
 }
 
 // User 2026-11-14: hover on the line between two images shows a plus, click = new image there.
-async function insertAt(node, k) {
+async function insertAt(node, k, empty = false) {
   if (readRows(node).length >= MAX_IMAGES) { fcReviewToast(`Max ${MAX_IMAGES} images`, "#e68929"); return; }
-  const f = (await pickFiles(false))[0];
-  const name = f && await uploadImage(f);
+  const f = empty ? null : (await pickFiles(false))[0];
+  const name = empty ? await emptyImage(node._imsb.fmt) : f && await uploadImage(f);
   if (!name) return;
   const rows = readRows(node);
   rows.splice(k, 0, { ...emptyRow(), image: name });
@@ -289,7 +290,8 @@ function tileEl(node, rows, i) {
       if (st.fmt.label.startsWith("from image")) render(node);
     };
     const lb = el("div", "lb");
-    lb.append(el("i", null, st.fmt.label), r.image.split("/").pop());
+    const file = r.image.split("/").pop();
+    lb.append(el("i", null, st.fmt.label), isEmptyImage(file) ? "empty" : file);
     t.append(img, lb);
     t.onpointerdown = (e) => { if (e.button === 0) { e.stopPropagation(); startDrag(node, e, i, t); } };
     t.ondblclick = () => pickImage(node, i);
@@ -408,7 +410,10 @@ export function render(node) {
       const a = el("span", "add", "+");
       a.title = "Insert an image here";
       a.onclick = () => insertAt(node, k);
-      z.appendChild(a);
+      const e = el("span", "empty", "empty");
+      e.title = "Insert an empty (black) image here";
+      e.onclick = () => insertAt(node, k, true);
+      z.append(a, e);
     }
     if (cut) {
       const c = el("span", "cut" + (on ? " on" : ""), "✂");

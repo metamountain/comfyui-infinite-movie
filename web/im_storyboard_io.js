@@ -44,15 +44,30 @@ export function imageUrl(name) {
   return api.apiURL(`/view?filename=${encodeURIComponent(file)}&subfolder=${encodeURIComponent(sub)}&type=input`);
 }
 
-export async function uploadImage(file) {
+export async function uploadImage(file, overwrite = false) {
   const fd = new FormData();
   fd.append("image", file);
+  if (overwrite) fd.append("overwrite", "true");
   fd.append("subfolder", "infinite_movie");
   fd.append("type", "input");
   const r = await api.fetchApi("/upload/image", { method: "POST", body: fd });
   if (r.status !== 200) { fcReviewToast(`Upload failed: ${r.status}`, "#d93025"); return null; }
   const j = await r.json();
   return j.subfolder ? `${j.subfolder}/${j.name}` : j.name;
+}
+
+// "empty" (user 2026-11-15): a full black frame in exactly the film format of the images (fmt = Settings' pixel size,
+// e.g. 640x352), inserted on hover between two images and shown like every other preview - one file per size.
+export const isEmptyImage = (name) => /^empty_\d+x\d+\.png$/.test(String(name).split("/").pop());
+export async function emptyImage(fmt) {
+  const k = Math.max(fmt.w, fmt.h) < 64 ? 1024 / Math.max(fmt.w, fmt.h) : 1;   // only a bare ratio known (no image yet)
+  const w = Math.round(fmt.w * k), h = Math.round(fmt.h * k);
+  const c = Object.assign(document.createElement("canvas"), { width: w, height: h });
+  const g = c.getContext("2d");
+  g.fillStyle = "#000";
+  g.fillRect(0, 0, w, h);
+  const blob = await new Promise((r) => c.toBlob(r, "image/png"));
+  return uploadImage(new File([blob], `empty_${w}x${h}.png`, { type: "image/png" }), true);
 }
 
 // Film format from the Settings node in the Director's settings chain (user: "format comes from settings") -
