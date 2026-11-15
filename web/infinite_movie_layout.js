@@ -293,8 +293,8 @@ export function fcWorkflowLayout(director, second = false) {
   const placeCutCol = (bottom = null) => {
     if (!oneCol) return;
     const f = cutFilms[0], a = cutAnas[0], top = a ? director.pos[1] + a.size[1] + NGAP + T : director.pos[1];
-    if (a) a.pos = [f.pos[0], director.pos[1]];
     f.pos = [f.pos[0], Math.max(top, bottom != null ? bottom - f.size[1] : top)];
+    if (a) a.pos = [f.pos[0], f.pos[1] - T - NGAP - a.size[1]];   // user 2026-11-15: the analysis right above the preview
   };
   placeCutCol();
   // Group height from the real content: groups 1-3 keep the full row height, groups 4-6 share one lower height
