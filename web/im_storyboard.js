@@ -504,13 +504,17 @@ export function render(node) {
     };
     // user 2026-11-15: four grey buttons - empty frame above / below the cut, cut, uncut (what cannot be done is grey)
     if (add) {
+      // user 2026-11-15: "add image as first entry, add below"
+      btn("img", "+ image", "Insert an image here (below the image above)", () => insertAt(node, k, false, false));
       btn("eu", "▢↑", on ? "Empty frame above the cut: the film before runs into it, then the cut" : "Insert an empty frame here (placeholder, no image)",
         () => insertAt(node, k, true, true));
       btn("ed", "▢↓", on ? "Empty frame below the cut: the next part starts from it" : "Insert an empty frame here (placeholder, no image)",
         () => insertAt(node, k, true, false));
       // user 2026-11-15: a frame that becomes the LAST frame of the film before (seamless continuation)
-      btn("inh", "⤓ inherit", "Insert an inherit frame: the film before runs into it freely, the next film starts from its last frame",
-        () => insertAt(node, k, true, false, "inherit"));
+      // user 2026-11-15: inherit only right after an empty frame, otherwise grey
+      const afterEmpty = isEmptyImage(rows[k - 1]?.image);
+      btn("inh", "⤓ inherit", afterEmpty ? "Insert an inherit frame: the film before runs into it freely, the next film starts from its last frame"
+        : "Inherit only right after an empty frame", () => insertAt(node, k, true, false, "inherit"), !afterEmpty);
     }
     if (cut) {
       const next = nextOf(rows.length, k - 1, loop) + 1;
