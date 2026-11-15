@@ -45,7 +45,7 @@ function fcFilmTimeline(node) {
     b.title = `Shot ${sh.seg} · ${t0.toFixed(1)} s${sh.cut ? " · ✂ hard cut after it" : ""} · click: play the film from here`;
     b.style.cssText = `flex:${durs[i] || 0.001} 1 0;min-width:0;overflow:hidden;background:${FC_FILM_TL_COLORS[i % FC_FILM_TL_COLORS.length]};` +
       "color:#fff;font:10px sans-serif;line-height:16px;text-align:center;cursor:pointer;opacity:0.8;" +
-      (sh.cut ? "box-shadow:inset -3px 0 #ff3b30;" : "");   // red edge = hard cut to the next shot
+      (sh.cut ? "box-shadow:inset -3px 0 #000;" : "");   // black edge = hard cut to the next shot
     b.addEventListener("click", () => {
       const v = node._fc_film_video, before = v.getAttribute("src");
       imSyncSet("film", null);   // a single shot is showing -> back to the whole film first

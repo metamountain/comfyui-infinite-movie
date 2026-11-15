@@ -65,10 +65,10 @@ export function fcChooseRender(node) {
         ln.className = "fc-cut-line";
         ln.title = "Hard cut: this film ends open, the next one starts fresh at its own image";
         ln.style.cssText = `position:absolute;left:0;right:0;top:${top + ih + (row - ih) / 2 - 1}px;height:0;` +
-          "border-top:2px dashed #ff3b30;pointer-events:none;z-index:2;";
+          "border-top:3px solid #000;pointer-events:none;z-index:2;";
         const lb = document.createElement("span");
         lb.textContent = "✂ CUT";
-        lb.style.cssText = "position:absolute;right:8px;top:-9px;padding:0 5px;background:#1b1b1b;color:#ff6b5e;font:bold 11px sans-serif;";
+        lb.style.cssText = "position:absolute;right:8px;top:-10px;padding:1px 6px;border-radius:3px;background:#000;color:#ddd;font:bold 11px sans-serif;";
         ln.appendChild(lb);
         board.appendChild(ln);
       }
