@@ -66,18 +66,22 @@ export function fcChooseRender(node) {
     const emptyCut = (r) => !!sb[r]?.cut && !String(sb[r].prompt || "").trim();   // a cut row without its own film
     const cutRowOf = (e) => (isOpenFilm(e) ? ownRow(e) : sb.length > 1 && emptyCut(nextRow(e)) ? nextRow(e) : -1);
     const isCut = (e) => (sb.length > 1 ? cutRowOf(e) >= 0 : !!e.cut);
-    // user 2026-11-15 ("Filme sollen gleich hoch sein, gleiches AR"): every film tile one size in the film's format -
-    // as tall as the smallest prompt box (boxes next to empty frames are shorter), centred on its box i
-    const th = Math.min(ih, ...heights), tw = Math.round(iw * th / ih), tx = (iw - tw) / 2;
+    // user 2026-11-15 ("Filme sollen gleich hoch sein, gleiches AR"; "gleichmäßig verteilen zwischen oberstem und
+    // unterstem" - the half-height empty frames make box-by-box alignment too complicated): every film tile one size in
+    // the film's format, spread evenly from the top of the first prompt box to the bottom of the last one
+    const nE = entries.length, top0 = nE ? tops[0] : 0, bot = nE ? Math.max(...tops.map((t, i) => t + heights[i])) : 0;
+    const th = nE > 1 ? Math.min(ih, (bot - top0 - (nE - 1) * FC_CHOOSE_ROW_GAP) / nE) : Math.min(ih, heights[0] ?? ih);
+    const step = nE > 1 ? (bot - top0 - th) / (nE - 1) : 0;
+    const tw = Math.round(iw * th / ih), tx = (iw - tw) / 2;
     entries.forEach((e, i) => {
-      const rh = th, top = tops[i] + (heights[i] - th) / 2;
+      const rh = th, top = top0 + i * step;
       const cut = isCut(e);
       if (cut) {
         // the Director's cut line, mirrored: thin black line in the gap below this film's row
         const ln = document.createElement("div");
         ln.className = "fc-cut-line";
         ln.title = "Hard cut: the next film starts fresh at its own image";
-        ln.style.cssText = `position:absolute;left:0;right:0;top:${(cutY[cutRowOf(e)] ?? top + ih + (row - ih) / 2) - 2}px;height:4px;` +
+        ln.style.cssText = `position:absolute;left:0;right:0;top:${top + th + (step - th) / 2 - 2}px;height:4px;` +
           "background:#000;border-radius:2px;pointer-events:none;";
         board.appendChild(ln);
       }
@@ -219,6 +223,8 @@ export function fcChooseRender(node) {
       const ix = letters.length * (iw + FC_CHOOSE_ROW_GAP);
       const info = document.createElement("div");
       info.className = "fc-info";
+      // user 2026-11-15: the box and its buttons also pick this film in the Movie Analysis (buttons keep their own job)
+      if (!e.placeholder) info.addEventListener("click", () => window.dispatchEvent(new CustomEvent("imv-focus", { detail: { number: e.number } })), true);
       info.style.cssText = `position:absolute;top:${top}px;left:${ix}px;width:${iw}px;height:${rh}px;` +
         "box-sizing:border-box;background:#262626;border:1px solid #4a4a4a;border-radius:5px;padding:6px;" +
         "display:flex;flex-direction:column;gap:6px;font:12px sans-serif;color:#bbb;overflow:hidden;";

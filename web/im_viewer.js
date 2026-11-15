@@ -4,7 +4,7 @@ import { fcReviewToast, imFilmDoneNotice } from "./im_common.js";
 import { fcChooseFocus, fcChooseStatus } from "./im_cut_state.js";
 import { fcFilmShowFilm } from "./im_film.js";
 import { imToggleWidget } from "./im_settings.js";
-import { imSyncGet, imvShotDur } from "./im_sync.js";
+import { imSyncGet, imvSeek, imvShotDur } from "./im_sync.js";
 // 86 (user 2026-11-04: „just make everything … then we'll see“): Assemble viewer instead of the canvas graph.
 // Tabs Graph | Timeline | Heatmap | Frames; Frames with slider, ▶ and Onion Skin (3 ghosts, in the browser
 // computed). Data: ui.im_viz from retime_nodes._viz_shot/_viz_timeline (temp folder, max. 64 frames per shot).
@@ -278,6 +278,24 @@ window.addEventListener("imv-time", (e) => {
   }
 });
 
+// Select shot i in an analysis view. The running player would pull the view straight back to its own shot
+// (imv-time, user 2026-11-15: "changing analysis segment lags") -> the player jumps to the start of shot i too.
+function imvSelectSeg(node, i) {
+  const shots = node.properties?.im_viz?.shots || [], st = node._imv;
+  if (!st || !shots[i]) return;
+  st.seg = i; st.k = 0; st.playFrac = 0; imvStop(st); imvDraw(node); fcChooseFocus(shots[i].seg);
+  if (imSyncGet().src === "film") imvSeek(shots.slice(0, i).reduce((t, sh) => t + imvShotDur(sh), 0) + 0.01);
+}
+// Cut: a click on a film's info box selects that film in every analysis view (user 2026-11-15)
+window.addEventListener("imv-focus", (e) => {
+  const number = e.detail?.number;
+  for (const n of app.graph?._nodes || []) {
+    if (!imvIsAna(n) || !n._imv) continue;
+    const i = (n.properties?.im_viz?.shots || []).findIndex((sh) => sh.seg === number);
+    if (i >= 0) imvSelectSeg(n, i);
+  }
+});
+
 export function imvDraw(node) {
   if (imvIsFilm(node)) return;   // the player shows no analysis
   const st = imvEnsure(node);
@@ -294,9 +312,7 @@ export function imvDraw(node) {
   const needSeg = perShot && shots.length > 1;
   st.segRow.style.visibility = needSeg ? "visible" : "hidden";
   if (needSeg && st.segRow.childElementCount !== shots.length) {
-    st.segRow.replaceChildren(...shots.map((sh, i) => imvBtn(`seg ${sh.seg}`, () => {
-      st.seg = i; st.k = 0; imvStop(st); imvDraw(node); fcChooseFocus(sh.seg);
-    })));
+    st.segRow.replaceChildren(...shots.map((sh, i) => imvBtn(`seg ${sh.seg}`, () => imvSelectSeg(node, i))));
   }
   [...st.segRow.children].forEach((b, i) => { b.style.background = i === st.seg ? "#1f6feb" : "#333"; });
   const ctl = (st.tab === "Frames" || st.tab === "Particles" || st.tab === "Sheet") && shots.length;
