@@ -252,6 +252,8 @@ export function wrapQueue() {
     const partial = !userRun;
     const director = (app.graph?._nodes || []).find((n) => n.comfyClass === "InfiniteMovieRender" && (n.mode ?? 0) === 0);
     if (!partial && director) {
+      const regenW = director.widgets?.find((w) => w.name === "regen");
+      if (regenW) regenW.value = "";   // a full Run always renders (a stale regen would only write prompts)
       const emptyRows = imEmptyImageRows(director);
       if (emptyRows.length) {
         imErrorToast("Storyboard incomplete", `Image ${emptyRows.join(", ")} is empty - load an image or remove the row`);

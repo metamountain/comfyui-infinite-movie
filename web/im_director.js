@@ -109,10 +109,14 @@ app.registerExtension({
     addLayoutButton(node);
     addStoryboard(node);
     setTimeout(() => hideDataWidgets(node), 0);
-    // A loaded workflow sets the widget values after nodeCreated: draw the storyboard from them.
+    // A loaded workflow sets the widget values after nodeCreated: draw the storyboard from them. regen is set only for
+    // the moment a prompt-writing run is queued; saved into a workflow it would turn every later Run into prompt
+    // writing (nothing renders) - a loaded workflow never keeps it.
     const onConfigure = node.onConfigure;
     node.onConfigure = function (...args) {
       const r = onConfigure?.apply(this, args);
+      const rw = imWidget(this, "regen");
+      if (rw) rw.value = "";
       setTimeout(() => { renderStoryboard(this); hideDataWidgets(this); }, 0);
       return r;
     };
