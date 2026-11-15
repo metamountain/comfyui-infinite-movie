@@ -29,6 +29,10 @@ const CSS = `
 .imsb-cnt { display:flex; align-items:center; gap:6px; cursor:default; }
 .imsb-cnt b { cursor:pointer; padding:0 3px; }
 .imsb-bd { position:relative; }
+.imsb-wp { position:absolute; display:flex; gap:6px; }
+.imsb-wp button { flex:1; min-width:0; height:28px; border-radius:4px; border:1px solid #4a4a4a; background:#2b2b2b; color:#ddd;
+  cursor:pointer; font:600 12px system-ui; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.imsb-wp button:hover { background:#383838; }
 .imsb-t { position:absolute; left:0; border-radius:5px; background:#222; border:1px solid #4a4a4a; overflow:hidden; cursor:grab; user-select:none; }
 .imsb-t img { width:100%; height:100%; object-fit:cover; display:block; pointer-events:none; }
 .imsb-t.empty { border:2px dashed #555; display:flex; align-items:center; justify-content:center; color:#888; cursor:pointer; }
@@ -222,6 +226,14 @@ async function regen(node, idx) {
   try { if (!(await fcQueueFixedSeeds([String(node.id)]))) endBusy(node); }
   catch (e) { endBusy(node); fcReviewToast(`Prompt writing not started: ${e}`, "#d93025"); }
   finally { w.value = ""; }
+}
+
+// One prompt column: A = every prompt except the manual ones; B-D = the empty fields, all filled = the whole column.
+function writeColumn(node, l) {
+  const rows = readRows(node), loop = isLoop(node), films = rows.flatMap((r, i) => (pairOf(rows, i, loop) ? [i] : []));
+  if (l === "a") return regen(node, films.filter((i) => !rows[i].own));
+  const empty = films.filter((i) => !String(rows[i][`prompt_${l}`] || "").trim());
+  regen(node, (empty.length ? empty : films).map((i) => [i, l]));
 }
 
 // A result lands on the row whose current pair is the one it was written for - rows may have moved meanwhile.
@@ -441,6 +453,21 @@ export function render(node) {
       st.board.appendChild(c);
     }
   }
+  // ✎ Write all over every prompt column (user 2026-11-15): each button writes only its own column (variant)
+  const first = rows.findIndex((_, i) => st.size.cells.box[i] != null);
+  if (first >= 0) {
+    const nv = imVariantCount(node), wp = el("div", "imsb-wp");
+    wp.style.cssText = `left:${iw + GAP + 6}px;width:${st.size.pw - 12}px;top:${Math.max(0, st.size.cells.box[first] - 34)}px`;
+    for (const l of IM_LETTERS.slice(0, nv)) {
+      const b = el("button", null, nv === 1 ? "✎ Write all prompts" : `✎ Write all ${l.toUpperCase()}`);
+      b.title = l === "a" ? `Writes every prompt${nv > 1 ? " of column A" : ""} except the ✎ manual ones (typed by you)`
+        : `Writes the empty ${l.toUpperCase()} prompts (an own take each); all filled: rewrites the whole column`;
+      b.onpointerdown = (e) => e.stopPropagation();
+      b.onclick = (e) => { e.stopPropagation(); writeColumn(node, l); };
+      wp.appendChild(b);
+    }
+    st.board.appendChild(wp);
+  }
   // Hover between two tiles (user 2026-11-15): + = insert an image here, ✂ = cut here on/off (after the image above).
   for (let k = 1; k <= rows.length; k++) {   // k = n: below the last image
     const add = rows.length < MAX_IMAGES, cut = rows.length > 1 && hasFilm(rows.length, k - 1, loop), on = cut && rows[k - 1].cut;
@@ -507,14 +534,7 @@ export function addStoryboard(node) {
   };
   const pbar = el("div", "imsb-pp");   // prompt writing progress (im_prompt_progress.js)
   pbar.appendChild(el("span"));
-  const bAll = el("button", null, "✎ Write all prompts");
-  bAll.title = "Writes every prompt except the ✎ manual ones (typed by you); with variants also the empty B-D fields";
-  bAll.onclick = () => {
-    const rows = readRows(node), loop = isLoop(node), extra = IM_LETTERS.slice(1, imVariantCount(node));
-    regen(node, rows.flatMap((r, i) => (pairOf(rows, i, loop)
-      ? [...(!r.own ? [i] : []), ...extra.filter((l) => !String(r[`prompt_${l}`] || "").trim()).map((l) => [i, l])] : [])));
-  };
-  tb.append(cnt, bAll, bLoad, pbar);
+  tb.append(bLoad, cnt, pbar);   // Load images on the left, then the count; Write all sits over the prompt columns
   const board = el("div", "imsb-bd");
   root.append(tb, board);
   const st = node._imsb = { root, board, pbar, cnt: num, gap: el("div", "imsb-gap"), fmt: { w: 4, h: 5, label: "" }, sig: "", land: -1 };
