@@ -18,8 +18,9 @@ DEFAULT_IMAGES = 4
 
 
 def parse(text) -> list[dict]:
-    """Rows from the widget JSON: ``{"image": str, "prompt": str, "prompt_b": str, "own": bool, "cut": bool}``, at
-    most MAX_IMAGES. prompt_b = the prompt of variant B (empty = B renders with the same prompt as A).
+    """Rows from the widget JSON: ``{"image": str, "prompt": str, "prompt_b": str, "prompt_c": str,
+    "prompt_d": str, "own": bool, "cut": bool}``, at most MAX_IMAGES. prompt_b/c/d = the prompt of variant
+    B/C/D (empty = that variant renders with the same prompt as A).
     cut = the film of that row is First -> Open (start image only, open end), the next image starts after a hard cut.
     Empty or broken JSON -> ``[]``; entries that are not dicts are skipped."""
     try:
@@ -29,7 +30,8 @@ def parse(text) -> list[dict]:
     if not isinstance(data, list):
         return []
     return [{"image": str(e.get("image") or "").strip(), "prompt": str(e.get("prompt") or ""),
-             "prompt_b": str(e.get("prompt_b") or ""), "own": bool(e.get("own")),
+             "prompt_b": str(e.get("prompt_b") or ""), "prompt_c": str(e.get("prompt_c") or ""),
+             "prompt_d": str(e.get("prompt_d") or ""), "own": bool(e.get("own")),
              "cut": bool(e.get("cut"))}
             for e in data if isinstance(e, dict)][:MAX_IMAGES]
 

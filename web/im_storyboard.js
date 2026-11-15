@@ -7,7 +7,7 @@
 // the image - the images stay one stack. Black, not red: a cut is a choice, not a warning.
 import { app } from "../../scripts/app.js";
 import { api } from "../../scripts/api.js";
-import { fcQueueFixedSeeds, fcReviewToast, imWidget, settingsNodeOf } from "./im_common.js";
+import { IM_LETTERS, fcQueueFixedSeeds, fcReviewToast, imVariantCount, imWidget, settingsNodeOf } from "./im_common.js";
 import {
   MAX_IMAGES, boardGeometry, emptyRow, filmRows, hasFilm, isCut, isStale, moveRow, nextOf, pairOf, samePair,
 } from "./im_storyboard_model.js";
@@ -18,7 +18,7 @@ import { PP_CSS } from "./im_prompt_progress.js";
 import { alignTwins } from "./im_twin.js";
 
 // Tile = preview box of a standard Load Image node (TILE_W x TILE_H in im_storyboard_model.js, shared with Cut)
-const GAP = 10, PROMPT_W = 250, TOOLBAR_H = 66, MARGIN = 10;
+const GAP = 10, PROMPT_W = 250, PROMPT_V_W = 200, TOOLBAR_H = 66, MARGIN = 10;   // PROMPT_V_W: each extra variant field
 
 const CSS = `
 .imsb { position:relative; font:12px system-ui,sans-serif; color:#ddd; box-sizing:border-box; padding:0 ${MARGIN}px; }
@@ -50,7 +50,9 @@ const CSS = `
 .imsb-p .sec { margin-left:auto; display:flex; align-items:center; gap:3px; font-weight:400; }
 .imsb-p .sec input { width:46px; background:#1b1b1b; color:#ddd; border:1px solid #444; border-radius:3px; font:13px system-ui; padding:2px 3px; }
 .imsb-p .sec input.own { color:#e6c229; font-weight:700; border-color:#e6c229; }
-.imsb-p textarea.b { border-color:#5a4a8a; }
+.imsb-p .vs { flex:1; min-height:0; display:flex; gap:4px; }
+.imsb-p .vs textarea { min-width:0; }
+.imsb-p .cp { cursor:pointer; opacity:.75; } .imsb-p .cp:hover { opacity:1; }
 .imsb-p textarea { flex:1; min-height:0; resize:none; background:#1b1b1b; color:#ddd; border:1px solid #444; border-radius:3px; font:12px system-ui; padding:4px; }
 .imsb-p .hd input { cursor:auto; }
 .imsb-p .ct { cursor:pointer; padding:1px 5px; border-radius:3px; color:#aaa; font:700 15px system-ui; }
@@ -96,10 +98,11 @@ function pickFiles(multiple) {
 // Tile = the film format contain-fitted into the Load Image box; the prompt column fills the rest of the node.
 function boardSize(node, rows, loop) {
   const n = rows.length, g = boardGeometry(node._imsb.fmt, rows, loop), { iw, cells } = g;   // shared with Cut
-  const pw = Math.max(PROMPT_W, Math.round(node.size[0]) - iw - GAP - 2 * MARGIN);
+  const minP = PROMPT_W + (imVariantCount(node) - 1) * PROMPT_V_W;   // variant prompts side by side (A B C D)
+  const pw = Math.max(minP, Math.round(node.size[0]) - iw - GAP - 2 * MARGIN);
   // + room for the insert strip below the last tile; a prompt box may reach further down
   const h = Math.max(n ? cells.end - GAP + (n < MAX_IMAGES ? GAP / 2 + 10 : 0) : 0, ...g.tops.map((t, i) => (t == null ? 0 : t + g.heights[i])));
-  return { ...g, pw, h, w: iw + GAP + PROMPT_W + 2 * MARGIN };
+  return { ...g, pw, h, w: iw + GAP + minP + 2 * MARGIN };
 }
 
 function signature(node) {
@@ -357,23 +360,43 @@ function promptEl(node, rows, i, loop) {
   rg.onpointerdown = (e) => e.stopPropagation();
   rg.onclick = (e) => { e.stopPropagation(); if (!busy) regen(node, [i]); };
   hd.append(lamp, rg);
-  box.append(hd, ta);
-  // Variants 2 (user 2026-11-15: "2 variants, 2 prompts"): a second field for variant B, empty = A's prompt
-  if (String(imWidget(node, "variants")?.value) === "2") {
+  // Variants (user 2026-11-15: "one prompt per variant, side by side, max 4 ABCD"): A plus one field per extra
+  // variant, empty = A's prompt. ⧉ copies A into the empty fields - then change only the detail to compare.
+  const nv = imVariantCount(node);
+  if (nv > 1) {
+    const vs = el("div", "vs");
     ta.placeholder = busy ? "writing…" : "A: what happens from this image to the next…";
-    const tb = Object.assign(el("textarea", "b"), { value: r.prompt_b || "", disabled: busy,
-      placeholder: "B: own prompt for variant B (empty = same as A)" });
-    tb.title = "Variant B prompt – Cut shows A and B side by side";
-    tb.onkeydown = (e) => e.stopPropagation();
-    tb.oninput = () => {
+    ta.title = "Variant A";
+    vs.append(ta);
+    const fields = [];
+    for (const l of IM_LETTERS.slice(1, nv)) {
+      const key = `prompt_${l}`, L = l.toUpperCase();
+      const tv = Object.assign(el("textarea", l), { value: r[key] || "", disabled: busy, placeholder: `${L}: empty = same as A` });
+      tv.title = `Variant ${L} prompt – Cut shows the variants side by side`;
+      tv.onkeydown = (e) => e.stopPropagation();
+      tv.oninput = () => {
+        const now = readRows(node);
+        now[i][key] = tv.value;
+        writeRows(node, now);
+        r[key] = tv.value;
+        st.sig = signature(node);
+      };
+      fields.push([key, tv]);
+      vs.append(tv);
+    }
+    const cp = el("span", "cp", "⧉");
+    cp.title = "Copy prompt A into the empty variant fields";
+    cp.onpointerdown = (e) => e.stopPropagation();
+    cp.onclick = (e) => {
+      e.stopPropagation();
       const now = readRows(node);
-      now[i].prompt_b = tb.value;
+      for (const [key, tv] of fields) if (!tv.value.trim()) { tv.value = now[i].prompt; now[i][key] = tv.value; r[key] = tv.value; }
       writeRows(node, now);
-      r.prompt_b = tb.value;
       st.sig = signature(node);
     };
-    box.append(tb);
-  }
+    hd.insertBefore(cp, lamp);
+    box.append(hd, vs);
+  } else box.append(hd, ta);
   (st.boxes ||= [])[i] = box;
   return box;
 }
@@ -426,8 +449,11 @@ export function render(node) {
   st.board.appendChild(st.gap);
   st.land = -1;
   st.sig = signature(node);
+  // variant count changed: the width follows exactly (fields side by side), otherwise only grow
+  const nvNow = imVariantCount(node), exact = st.nv != null && st.nv !== nvNow;
+  st.nv = nvNow;
+  node.setSize([exact ? w : Math.max(w, node.size[0]), node.computeSize()[1]]);
   st.w = node.size[0];
-  node.setSize([Math.max(w, node.size[0]), node.computeSize()[1]]);
   node.setDirtyCanvas?.(true, true);
   alignTwins(node);   // Cut's rows follow (flexible head)
 }

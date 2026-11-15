@@ -1,7 +1,7 @@
 import { app } from "../../scripts/app.js";
 import { alignTwins } from "./im_twin.js";
 import { api } from "../../scripts/api.js";
-import { FC_REVIEW_LINE_COLORS, fcQueueFixedSeeds, fcReviewToast, fcShotSecondsOf, getLink, imFilmRows, imParseStoryboard } from "./im_common.js";
+import { FC_REVIEW_LINE_COLORS, imLetters, fcQueueFixedSeeds, fcReviewToast, fcShotSecondsOf, getLink, imFilmRows, imParseStoryboard } from "./im_common.js";
 import { fcChooseDirectorOf, fcChooseEditPrompt, fcChooseEditSeconds, fcRerenderMarked } from "./im_cut_edit.js";
 import { FC_CHOOSE_BIG_H, FC_CHOOSE_GAP, FC_CHOOSE_PAD, FC_CHOOSE_ROW_GAP, FC_CHOOSE_STATUS_H, fcAsmFocus, fcChooseApplyActive, fcChooseEff, fcChooseEffective, fcChooseEntries, fcChooseFocus, fcChooseGetChoices, fcChooseLayout, fcChoosePick, fcChoosePlay, fcChooseQuality, fcChooseSig, fcChooseStableUrl, fcChooseStatus, fcChooseWidth, fcRun } from "./im_cut_state.js";
 import { fcDownstreamOutputs } from "./im_film.js";
@@ -94,9 +94,16 @@ export function fcChooseRender(node) {
       };
 
       const eff = e.placeholder ? null : fcChooseEff(e, choices[i]);
-      const isAuto = !e.placeholder && choices[i] !== "a" && choices[i] !== "b";
+      const letters = imLetters(e);
+      const isAuto = !e.placeholder && !letters.includes(choices[i]);
       const canPick = !e.placeholder && !!e.has_variants;
-      const letters = e.has_variants ? ["a", "b"] : ["a"];
+      // Reject variant k: the chosen one moves to the first variant not rejected; all rejected = the film is REDO
+      const rejectK = (k) => {
+        const rej = [...new Set([...rejected, k])], left = letters.filter((x) => !rej.includes(x));
+        if (!left.length) { setRejected(letters.slice()); setMarked(true); fcChooseRender(node); return; }
+        setRejected(rej);
+        if (eff === k) fcChoosePick(node, i, left[0]); else fcChooseRender(node);
+      };
       for (const k of letters) {
         const v = e[k] || {};
         const sel = e.has_variants && eff === k;
@@ -155,15 +162,7 @@ export function fcChooseRender(node) {
         const rejectVariant = () => {
           if (fcRun.running) return;
           if (!canPick) return toggleRedo();
-          const other = k === "a" ? "b" : "a";
-          if (eff === k) {
-            if (rejected.includes(other)) { setRejected(["a", "b"]); setMarked(true); fcChooseRender(node); }
-            else { setRejected([...rejected, k]); fcChoosePick(node, i, other); }
-          } else {
-            setRejected([...rejected, k]);
-            if (rejected.includes(other)) { setMarked(true); fcChooseRender(node); }
-            else fcChoosePick(node, i, other);
-          }
+          rejectK(k);
         };
         // 136: eye icon top right -> the segment's video as a big overlay over the node DOM.
         if (!e.placeholder && v.video) {
@@ -182,7 +181,7 @@ export function fcChooseRender(node) {
             fcEyeOverlay(el, {
               url: fcChooseStableUrl(v.video),
               variants: e.has_variants
-                ? { a: e.a?.video ? fcChooseStableUrl(e.a.video) : "", b: e.b?.video ? fcChooseStableUrl(e.b.video) : "" }
+                ? Object.fromEntries(letters.map((l) => [l, e[l]?.video ? fcChooseStableUrl(e[l].video) : ""]))
                 : null,
               onUse: useVariant,
               onReject: rejectVariant,
@@ -197,9 +196,7 @@ export function fcChooseRender(node) {
           // user 2026-11-03: „with 2, both must be rejectable, then rerender“
           if (isMarked) { setRejected([]); setMarked(false); fcChoosePick(node, i, k); return; }
           if (eff === k) {                       // reject the chosen variant
-            const other = k === "a" ? "b" : "a";
-            if (rejected.includes(other)) { setRejected(["a", "b"]); setMarked(true); fcChooseRender(node); }
-            else { setRejected([...rejected, k]); fcChoosePick(node, i, other); }
+            rejectK(k);
           } else {                               // choose the other/rejected variant
             setRejected(rejected.filter((x) => x !== k));
             fcChoosePick(node, i, k);
@@ -365,7 +362,7 @@ function fcEyeOverlay(host, { url, variants = null, onUse, onReject }) {
   if (variants) {
     const vbtns = [];
     let shown = "";
-    for (const k of ["a", "b"]) {
+    for (const k of Object.keys(variants)) {
       if (!variants[k]) continue;
       const b = mkBtn(k.toUpperCase(), `Switch to variant ${k.toUpperCase()}`, () => {
         if (shown === k) return;

@@ -34,14 +34,29 @@ _HERE = os.path.dirname(os.path.abspath(__file__))
 _TEMPLATES_DIR = os.path.join(_HERE, "templates")
 
 
+# 151: variant letters, A is always present; variant k (0-based) = LETTERS[k].
+LETTERS = "abcd"
+
+# Seed offset of each variant over the A seed (B unchanged from Auftrag 61: +500).
+VARIANT_SEED_OFFSET = {"a": 0, "b": 500, "c": 250, "d": 750}
+
+
 def segment_path(output_dir, index):
     """Single source of truth for segment file names (Auftrag 54)."""
     return os.path.join(output_dir, f"seg_{index:03d}.mp4")
 
 
+def segment_path_v(output_dir, index, letter):
+    """Variant file name (151): A = seg_XXX.mp4, B/C/D = seg_XXX_<letter>.mp4 next to it."""
+    letter = str(letter).lower()
+    if letter == "a":
+        return segment_path(output_dir, index)
+    return os.path.join(output_dir, f"seg_{index:03d}_{letter}.mp4")
+
+
 def segment_path_b(output_dir, index):
     """Variant B file name (Auftrag 61): seg_XXX_b.mp4 next to seg_XXX.mp4."""
-    return os.path.join(output_dir, f"seg_{index:03d}_b.mp4")
+    return segment_path_v(output_dir, index, "b")
 
 
 def _segment_plan(n_images: int, loop: bool, frames: list, length: int) -> list:
@@ -646,7 +661,7 @@ def build_expansion_graph(unique_id: str, preset: str,
                           seed_bumps: dict | None = None,
                           template: dict | None = None,
                           cfg: dict | None = None,
-                           variants: int = 1, films=None, prompts_b=None) -> tuple[dict, bool]:
+                           variants: int = 1, films=None, prompts_v=None) -> tuple[dict, bool]:
     """Build the full expansion graph for InfiniteMovieRender.
 
     Args:
@@ -655,7 +670,9 @@ def build_expansion_graph(unique_id: str, preset: str,
         images: list of image tensors (each a torch tensor, HWC or CHW as
             produced by the image loader / preprocessing).
         prompts: one prompt per film (len == the number of films); film k renders with prompts[k].
-        prompts_b: variant B's own prompts (same length; empty entry or None = B uses prompts[k]).
+        prompts_v: own prompts per variant letter (151): {"b": [...], "c": [...], "d": [...]},
+            each list the same length as prompts; an empty entry (or a missing letter) = the letter
+            uses A's prompt.
         seed: base seed (per-segment seed = seed + segment_index
             + 1000 * seed_bumps.get(segment_number, 0)).
         width, height, length: render size / default frame count (fallback for a missing per-film length).
@@ -695,7 +712,7 @@ def build_expansion_graph(unique_id: str, preset: str,
 
     graph: dict = {}
     save_ids: list[str] = []      # Variant A save nodes (the collector links to these)
-    save_ids_b: list[str] = []    # Variant B save nodes (Auftrag 61, only when variants >= 2)
+    save_ids_v: dict[str, list[str]] = {L: [] for L in LETTERS[1:]}   # B/C/D saves (151, only when variants >= 2)
     renders = False                # True when at least one film is rendered (not reused from disk)
 
     prev_key, prev_save, prev_path = None, None, None   # previous segment (variant A)
@@ -714,11 +731,8 @@ def build_expansion_graph(unique_id: str, preset: str,
         else:
             start_value = images[start_idx]
         seg_prompt = prompts[i]
-        seg_prompt_b = ((prompts_b[i] if prompts_b and i < len(prompts_b) else "") or "").strip() or seg_prompt
         _b = seed_bumps or {}
         seg_seed = seed + i + 1000 * (_b.get(i + 1, 0) + _b.get(f"{i + 1}a", 0))
-        # Variant B: as before seg_seed + 500, but only its own bumps ("2b") - "2a" leaves B unchanged
-        seed_b = seed + i + 500 + 1000 * (_b.get(i + 1, 0) + _b.get(f"{i + 1}b", 0))
 
         # Key of everything that shapes the segment (shared by A and B except the seed):
         # InfiniteMovieSegmentSave only reuses an existing file when the key matches
@@ -763,36 +777,43 @@ def build_expansion_graph(unique_id: str, preset: str,
         save_ids.append(save_id_a)
         prev_key, prev_save, prev_path = key_a, save_id_a, segment_path(output_dir, i)
 
-        # --- Variant B (seed A + 500, seg_XXX_b.mp4) – only when variants >= 2 ---
-        if variants >= 2:
-            prefix_b = f"{unique_id}_s{i}b_"
-            # own B prompt: own key (same prompt -> the key as before, existing B files stay valid)
-            hash_b = base_hash if seg_prompt_b == seg_prompt else \
-                hashlib.md5(f"{base_hash}|b:{seg_prompt_b}".encode("utf-8")).hexdigest()
-            key_b = f"seed={seed_b};size={width}x{height};end={kind};len={seg_length};{hash_b}"
-            if _reusable_segment(segment_path_b(output_dir, i), key_b):
-                save_id_b = _reuse_node(graph, f"{prefix_b}reuse", segment_path_b(output_dir, i))
+        # --- Variants B/C/D (151: seed A + per-letter offset, seg_XXX_<letter>.mp4) – only when variants >= 2 ---
+        for letter in LETTERS[1:variants]:
+            prefix_v = f"{unique_id}_s{i}{letter}_"
+            # own prompt for this letter: own key (same prompt as A -> the key as before, existing files stay valid)
+            letter_prompts = (prompts_v or {}).get(letter) or []
+            prompt_v = ((letter_prompts[i] if i < len(letter_prompts) else "") or "").strip() or seg_prompt
+            # per-letter seed offset (B +500 as before, C +250, D +750) with only its own bumps ("2b", "2c", "2d")
+            seed_v = seed + i + VARIANT_SEED_OFFSET[letter] + 1000 * (_b.get(i + 1, 0) + _b.get(f"{i + 1}{letter}", 0))
+            hash_v = base_hash if prompt_v == seg_prompt else \
+                hashlib.md5(f"{base_hash}|{letter}:{prompt_v}".encode("utf-8")).hexdigest()
+            key_v = f"seed={seed_v};size={width}x{height};end={kind};len={seg_length};{hash_v}"
+            path_v = segment_path_v(output_dir, i, letter)
+            if _reusable_segment(path_v, key_v):
+                save_id_v = _reuse_node(graph, f"{prefix_v}reuse", path_v)
             else:
-                seg_b, save_id_b = build_segment(
-                    template, cfg, prefix_b,
+                seg_v, save_id_v = build_segment(
+                    template, cfg, prefix_v,
                     start_tensor=start_value,
                     end_tensor=end_tensor,
-                    prompt=seg_prompt_b,
-                    seed=seed_b,
+                    prompt=prompt_v,
+                    seed=seed_v,
                     width=width, height=height, length=seg_length,
                 )
                 renders = True
-                graph.update(seg_b)
-                graph[save_id_b]["inputs"]["path"] = segment_path_b(output_dir, i)
-                graph[save_id_b]["inputs"]["index"] = pos
-                graph[save_id_b]["inputs"]["total"] = n_segments
-                graph[save_id_b]["inputs"]["key"] = key_b
-            save_ids_b.append(save_id_b)
-            # 2026-11-03 fix: the parent does NOT wait for unconnected output nodes of the expansion -
-            # Assemble started before seg_001_b.mp4 existed (smoke varianten_095500). Therefore
-            # B[i] -> A[i].trigger: each A waits for its B, the collector for all A, its
-            # output (segment_paths) stays the A list.
-            _set_trigger(graph, save_id_a, save_id_b)
+                graph.update(seg_v)
+                graph[save_id_v]["inputs"]["path"] = path_v
+                graph[save_id_v]["inputs"]["index"] = pos
+                graph[save_id_v]["inputs"]["total"] = n_segments
+                graph[save_id_v]["inputs"]["key"] = key_v
+            save_ids_v[letter].append(save_id_v)
+        # 2026-11-03 fix: the parent does NOT wait for unconnected output nodes of the expansion -
+        # Assemble started before seg_001_b.mp4 existed (smoke varianten_095500). Therefore the saves are
+        # chained last -> ... -> B -> A (151: D -> C -> B -> A): each A waits for all its variants, the
+        # collector for all A, its output (segment_paths) stays the A list.
+        saves = [save_id_a] + [save_ids_v[L][-1] for L in LETTERS[1:variants]]
+        for j in range(1, len(saves)):
+            _set_trigger(graph, saves[j - 1], saves[j])
 
     # 75: InfiniteMovieVRAMAcquire removed from the expansion.
     # InfiniteMovieRender.execute calls vram.wait_acquire() directly before

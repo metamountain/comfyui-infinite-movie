@@ -530,16 +530,24 @@ def _auto_strong(a_entry: dict, b_entry: dict) -> bool:
 
 
 def _parse_choices(choices: str, n: int) -> list[str]:
-    """Parse the choices string ('auto,b,auto') into a list of 'a'/'b'/'auto'
+    """Parse the choices string ('auto,c,auto') into a list of 'a'-'d'/'auto'
     per segment. Missing / invalid entries become 'auto'."""
     parts = [p.strip().lower() for p in str(choices or "").split(",")]
     result = []
     for i in range(n):
-        if i < len(parts) and parts[i] in ("a", "b"):
+        if i < len(parts) and parts[i] in ("a", "b", "c", "d"):
             result.append(parts[i])
         else:
             result.append("auto")
     return result
+
+
+def _auto_rank(scores: dict) -> tuple[str, str | None]:
+    """(best, second) letter: lowest score wins, ties to the earlier letter (dict insertion order)."""
+    ranked = sorted(scores.items(), key=lambda kv: float(kv[1]))
+    best = ranked[0][0]
+    second = ranked[1][0] if len(ranked) > 1 else None
+    return best, second
 
 
 def _output_used(prompt, node_id, slot: int) -> bool:
@@ -561,8 +569,8 @@ class InfiniteMovieChooser(io.ComfyNode):
             display_name="Cut · Infinite Movie",
             search_aliases=["infinite movie", "infinite_movie", "cut", "choose", "chooser", "variant", "variants"],
             category="Infinite Movie/2 Render",
-            description="Variants builder (Auftrag 61): for each transition, shows variant A and B side by side "
-                        "with a comparison tile. An algorithm pre-selects the better variant (CUT/FLICKER/"
+            description="Variants builder (Auftrag 61, 151: up to A-D): for each transition, shows the variants "
+                        "side by side with a comparison tile. An algorithm pre-selects the better variant (CUT/FLICKER/"
                         "PARTICLES level + jerk metric); the user can override per transition. 116b2: the "
                         "chosen segments are concatenated into the final film (with audio) and written to the "
                         "output folder - Even Motion is no longer needed. The sync pipe carries the chosen "
@@ -573,8 +581,8 @@ class InfiniteMovieChooser(io.ComfyNode):
                            tooltip="Pipe with all shots (segment paths, folder, name, fps, loop, variants) "
                                    "from Infinite Movie · Director."),
                 io.String.Input("choices", advanced=True, default="",
-                                tooltip="Hidden (written by the frontend): per-transition choice, e.g. 'auto,b,auto' "
-                                        "('a'/'b' overrides the automatic choice)."),
+                                tooltip="Hidden (written by the frontend): per-transition choice, e.g. 'auto,c,auto' "
+                                        "('a'-'d' overrides the automatic choice)."),
             ],
             outputs=[
                 # 116b2: Cut assembles the film itself (model: retime_nodes
@@ -636,36 +644,48 @@ class InfiniteMovieChooser(io.ComfyNode):
         for i in range(n):
             number = int(films[i]) + 1 if i < len(films) else i + 1   # = the Director's film number, seeds follow it
             a_path = str(segments[i])
-            b_path = str(variants[i][1]) if has_variants else None
-            a_entry, ch_a = _variant_entry(a_path, choose_dir, subfolder, "a", cache, f"{i}_a")
-            changed = changed or ch_a
-            if b_path is not None:
-                b_entry, ch_b = _variant_entry(b_path, choose_dir, subfolder, "b", cache, f"{i}_b")
-                changed = changed or ch_b
-                auto_winner, a_score, b_score, reason = _auto_choose(a_entry, b_entry)
-                strong = _auto_strong(a_entry, b_entry)
+            # 151: up to four variants per film (A always present; B/C/D only when the Director rendered them)
+            nv = len(variants[i]) if has_variants else 1
+            letters = list("abcd"[:nv])
+            vpaths = [str(p) for p in variants[i]] if has_variants else [a_path]
+            ventry: dict[str, dict] = {}
+            for letter in letters:
+                e, ch = _variant_entry(vpaths["abcd".index(letter)], choose_dir, subfolder,
+                                       letter, cache, f"{i}_{letter}")
+                changed = changed or ch
+                ventry[letter] = e
+            scores = {L: ventry[L]["score"] for L in letters}
+            a_score, b_score = scores.get("a"), scores.get("b")
+            if nv >= 2:
+                best, second = _auto_rank(scores)
+                strong = _auto_strong(ventry[best], ventry[second])
+                reason = "; ".join(
+                    f"{L.upper()}: level {ventry[L]['level']}, jerk {ventry[L]['jerk']:.2f} (score {scores[L]:.2f})"
+                    for L in letters)
                 if not strong:
                     auto_winner, reason = "a", "no clear difference – your choice. " + reason
-                chosen = choice_list[i] if choice_list[i] in ("a", "b") else auto_winner
-                chosen_path = a_path if chosen == "a" else b_path
+                else:
+                    auto_winner = best
             else:
-                b_entry = None
                 strong = False
                 auto_winner = "a"
-                a_score = a_entry["score"]
-                b_score = None
                 reason = ""
-                chosen = "a"
-                chosen_path = a_path
+            # a choice for a letter that does not (anymore) exist falls back to the auto choice
+            chosen = choice_list[i] if choice_list[i] in letters else auto_winner
+            chosen_path = vpaths["abcd".index(chosen)]
             chosen_segments.append(chosen_path)
             print(f"[InfiniteMovieChooser] shot {number}: chosen={chosen} auto={auto_winner} "
                   f"score_a={a_score} score_b={b_score} {reason}".rstrip())
             entries.append({
                 "index": i,
                 "number": number,
-                "has_variants": b_entry is not None,
-                "a": a_entry,
-                "b": b_entry,
+                "has_variants": nv > 1,
+                "a": ventry.get("a"),
+                "b": ventry.get("b"),
+                "c": ventry.get("c"),
+                "d": ventry.get("d"),
+                "letters": letters,
+                "scores": scores,
                 "auto": auto_winner,
                 "auto_reason": reason,
                 "auto_strong": strong,

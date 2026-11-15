@@ -86,14 +86,14 @@ def _clean_prompt(text: str, max_words: int = 350) -> str:
 
 def _parse_reseed(text: str) -> dict:
     """'2' / '2,4' / '2,2' -> {segment number: bumps}. Each mention adds one bump.
-    2026-11-08 (user: only re-render the chosen variant): '2a' / '2b' -> {"2a": bumps} / {"2b": bumps}
-    = only variant A or B of this shot gets a new seed, the other stays (the file is reused)."""
+    2026-11-08 (user: only re-render the chosen variant): '2a' / '2b' / '2c' / '2d' -> {"2a": bumps} / …
+    = only that variant of this shot gets a new seed, the others stay (the files are reused)."""
     bumps: dict = {}
     for tok in re.split(r"[,;\s]+", text or ""):
         tok = tok.strip().lower()
         if tok.isdigit() and int(tok) > 0:
             bumps[int(tok)] = bumps.get(int(tok), 0) + 1
-        elif len(tok) > 1 and tok[-1] in "ab" and tok[:-1].isdigit() and int(tok[:-1]) > 0:
+        elif len(tok) > 1 and tok[-1] in "abcd" and tok[:-1].isdigit() and int(tok[:-1]) > 0:
             key = f"{int(tok[:-1])}{tok[-1]}"
             bumps[key] = bumps.get(key, 0) + 1
     return bumps

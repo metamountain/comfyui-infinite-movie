@@ -10,7 +10,7 @@ import { filmSquare } from "./im_viewer.js";
 // Before the run: „Waiting for the film…“; while ComfyUI renders: „Rendering…“.
 // ---------------------------------------------------------------------------
 const FC_FILM_W = 360, FC_FILM_BAR_H = 26;
-// 2026-11-13 (user: "6 7 8 all players square"): the video is a square of the DOM width (node width - 20).
+// user 2026-11-15: the video box = node width - 20 in the film's format (im_viewer filmAspect), no longer square.
 const fcFilmSide = (node) => filmSquare(node, FC_FILM_W);
 // Film or a single shot (sent by Cut's ▶ play) – only offered when the node hangs on Cut (user 2026-11-13).
 const fcFilmSource = (node) => (node.properties?.im_source === "shot" && node._fc_shot) ? "shot" : "film";
@@ -124,7 +124,11 @@ export function fcFilmRender(node) {
     node._fc_film_src_btns = srcBtns; node._fc_film_src_box = srcBox; node._fc_film_open = open;
     node.addDOMWidget("fc_film", "div", el, {
       serialize: false,
-      getMinHeight: () => (node._imv?.hostH?.() || 0) + fcFilmSide(node) + FC_FILM_TL_H + FC_FILM_BAR_H + 8 + 8,
+      getMinHeight: () => {
+        const side = fcFilmSide(node);
+        video.style.maxHeight = `${side}px`;   // exactly the film's box - extra node height stays below, no bars
+        return (node._imv?.hostH?.() || 0) + side + FC_FILM_TL_H + FC_FILM_BAR_H + 8 + 8;
+      },
     }).serialize = false;   // the option alone does not keep it out of widgets_values
     node._fc_film_el = el; node._fc_film_video = video; node._fc_film_status = status;
     // While the video plays, report its time every frame (im_sync.js "imv-time"); a seek reports once.
@@ -138,6 +142,15 @@ export function fcFilmRender(node) {
     };
     video.addEventListener("play", () => { if (!node._fc_film_raf) node._fc_film_raf = requestAnimationFrame(tick); });
     video.addEventListener("seeked", () => imvTime(video.currentTime, node.id));
+    // The film's real format (user 2026-11-15: "perfect aspect ratio"): the box follows it, no black bars
+    video.addEventListener("loadedmetadata", () => {
+      if (!video.videoWidth || !video.videoHeight) return;
+      const ar = video.videoWidth / video.videoHeight, old = Number(node.properties?.im_ar);
+      if (old > 0 && Math.abs(old - ar) < 0.01) return;
+      (node.properties ||= {}).im_ar = ar;
+      node.setSize([node.size[0], node.computeSize()[1]]);
+      node.setDirtyCanvas?.(true, true);
+    });
   }
   fcFilmWidgets(node);
   fcFilmTimeline(node);

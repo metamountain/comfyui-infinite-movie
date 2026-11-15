@@ -89,22 +89,34 @@ export const IMV_MIN_H = 200;
 // Film player: the video square as wide as the player; with properties.im_fit_h (AUTO LAYOUT, user 2026-11-15:
 // "previews together, group as tall as the Director") it shrinks so the whole player fits that height.
 export const IMV_FILM_EXTRA = 16 + 16 + 26;   // gaps + timeline + bar (im_film)
+// user 2026-11-15 ("perfect aspect ratio, optimise for width, use everything"): the video box has the film's format
+// (width / height): its own video once loaded (properties.im_ar), before that the Director's format.
+export function filmAspect(node) {
+  const own = Number(node?.properties?.im_ar);
+  if (own > 0.1 && own < 10) return own;
+  const d = (node?.graph || app.graph)?._nodes?.find((n) => n.comfyClass === "InfiniteMovieRender" && n._imsb?.fmt?.w);
+  return d ? d._imsb.fmt.w / d._imsb.fmt.h : 1;
+}
+// Height of the video box: full width / format; with im_fit_h at most what that height leaves.
 export function filmSquare(node, minW = 360) {
   const w = Math.max(minW, Math.round((node?.size?.[0] || IMV_NODE_W) - 20)), fit = Number(node?.properties?.im_fit_h);
-  return fit > 0 ? Math.max(160, Math.min(w, Math.floor(fit - IMV_FILM_EXTRA))) : w;
+  const h = Math.round(w / filmAspect(node));
+  return fit > 0 ? Math.max(120, Math.min(h, Math.floor(fit - IMV_FILM_EXTRA))) : h;
 }
 // Movie Analysis node (user 2026-11-15: "analysis external, a square block"): a square as wide as the node; with
 // properties.im_fit_h (AUTO LAYOUT: preview + analysis = the Director's height) as tall as that leaves.
 export const IMV_CTL_H = 96 + 20;   // tab / shot / control / info rows + the widget margin
 function imvArea(node) {
   if (imvIsAna(node)) {
-    // im_sq (AUTO LAYOUT, user 2026-11-15: "identical to the preview, same size and format"): the preview's square
+    // im_sq (AUTO LAYOUT, user 2026-11-15: "identical to the preview, same size and format"): the preview's video
+    // height; the box has the film's format (im_ar), as wide as the node allows
     const w = Math.max(200, Math.round((node.size?.[0] || IMV_NODE_W) - 20)), sq = Number(node.properties?.im_sq);
-    const fit = Number(node.properties?.im_fit_h);
-    const s = Math.max(160, Math.min(w, sq > 0 ? Math.floor(sq) : w, fit > 0 ? Math.floor(fit - IMV_CTL_H) : w));
-    return [s, s];
+    const fit = Number(node.properties?.im_fit_h), ar = filmAspect(node);
+    let h = Math.min(Math.round(w / ar), sq > 0 ? Math.floor(sq) : Infinity, fit > 0 ? Math.floor(fit - IMV_CTL_H) : Infinity);
+    h = Math.max(120, h);
+    return [Math.min(w, Math.round(h * ar)), h];
   }
-  if (imvIsFilm(node)) { const s = filmSquare(node, 0); return [s, s]; }
+  if (imvIsFilm(node)) { const h = filmSquare(node, 0); return [Math.round(h * filmAspect(node)), h]; }
   const h = Number(node?.properties?.imv_h);
   if (!(h >= IMV_MIN_H)) return [IMV_W, IMV_H];
   const w = Math.max(IMV_W, Math.round((node.size?.[0] || IMV_NODE_W) - 24));
@@ -219,7 +231,6 @@ export function imvEnsure(node) {
   node.addDOMWidget("im_viz", "div", el, {
     serialize: false,
     getMinHeight: () => imvArea(node)[1] + 96 + 20,
-    getMaxHeight: () => imvArea(node)[1] + 96 + 20,
   }).serialize = false;   // the option alone does not keep it out of widgets_values
   return st;
 }
@@ -458,7 +469,7 @@ export function imvDraw(node) {
     ctx.fillRect(0, H - 3, Math.round(W * st.playFrac), 3);
   }
   if (text !== null) st.info.textContent = text;
-  const need = node.computeSize()[1];
+  const need = Math.ceil(node.computeSize()[1] / 10) * 10;   // on the layout's 10 grid
   if (Math.abs(node.size[1] - need) > 2) node.setSize([node.size[0], need]);
   node.setDirtyCanvas(true, true);
 }

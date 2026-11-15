@@ -8,7 +8,7 @@ import { IMV_NODE_W, imvDraw, imvStop } from "./im_viewer.js";
 import { fcChooseDirectorOf } from "./im_cut_edit.js";
 import { boardFormat } from "./im_storyboard_io.js";
 import { boardGeometry } from "./im_storyboard_model.js";
-import { imParseStoryboard } from "./im_common.js";
+import { IM_LETTERS, imLetters, imParseStoryboard, imVariantCount } from "./im_common.js";
 // 124d: one row per film (mirror of the Director's prompt boxes): tile box 283×205 scaled to the
 // connected Director's format, rows staggered half a row, node width fixed 672.
 export const FC_CHOOSE_ROW_GAP = 10;
@@ -16,7 +16,7 @@ export const FC_CHOOSE_GAP = 4;
 export const FC_CHOOSE_PAD = 20;     // DOM widget margin left+right in the node
 // Effective choice of a shot: A/B from the widget only counts if the shot has both variants (otherwise after
 // a run with variants=1 an old „b“ sits in the widget and sheet/seam look for a variant that does not exist).
-export function fcChooseEff(e, c) { return (e?.has_variants && (c === "a" || c === "b")) ? c : (e?.auto || "a"); }
+export function fcChooseEff(e, c) { return (e?.has_variants && imLetters(e).includes(c)) ? c : (e?.auto || "a"); }
 // Finding of a variant in plain text (thresholds like review_nodes.JERK_HARD / LEVEL_STRONG).
 // 78: e = shot entry; q.seam = red seam row to the next shot (only if e.seam_bad).
 export function fcChooseQuality(v, e) {
@@ -117,9 +117,9 @@ function fcChoosePlan(node) {
   const d = fcChooseDirectorOf(node);
   if (!d) return null;
   const nImg = imShotImageCount(d);
-  const variants = String(d.widgets?.find((w) => w.name === "variants")?.value) === "2";
+  const nv = imVariantCount(d), variants = nv > 1;
   const films = imFilmRows(d);
-  return { n: films.length, films, variants, director: d, nImg };   // variants: both columns from the start (empty, black)
+  return { n: films.length, films, variants, nv, director: d, nImg };   // all variant columns from the start (empty, black)
 }
 
 // Real entries (after the run) or placeholders from the plan; stale entries
@@ -127,14 +127,15 @@ function fcChoosePlan(node) {
 export function fcChooseEntries(node) {
   const real = node._fc_choose_entries || [];
   const plan = fcChoosePlan(node);
-  if (real.length && (!plan || (plan.n === real.length && plan.variants === !!real[0]?.has_variants))) return real;
+  if (real.length && (!plan || (plan.n === real.length && plan.nv === imLetters(real[0]).length))) return real;
   if (!plan || !plan.n) return real.length && !plan ? real : [];
   return plan.films.map((k) => ({   // number = film id + 1, as after a run (seeds and redo marks follow it)
-    number: k + 1, placeholder: true, has_variants: plan.variants, a: {}, b: plan.variants ? {} : null,
+    number: k + 1, placeholder: true, has_variants: plan.variants, letters: IM_LETTERS.slice(0, plan.nv),
+    ...Object.fromEntries(IM_LETTERS.slice(0, plan.nv).map((l) => [l, {}])),
   }));
 }
 
-export function fcChooseSig(e) { return e.length + (e[0]?.placeholder ? "p" : "r") + (e[0]?.has_variants ? "v" : ""); }
+export function fcChooseSig(e) { return e.length + (e[0]?.placeholder ? "p" : "r") + "v" + imLetters(e[0]).length; }
 
 // 124d: one row per film (mirror of the Director's prompt boxes): the tile box 283×205 is scaled to the
 // connected Director's format (Settings node via boardFormat), rows staggered half a row.
@@ -153,11 +154,11 @@ export function fcChooseLayout(node, entries) {
   return { iw, ih, row, boardH, domH, tops, heights, cutY: g.cells.cut };
 }
 
-// Node width = tiles (A, and B with variants) + the info column, as wide as one tile (user 2026-11-15); at least as
+// Node width = tiles (A, and B-D with variants) + the info column, as wide as one tile (user 2026-11-15); at least as
 // wide as the analysis viewer below.
 export function fcChooseWidth(node, entries) {
-  const { iw } = fcChooseLayout(node, entries), cols = entries.some((e) => e.has_variants) ? 2 : 1;
-  return Math.max(IMV_NODE_W, FC_CHOOSE_PAD + cols * (iw + FC_CHOOSE_ROW_GAP) + iw);
+  const { iw } = fcChooseLayout(node, entries), cols = Math.max(1, ...entries.map((e) => imLetters(e).length));
+  return Math.ceil(Math.max(IMV_NODE_W, FC_CHOOSE_PAD + cols * (iw + FC_CHOOSE_ROW_GAP) + iw) / 10) * 10;
 }
 
 export function fcChooseStableUrl(im) {
@@ -171,13 +172,13 @@ export function fcChooseGetChoices(node) {
   const w = node.widgets?.find((x) => x.name === "choices");
   const parts = String(w?.value || "").split(",").map((s) => s.trim().toLowerCase());
   const n = (node._fc_choose_entries || []).length;
-  return Array.from({ length: n }, (_, i) => (parts[i] === "a" || parts[i] === "b") ? parts[i] : "auto");
+  return Array.from({ length: n }, (_, i) => (IM_LETTERS.includes(parts[i]) ? parts[i] : "auto"));
 }
 export function fcChooseSetChoices(node, arr) {
   const w = node.widgets?.find((x) => x.name === "choices");
   if (w) w.value = arr.join(",");
 }
-// Effective choice per shot ('a'/'b'), AUTO resolved.
+// Effective choice per shot ('a'-'d'), AUTO resolved.
 export function fcChooseEffective(node) {
   const c = fcChooseGetChoices(node);
   return (node._fc_choose_entries || []).map((e, i) => fcChooseEff(e, c[i]));
@@ -192,7 +193,7 @@ export function fcChooseApplyActive(node) {
   for (let i = 0; i < entries.length; i++) {
     const e = entries[i];
     if (!e) continue;
-    for (const k of ["a", "b"]) {
+    for (const k of imLetters(e)) {
       const img = el.querySelector(`.fc-tile-${k}[data-fc-i="${i}"] img`), v = e[k];
       if (!img || !v) continue;
       const im = (i === active && v.preview) ? v.preview : (v.still || v.preview);
@@ -270,10 +271,10 @@ export function fcRenderLine() {
 }
 
 function fcChooseStateIdle(node, entries, plan, marked) {
-  if (entries[0]?.placeholder) return { text: `Waiting for Run: ${entries.length} film(s)${plan.variants ? " × 2 variants" : ""} will appear here.`, tone: "idle", btn: null };
+  if (entries[0]?.placeholder) return { text: `Waiting for Run: ${entries.length} film(s)${plan.variants ? ` × ${plan.nv} variants` : ""} will appear here.`, tone: "idle", btn: null };
   const redo = fcChooseRedoTokens(node);
   if (redo.length) return { text: `${redo.map((t) => t.toUpperCase()).join(", ")} marked ✗ – RERENDER renders only these with new seeds.`, tone: "act", btn: "rerender" };
-  if (node._fc_choose_ran == null) return { text: entries[0]?.has_variants ? "Films ready – pick A or B per film, then RENDER VIDEO builds the film."
+  if (node._fc_choose_ran == null) return { text: entries[0]?.has_variants ? "Films ready – pick a variant per film, then RENDER VIDEO builds the film."
     : "Films ready – RENDER VIDEO builds the film.", tone: "act", btn: "assemble" };
   const changed = (node._fc_choose_ran || "") !== fcChooseEffective(node).join(",");
   if (changed) return { text: "Choice changed – press RENDER VIDEO to rebuild the film.", tone: "act", btn: "assemble" };
@@ -284,7 +285,7 @@ function fcChooseStateIdle(node, entries, plan, marked) {
     return { text: `✓ VIDEO READY · ${imFilmInfoText(node._fc_film_done)}${rt}`, tone: "done", btn: null,
       title: node._fc_film_done.path };
   }
-  if (entries[0]?.has_variants) return { text: "Film assembled. Pick A or B per film to change it, ✓/✗ to re-render a film.", tone: "ok", btn: null };
+  if (entries[0]?.has_variants) return { text: "Film assembled. Pick another variant per film to change it, ✓/✗ to re-render a film.", tone: "ok", btn: null };
   return { text: "Film assembled. Mark a film ✗ to re-render it.", tone: "ok", btn: null };
 }
 

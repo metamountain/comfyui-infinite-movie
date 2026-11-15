@@ -26,7 +26,7 @@ import torch
 from comfy_api.latest import io
 
 from . import vram
-from .expansion import build_expansion_graph, engine_to_template, segment_path, segment_path_b
+from .expansion import LETTERS, build_expansion_graph, engine_to_template, segment_path, segment_path_v
 from .media import (_count_frames, _encode_dir_to_mp4, _ffmpeg, _no_window, _segment_is_complete, _write_audio_to_wav, _write_frames_to_dir,
                     send_ui)
 from .shot_utils import (_clean_prompt, _parse_reseed, _parse_shot_seconds, _scene_frames, _seconds_to_frames,
@@ -274,8 +274,9 @@ class InfiniteMovieRender(io.ComfyNode):
                 io.String.Input("reseed", default="",
                                 tooltip="Films to render again with a new seed, e.g. '2' or '2,4' (written by ✗ REDO in Cut). "
                                         "Each mention adds 1000 to that film's seed."),
-                io.Combo.Input("variants", options=["1", "2"], default="1", advanced=True,
-                               tooltip="'2' renders every film twice (seed and seed + 500) - pick A or B per film in Cut."),
+                io.Combo.Input("variants", options=["1", "2", "3", "4"], default="1", advanced=True,
+                               tooltip="Variants per film (A, B, C, D) - pick one per film in Cut. "
+                                       "B/C/D use seed + 500/+250/+750 and may take their own prompt in the storyboard."),
             ],
             outputs=[
                 # sync is a link to the internal ShotsOut node hanging on the collector of all films: the Director
@@ -320,14 +321,18 @@ class InfiniteMovieRender(io.ComfyNode):
         n = len(tensors)
         n_films = _storyboard.film_count(n, loop)
         prompts = [_clean_prompt(p) for p in _storyboard.prompt_list(board, n_films)]
-        # Variant B may take its own prompt (user 2026-11-15: "2 variants, 2 prompts"); empty = A's prompt
-        prompts_b = [_clean_prompt(p) for p in _storyboard.prompt_list(board, n_films, "prompt_b")]
+        # Each variant letter may take its own prompt (storyboard prompt_b/c/d); empty = A's prompt
+        prompts_v = {L: [_clean_prompt(p) for p in _storyboard.prompt_list(board, n_films, f"prompt_{L}")]
+                     for L in LETTERS[1:]}
         film_seconds = _parse_shot_seconds(shot_seconds)
         own = _scene_frames(film_seconds, cfg["fps"], cfg["length_mod"], length)
         # Film k takes the length of its row (storyboard.row_of); the way back of a
         # single image belongs to that image, so both films share the one row.
         frames = [own[_storyboard.row_of(n, k)] if _storyboard.row_of(n, k) < len(own) else length for k in range(n_films)]
-        variants = 2 if str(variants) == "2" else 1
+        try:
+            variants = min(4, max(1, int(str(variants))))
+        except ValueError:
+            variants = 1
         name = _resolve_film_name(settings)
         folder = film_folder(settings)
         output_dir = os.path.join(folder, "cache_movies", name)
@@ -348,7 +353,7 @@ class InfiniteMovieRender(io.ComfyNode):
             unique_id=uid, preset=preset, images=tensors, prompts=prompts, seed=seed,
             width=width, height=height, length=length, loop=loop, output_dir=output_dir,
             frames=frames, seed_bumps=_parse_reseed(reseed), template=template, cfg=cfg,
-            variants=variants, films=films, prompts_b=prompts_b)
+            variants=variants, films=films, prompts_v=prompts_v)
         # GPU only when something renders (all films reused -> no waiting, no unloading)
         if renders:
             vram.wait_acquire(min_free_mb=get_setting(settings, "min_free_mb"),
@@ -377,8 +382,9 @@ class InfiniteMovieRender(io.ComfyNode):
             "settings": chain_settings(settings),   # behind the Director the settings travel in sync
             "hard_cuts": _storyboard.hard_cuts(films, n_films, loop),   # segment positions followed by a hard cut
         }
-        if variants == 2:   # segments stays the A list: Even Motion without Cut works unchanged
-            sync["variants"] = [[a, segment_path_b(output_dir, k)] for k, a in zip(films, paths)]
+        if variants >= 2:   # segments stays the A list: Even Motion without Cut works unchanged
+            sync["variants"] = [[a] + [segment_path_v(output_dir, k, L) for L in LETTERS[1:variants]]
+                                for k, a in zip(films, paths)]
         out_id = f"{uid}_shots"
         graph[out_id] = {"class_type": "InfiniteMovieShotsOut",
                          "inputs": {"segment_paths": [f"{uid}_collector", 0], "sync": sync}}

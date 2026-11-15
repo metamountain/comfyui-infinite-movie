@@ -1,5 +1,5 @@
 import { app } from "../../scripts/app.js";
-import { fcChooseRedoTokens, fcParseShotSeconds, fcQueueFixedSeeds, fcReviewToast, fcShotSecondsOf, getLink } from "./im_common.js";
+import { fcChooseRedoTokens, imLetters, fcParseShotSeconds, fcQueueFixedSeeds, fcReviewToast, fcShotSecondsOf, getLink } from "./im_common.js";
 import { fcChooseRender } from "./im_cut.js";
 import { fcChooseGetChoices, fcChooseSetChoices } from "./im_cut_state.js";
 import { render as renderStoryboard } from "./im_storyboard.js";
@@ -46,7 +46,8 @@ export function fcRerenderMarked(node, rerenderFn) {
   const ch = fcChooseGetChoices(node);
   for (const t of marked) {
     const n = parseInt(t, 10), v = t.replace(/^\d+/, "");
-    node._fc_redo_pending[n] = v ? [v] : ["a", "b"];
+    node._fc_redo_pending[n] = v ? [...(node._fc_redo_pending[n] || []), v]
+      : imLetters((node._fc_choose_entries || []).find((e) => e.number === n));
     if (n >= 1 && n <= ch.length) ch[n - 1] = "auto";
   }
   fcChooseSetChoices(node, ch);

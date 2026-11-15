@@ -6,7 +6,7 @@
 
 export const MAX_IMAGES = 24;
 export const DEFAULT_IMAGES = 4;
-export const emptyRow = () => ({ image: "", prompt: "", prompt_b: "", own: false, pair: null, sec: 0, cut: false });
+export const emptyRow = () => ({ image: "", prompt: "", prompt_b: "", prompt_c: "", prompt_d: "", own: false, pair: null, sec: 0, cut: false });
 
 // Film i runs from image i to image nextOf(i): the next one, with loop the last one back to the first.
 // A single image is an open film (no end image), so it is its own "next". -1 = row i starts no film.
@@ -62,7 +62,8 @@ export const isStale = (rows, i, loop) => !!rows[i].prompt.trim() && !samePair(r
 
 // Row from the stored JSON entry plus its seconds.
 export const toRow = (e, sec) => ({
-  image: String(e?.image || ""), prompt: String(e?.prompt || ""), prompt_b: String(e?.prompt_b || ""), own: !!e?.own,
+  image: String(e?.image || ""), prompt: String(e?.prompt || ""), prompt_b: String(e?.prompt_b || ""),
+  prompt_c: String(e?.prompt_c || ""), prompt_d: String(e?.prompt_d || ""), own: !!e?.own,
   pair: Array.isArray(e?.pair) && e.pair.length === 2 ? e.pair.map(String) : null, sec: sec > 0 ? sec : 0, cut: !!e?.cut,
 });
 

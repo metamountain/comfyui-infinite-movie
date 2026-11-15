@@ -12,14 +12,20 @@
 // left like the README. Anchor: x = README note, y = top edge of the engine.
 import { app } from "../../scripts/app.js";
 import { fcChooseRefreshAll } from "./im_cut_state.js";
-import { filmSquare } from "./im_viewer.js";
+import { filmAspect, filmSquare } from "./im_viewer.js";
 
 const T = 30;        // node title bar
-const HEAD = 64;     // group header: title (32) + room for the node badge (#id …)
+const HEAD = 70;     // group header: title (32) + room for the node badge (#id …)
 const PAD = 20;      // margin left/right/bottom
 const GAP = 40;      // between groups
 const NGAP = 40;     // between nodes in a group
 const MINW = 420;    // minimum width of a group
+// user 2026-11-15 ("everything on a simple grid, no rounding errors"): every constant above is a multiple of R, node
+// sizes are rounded UP to it (csH), positions snapped - edges that should meet meet exactly.
+const R = 10;
+const up = (v) => Math.ceil(v / R) * R;
+const snap = (v) => Math.round(v / R) * R;
+const csH = (n) => up(n.computeSize()[1]);
 
 const inRect = (n, r) => n.pos[0] >= r[0] - 5 && n.pos[1] >= r[1] - 5 && n.pos[0] < r[0] + r[2] && n.pos[1] < r[1] + r[3];
 const gRect = (g) => [g.pos[0], g.pos[1], g.size[0], g.size[1]];
@@ -70,6 +76,8 @@ export function fcWorkflowLayout(director, second = false) {
   if (!g) return;
   // Adapt Choose to the current shot count, then measure.
   fcChooseRefreshAll();
+  // user 2026-11-15 ("all my nodes, MM nodes too, on the 10 grid"): every node's size rounded up to R first
+  for (const n of g._nodes || []) n.size = [up(n.size[0]), up(n.size[1])];
   const groups = g._groups || [];
   const engines = groups.filter(isEngineGroup);
   // Core nodes NEVER belong to the engine, even if they currently sit over an engine group.
@@ -111,10 +119,16 @@ export function fcWorkflowLayout(director, second = false) {
   const blockW = upBlock.length ? Math.max(...upBlock.map((n) => n.pos[0] + n.size[0])) - Math.min(...upBlock.map((n) => n.pos[0])) : 0;
   // user 2026-11-13: "after 6 the work is done, 7 8 are extras" -> Cut (group 6) alone sets the width of 6-9;
   // a wider Upscale block only widens group 8 itself
-  const inner678 = Math.max(MINW - 2 * PAD, ...cut.map((n) => n.size[0]));
-  for (const a of asm) a.size = [inner678, a.computeSize()[1]];
-  // square player: width first, then the height follows from the Film node's getMinHeight (side = width - 20)
-  for (const f of [...cutFilms, ...asmFilms, ...upFilms, ...cutAnas]) { f.size = [inner678, f.size[1]]; f.size = [inner678, f.computeSize()[1]]; }
+  const inner678 = up(Math.max(MINW - 2 * PAD, ...cut.map((n) => n.size[0])));
+  for (const a of asm) a.size = [inner678, csH(a)];
+  // players: width first (user 2026-11-15: "width!"), the height follows from the film's format (im_viewer filmAspect)
+  for (const f of [...cutFilms, ...asmFilms, ...upFilms, ...cutAnas]) {
+    if (f.properties) { delete f.properties.im_fit_h; delete f.properties.im_sq; }
+    f.size = [inner678, f.size[1]];
+  }
+  // the analysis box = the preview's video box (same height, same format)
+  if (cutFilms.length) for (const a of cutAnas) { a.properties ||= {}; a.properties.im_sq = filmSquare(cutFilms[0], 0); a.properties.im_ar = filmAspect(cutFilms[0]); }
+  for (const f of [...cutFilms, ...asmFilms, ...upFilms, ...cutAnas]) f.size = [inner678, csH(f)];
   // ONE row, order = numbers 2…7
   // 2026-11-11: help note "Story Mode …" sits right under the Story Mode node (not with the README)
   const storyHelp = byType("InfiniteMovieStoryMode").length ? allNotes.filter((n) => /story mode/i.test(n.title || "")) : [];
@@ -143,8 +157,9 @@ export function fcWorkflowLayout(director, second = false) {
 
   // Anchor: x = README note (otherwise the settings/first group of the row), y = top edge of the engine (very top)
   const firstGrp = row.find(([grp]) => grp)?.[0];
-  const XR = restNotes.length ? restNotes[0].pos[0] : firstGrp ? firstGrp.pos[0] : director.pos[0] - PAD;
-  const TOP = engines.length ? Math.min(...engines.map((e) => e.pos[1])) : (firstGrp ? firstGrp.pos[1] : director.pos[1] - T - HEAD);
+  const XR = snap(restNotes.length ? restNotes[0].pos[0] : firstGrp ? firstGrp.pos[0] : director.pos[0] - PAD);
+  const TOP = snap(engines.length ? Math.min(...engines.map((e) => e.pos[1])) : (firstGrp ? firstGrp.pos[1] : director.pos[1] - T - HEAD));
+  for (const n of restNotes) n.size = [up(n.size[0]), up(n.size[1])];
   const rw = restNotes.length ? Math.max(...restNotes.map((n) => n.size[0])) : 0;
   const X0 = restNotes.length ? XR + rw + GAP : XR;
 
@@ -199,29 +214,12 @@ export function fcWorkflowLayout(director, second = false) {
   const HH = rowHelps.length ? Math.max(...rowHelps.map((h) => h.size[1])) : 0;
   // the help never makes a group wider: the nodes set the width, the help is stretched to it afterwards
   for (const h of rowHelps) h.size = [MINW - 2 * PAD, HH];
-  // Cut's single Film player (+ the Movie Analysis under it) as tall as the Director (user 2026-11-15: "previews
-  // together, groups at this height" - the groups only grow when the storyboard does): the squares shrink to fit.
-  const fitTo = (n, h) => {   // im_fit_h so that the node is h tall (measured remainder: controls, margins)
-    n.properties ||= {};
-    n.properties.im_fit_h = h;
-    n.properties.im_fit_h = h - (n.computeSize()[1] - h);
-    n.size = [n.size[0], n.computeSize()[1]];
-  };
+  // Cut's column: the Movie Analysis on top, the preview below, both full width in the film's format
   const oneCol = cut.length && cutFilms.length === 1;
-  for (const n of [...cutFilms, ...cutAnas, ...asmFilms, ...upFilms]) { if (n.properties) { delete n.properties.im_fit_h; delete n.properties.im_sq; } n.size = [n.size[0], n.computeSize()[1]]; }   // fresh, natural size
-  // user 2026-11-15: analysis on top, the preview below it exactly as big as the players in the groups behind
-  // (natural square); the analysis square is the preview's square ("identical, same size and format") as long as
-  // the rest of the Director's height holds it, else as big as fits. No analysis: the preview fits the Director.
-  const anaFit = (a, h) => { a.properties ||= {}; a.properties.im_sq = filmSquare(cutFilms[0], 0); fitTo(a, h); };
-  if (oneCol) {
-    const H = director.computeSize()[1], ana = cutAnas[0];
-    if (ana) anaFit(ana, H - cutFilms[0].size[1] - T - NGAP);
-    else fitTo(cutFilms[0], H);
-  }
   const sizes = row.map(([, ns, side], k) => colSize(ns, side, rowHelp[k]));
   // user 2026-11-13 ("groups modular, 2 or 3 widths, no more"): one module width U = a Cut column (Cut node + margins)
   // or the storyboard, whichever is wider. Settings and Director are U wide, Cut (Cut + preview side by side) 2U + GAP.
-  const U = Math.max(inner678 + 2 * PAD, sizes[SET][0], sizes[DIR][0]);
+  const U = up(Math.max(inner678 + 2 * PAD, sizes[SET][0], sizes[DIR][0]));
   for (const k of [SET, DIR]) {
     sizes[k][0] = U;
     for (const n of row[k][1]) if (!isHelp(n)) n.size = [U - 2 * PAD, n.size[1]];
@@ -253,7 +251,7 @@ export function fcWorkflowLayout(director, second = false) {
     if (bSet > bDir) {
       // never below its own minimum: the frontend grows a node back to computeSize() after the layout and the
       // help note below would then cover it
-      story.size = [story.size[0], Math.max(400, story.computeSize()[1], story.size[1] - (bSet - bDir))];
+      story.size = [story.size[0], Math.max(400, csH(story), story.size[1] - (bSet - bDir))];
       sizes[SET] = [sizes[SET][0], colSize(row[SET][1], row[SET][2], rowHelp[SET])[1]];
       placeCol(row[SET][1], row[SET][2], rowHelp[SET], row[SET][0].pos[0], Y, sizes[SET][0]);
     }
@@ -263,29 +261,25 @@ export function fcWorkflowLayout(director, second = false) {
   for (const n of [director, ...cut]) {
     n.properties ||= {};
     delete n.properties.imv_h;
-    n.size = [n.size[0], n.computeSize()[1]];
+    n.size = [n.size[0], csH(n)];
   }
   // Cut: top flush with the Director, its flexible head (im_twin) puts row i at prompt box i
   for (const c of cut) c.pos = [c.pos[0], director.pos[1]];
   // Cut: the preview sits at the right edge of the double-width group
   if (row[CUT][0]) for (const f of cutFilms) f.pos = [row[CUT][0].pos[0] + sizes[CUT][0] - PAD - f.size[0], f.pos[1]];
-  // A single Film player beside Cut: top flush with Director and Cut, at most as tall as they are
-  // bottom: where the players of the groups behind end (user 2026-11-15: "4 images = video preview same y, same size
-  // in all groups Cut to the end") - the preview stays there, the analysis above takes the rest of the Director height
+  // A single Film player beside Cut: the analysis top flush with Director and Cut, the preview below it - or lower,
+  // level with the players of the groups behind (user 2026-11-15: "video preview same y, same size")
   const placeCutCol = (bottom = null) => {
     if (!oneCol) return;
-    const f = cutFilms[0], a = cutAnas[0];
-    if (a) {
-      const fy = bottom != null ? bottom - f.size[1] : director.pos[1] + director.computeSize()[1] - f.size[1];
-      anaFit(a, fy - NGAP - T - director.pos[1]);
-      a.pos = [f.pos[0], director.pos[1]];
-      f.pos = [f.pos[0], fy];
-    } else f.pos = [f.pos[0], director.pos[1]];
+    const f = cutFilms[0], a = cutAnas[0], top = a ? director.pos[1] + a.size[1] + NGAP + T : director.pos[1];
+    if (a) a.pos = [f.pos[0], director.pos[1]];
+    f.pos = [f.pos[0], Math.max(top, bottom != null ? bottom - f.size[1] : top)];
   };
   placeCutCol();
   // Group height from the real content: groups 1-3 keep the full row height, groups 4-6 share one lower height
   // (the smallest that fits all three).
-  const bottom123 = Math.max(...row.slice(0, 3).flatMap(([, ns]) => ns.map((n) => n.pos[1] + n.size[1])));
+  const bottom123 = Math.max(...row.slice(0, 3).flatMap(([, ns]) => ns.map((n) => n.pos[1] + n.size[1])),
+    ...cutAnas.map((n) => n.pos[1] + n.size[1]));
   // Upscale content (block + Film players below) counts for the 4-6 height, not the 1-3 height
   const needUp = () => {
     if (!upGrp || !upMembers.length) return 0;
@@ -297,25 +291,14 @@ export function fcWorkflowLayout(director, second = false) {
   // GIF: width = 6/7/8 (square preview), its full height counts for the 4-6 height
   let gifNeed = 0;
   if (gifGrp && gifNodes.length) {
-    for (const n of gifNodes) { n.size = [inner678, n.size[1]]; n.size = [inner678, n.computeSize()[1]]; }
+    for (const n of gifNodes) { n.size = [inner678, n.size[1]]; n.size = [inner678, csH(n)]; }
     gifNeed = HEAD + helpH(gifHelp) + gifNodes.reduce((s, n) => s + T + n.size[1] + NGAP, 0) + PAD;
   }
-  const H123 = Math.max(sizes[SET][1], sizes[DIR][1], sizes[CUT][1], bottom123 - Y + PAD);
-  // user 2026-11-15: 4 images are the reference - there the groups behind Cut end flush with 1-3; more images only
-  // grow 1-3, nothing behind Cut changes. Too tall behind Cut: every player (Cut's preview too) shrinks the same.
-  const sb = director._imsb?.size, extra = sb?.cells ? Math.max(0, sb.cells.img.length - 4) * sb.row : 0;
-  const H456ref = H123 - extra;
-  let H456 = Math.max(sizes[3][1], upNeed, gifNeed);
-  if (H456 > H456ref) {
-    const cut1 = H456 - H456ref;
-    for (const f of [...asmFilms, ...upFilms, ...cutFilms]) fitTo(f, f.size[1] - cut1);
-    placeCutCol();
-    sizes[3] = [sizes[3][0], colSize(row[3][1], row[3][2], rowHelp[3])[1]];
-    upNeed = needUp();
-    H456 = Math.max(sizes[3][1], upNeed, gifNeed);
-  }
-  H456 = Math.max(H456, H456ref);
+  // user 2026-11-15 ("width!"): the players keep their full-width size, the groups grow with them. Groups 4-6 share
+  // one height; Cut's preview ends level with their players, so 1-3 are at least that tall.
+  const H456 = up(Math.max(sizes[3][1], upNeed, gifNeed, bottom123 - Y + PAD));
   placeCutCol(Y + H456 - PAD);   // Cut's preview level with the players behind
+  const H123 = up(Math.max(sizes[SET][1], sizes[DIR][1], sizes[CUT][1], bottom123 - Y + PAD, oneCol ? H456 : 0));
   row.forEach(([grp, ns], k) => { if (grp && (ns.length || grp)) grp.size = [sizes[k][0], k <= CUT ? H123 : H456]; });
   // Film player(s) of 6 and 7 sit at the bottom edge of their group (user: "films at the bottom"); 6 is 1-3 tall, 7 is 4-6 tall
   for (const [fs, hh] of [[cutFilms.length === 1 && cut.length ? [] : cutFilms, H123], [asmFilms, H456]]) { let b = Y + hh - PAD; for (const f of [...fs].reverse()) { f.pos = [f.pos[0], b - f.size[1]]; b -= T + f.size[1] + NGAP; } }
@@ -323,7 +306,7 @@ export function fcWorkflowLayout(director, second = false) {
   // analysis graph (image preview below the widgets) always has room inside group 7 - also before the first run
   for (const a of asm) {
     const below = asmFilms.length ? Math.min(...asmFilms.map((f) => f.pos[1])) - T - NGAP : Y + H456 - PAD;
-    a.size = [a.size[0], Math.max(a.computeSize()[1], below - a.pos[1])];
+    a.size = [a.size[0], Math.max(csH(a), below - a.pos[1])];
   }
   // 8 Upscale right of 7, content as a block, help centered on top, same height as the row
   if (upGrp && upMembers.length) {
@@ -369,6 +352,9 @@ export function fcWorkflowLayout(director, second = false) {
     ry += h + NGAP + T;
   });
 
+  // grid: every node and group position on R (sizes are already multiples of R)
+  for (const n of g._nodes || []) { n.pos = [snap(n.pos[0]), snap(n.pos[1])]; n.size = [up(n.size[0]), up(n.size[1])]; }
+  for (const gr of groups) { gr.pos = [snap(gr.pos[0]), snap(gr.pos[1])]; gr.size = [up(gr.size[0]), up(gr.size[1])]; }
   g.setDirtyCanvas?.(true, true);
   // Second pass: newly created nodes only get their real height after the
   // first draw - without re-measuring they overlap.

@@ -335,6 +335,15 @@ export function fcReviewToast(msg, color, ms = 3500) {
   setTimeout(() => t.remove(), ms);
 }
 
+// Variants A-D (user 2026-11-15: "max 4, ABCD"): the Director's count and the letters of a Cut entry
+// (review_nodes: e.letters; older entries: has_variants = A/B).
+export const IM_LETTERS = ["a", "b", "c", "d"];
+export function imVariantCount(director) {
+  const v = parseInt(director?.widgets?.find((w) => w.name === "variants")?.value, 10);
+  return Math.min(4, Math.max(1, v || 1));
+}
+export const imLetters = (e) => (Array.isArray(e?.letters) && e.letters.length ? e.letters : e?.has_variants ? ["a", "b"] : ["a"]);
+
 // Task 61: SHARED logic for "Rerender marked" (review AND chooser node).
 // Writes the marked numbers into the `reseed` widget of the director and
 // queues the prompt. Both variants (A/B) get new seeds with that.
@@ -348,9 +357,7 @@ export function fcChooseRedoTokens(node) {
   const rej = node.properties?.rejected || {};
   for (const n of Object.keys(rej).map(Number).sort((a, b) => a - b)) {
     if (marked.includes(n)) continue;
-    const r = rej[n] || [];
-    if (r.length === 1) out.push(`${n}${r[0]}`);
-    else if (r.length > 1) out.push(String(n));
+    for (const l of rej[n] || []) out.push(`${n}${l}`);   // each rejected variant gets a new seed, the rest stays
   }
   return out;
 }
