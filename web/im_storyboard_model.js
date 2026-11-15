@@ -18,18 +18,17 @@ export const filmCount = (n, loop) => (n < 1 ? 0 : n === 1 ? (loop ? 2 : 1) : lo
 // A cut film can only exist with more than one image (a single image is open anyway).
 export const isCut = (rows, i, loop) => rows.length > 1 && hasFilm(rows.length, i, loop) && !!rows[i].cut;
 
-// Cell layout (user 2026-11-15: "always image pairs - a cut is an empty image"): after a cut row an empty ✂ tile
-// takes one full row below its image, so every prompt box always sits between two tiles (img[i] + row/2). The tile is
-// drawn only - it is no storyboard row, film numbers / seconds / seeds never shift. Cut mirrors box[] for its rows.
-export function cellTops(rows, loop, row) {
-  const n = rows.length, img = [], box = [], gap = [];
+// Cell layout: the images stay one stack (user 2026-11-15), every prompt box sits between its image and the next
+// (img[i] + row/2). A cut is only drawn: a thin black line in the gap below its image (cut[i] = y of the gap's middle)
+// - no storyboard row of its own, film numbers / seconds / seeds never shift. Cut mirrors box[] and cut[].
+export function cellTops(rows, loop, row, gapPx = 10) {
+  const n = rows.length, img = [], box = [], cut = [];
   for (let i = 0; i < n; i++) {
-    img.push(i ? img[i - 1] + row + (isCut(rows, i - 1, loop) ? row : 0) : 0);
+    img.push(i * row);
     box.push(hasFilm(n, i, loop) ? img[i] + row / 2 : null);
-    gap.push(isCut(rows, i, loop) ? img[i] + row : null);   // the empty ✂ tile below image i
+    cut.push(isCut(rows, i, loop) ? img[i] + row - gapPx / 2 : null);
   }
-  const end = n ? img[n - 1] + row + (isCut(rows, n - 1, loop) ? row : 0) : 0;   // below the last tile
-  return { img, box, gap, end };
+  return { img, box, cut, end: n * row };
 }
 
 export function pairOf(rows, i, loop) {

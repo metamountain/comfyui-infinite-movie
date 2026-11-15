@@ -61,14 +61,12 @@ export function fcChooseRender(node) {
       const top = tops[i];   // = the Director's prompt box i (empty ✂ tiles included)
       const cut = isCut(e, i);
       if (cut) {
-        // the Director's empty ✂ tile, mirrored: one row below this film, as wide as the row
+        // the Director's cut line, mirrored: thin black line in the gap below this film's row
         const ln = document.createElement("div");
         ln.className = "fc-cut-line";
-        ln.textContent = "✂ CUT";
         ln.title = "Hard cut: this film ends open, the next one starts fresh at its own image";
-        ln.style.cssText = `position:absolute;left:0;right:0;top:${top + row}px;height:${ih}px;box-sizing:border-box;` +
-          "background:#000;border:2px dashed #555;border-radius:5px;display:flex;align-items:center;justify-content:center;" +
-          "color:#bbb;font:bold 14px sans-serif;pointer-events:none;";
+        ln.style.cssText = `position:absolute;left:0;right:0;top:${top + ih + (row - ih) / 2 - 2}px;height:4px;` +
+          "background:#000;border-radius:2px;pointer-events:none;";
         board.appendChild(ln);
       }
 

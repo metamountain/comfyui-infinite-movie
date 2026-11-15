@@ -2,9 +2,9 @@
 // right, half a row lower (between its two images). Rules in im_storyboard_model.js, widgets/server in
 // im_storyboard_io.js. User decisions: tiles as large as a standard Load Image preview, format from Settings; one
 // delete button (image + prompt); a dragged image takes its prompt along, prompts whose images changed glow red.
-// Cut (user 2026-11-15): ✂ in a prompt box = that film ends open ("First to Open"), an empty black ✂ tile follows its
-// image (always image pairs, the geometry never changes) and the next film starts fresh at its own image. Its ✕ or the
-// ✂ again removes the cut. Black, not red: a cut is a choice, not a warning.
+// Cut (user 2026-11-15): ✂ in a prompt box, between two tiles (hover) or in a tile's right-click menu = that film ends
+// open ("First to Open") and the next film starts fresh at its own image. Shown as a thin black line in the gap below
+// the image - the images stay one stack. Black, not red: a cut is a choice, not a warning.
 import { app } from "../../scripts/app.js";
 import { api } from "../../scripts/api.js";
 import { fcQueueFixedSeeds, fcReviewToast, imWidget, settingsNodeOf } from "./im_common.js";
@@ -58,9 +58,7 @@ const CSS = `
 .imsb-p .ct:hover { background:#383838; color:#fff; }
 .imsb-p.cut { border-top:4px solid #000; }
 .imsb-p.cut .ct { background:#000; color:#fff; }
-.imsb-cut { position:absolute; left:0; border-radius:5px; background:#000; border:2px dashed #555; display:flex; align-items:center; justify-content:center; color:#bbb; font:700 14px system-ui; user-select:none; }
-.imsb-cut .x { position:absolute; right:4px; top:4px; width:22px; height:22px; border-radius:3px; background:#222; color:#ddd; text-align:center; line-height:22px; cursor:pointer; font:12px system-ui; }
-.imsb-cut .x:hover { background:#444; }
+.imsb-cut { position:absolute; left:0; height:4px; border-radius:2px; background:#000; pointer-events:none; }
 .imsb-menu { position:fixed; z-index:10000; min-width:210px; background:#1f1f1f; border:1px solid #4a4a4a; border-radius:6px; padding:4px; box-shadow:0 6px 18px #000a; font:13px system-ui,sans-serif; color:#ddd; }
 .imsb-menu div { padding:6px 10px; border-radius:4px; cursor:pointer; white-space:nowrap; }
 .imsb-menu div:hover { background:#2f5d8a; }
@@ -70,6 +68,7 @@ const CSS = `
 .imsb-ins { position:absolute; left:0; height:18px; z-index:3; cursor:pointer; display:flex; align-items:center; justify-content:center; }
 .imsb-ins span { display:none; width:22px; height:22px; margin:0 4px; border-radius:50%; background:#4af; color:#fff; font:700 17px/22px system-ui; text-align:center; box-shadow:0 0 0 3px #1b1b1b; position:relative; }
 .imsb-ins span.cut { background:#000; border:1px dashed #888; font-size:12px; line-height:20px; }
+.imsb-ins span.cut.on { background:#fff; color:#000; border-style:solid; }
 .imsb-ins:hover span { display:block; }
 .imsb-ins span:hover { transform:scale(1.2); }
 .imsb-ins:hover::before { content:""; position:absolute; left:0; right:0; top:7px; height:4px; background:#4af8; border-radius:2px; }
@@ -366,15 +365,9 @@ export function render(node) {
   for (let i = 0; i < rows.length; i++) {
     st.board.appendChild(tileEl(node, rows, i));
     if (hasFilm(rows.length, i, loop)) st.board.appendChild(promptEl(node, rows, i, loop));
-    if (st.size.cells.gap[i] != null) {   // empty ✂ tile: the end of the open film above, no row of its own
-      const c = el("div", "imsb-cut", "✂ CUT"), x = el("div", "x", "✕");
-      c.style.cssText = `top:${st.size.cells.gap[i]}px;width:${iw}px;height:${st.size.ih}px`;
-      c.title = `Cut: film ${i + 1} ends open, a hard cut follows`;
-      x.title = "Remove the cut";
-      x.onpointerdown = (e) => e.stopPropagation();
-      x.onclick = (e) => { e.stopPropagation(); setCut(node, i, false); };
-      c.appendChild(x);
-      c.oncontextmenu = (e) => showMenu(e, [["Remove cut", () => setCut(node, i, false)]]);
+    if (st.size.cells.cut[i] != null) {   // the cut: a thin black line in the gap below image i
+      const c = el("div", "imsb-cut");
+      c.style.cssText = `top:${st.size.cells.cut[i] - 2}px;width:${iw}px`;
       st.board.appendChild(c);
     }
   }
@@ -382,9 +375,9 @@ export function render(node) {
   const anchor = el("div", "imsb-anchor");
   anchor.style.top = `${row / 2}px`;
   st.board.appendChild(anchor);
-  // Hover between two tiles (user 2026-11-15): + = insert an image here, ✂ = empty frame here (cut after the image above).
+  // Hover between two tiles (user 2026-11-15): + = insert an image here, ✂ = cut here on/off (after the image above).
   for (let k = 1; k <= rows.length; k++) {   // k = n: below the last image
-    const add = rows.length < MAX_IMAGES, cut = rows.length > 1 && hasFilm(rows.length, k - 1, loop) && !rows[k - 1].cut;
+    const add = rows.length < MAX_IMAGES, cut = rows.length > 1 && hasFilm(rows.length, k - 1, loop), on = cut && rows[k - 1].cut;
     if (!add && !cut) continue;
     const z = el("div", "imsb-ins");
     z.style.cssText = `top:${gapTop(st, k) - 9}px;width:${iw}px`;
@@ -396,9 +389,9 @@ export function render(node) {
       z.appendChild(a);
     }
     if (cut) {
-      const c = el("span", "cut", "✂");
-      c.title = `Empty frame here: film ${k} ends open, a hard cut follows`;
-      c.onclick = () => setCut(node, k - 1, true);
+      const c = el("span", "cut" + (on ? " on" : ""), "✂");
+      c.title = on ? "Remove the cut here" : `Cut here: film ${k} ends open, a hard cut follows`;
+      c.onclick = () => setCut(node, k - 1, !on);
       z.appendChild(c);
     }
     st.board.appendChild(z);
