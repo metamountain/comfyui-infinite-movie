@@ -223,7 +223,7 @@ export function fcChooseRender(node) {
       const pendingAny = !e.placeholder && !!node._fc_redo_pending?.[e.number]?.length;
       const light = isMarked || rejected.length ? "#d93025" : (pendingAny || (e.placeholder && fcRun.running)) ? "#44aaff"
         : e.placeholder ? "#e6c229" : "#2ea043";
-      const nextNo = sb.length > 1 ? (isOpenFilm(e) ? "open" : nextRow(e) + 1) : e.seam_next || (i + 1 < entries.length ? i + 2 : 1);
+      const nextNo = sb.length > 1 ? (isOpenFilm(e) ? "∅" : nextRow(e) + 1) : e.seam_next || (i + 1 < entries.length ? i + 2 : 1);
       const hd = document.createElement("div");
       hd.style.cssText = "display:flex;align-items:center;gap:6px;font:bold 12px sans-serif;color:#ddd;";
       hd.innerHTML = `<span style="width:10px;height:10px;border-radius:50%;background:${light};flex:none"></span>` +

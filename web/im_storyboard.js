@@ -197,9 +197,9 @@ function remove(node, i) {
 // One wording for every cut toggle (prompt header and hover strip): what a click does now.
 const cutTitle = (on, film, next) => (on
   ? `Remove cut: film ${film} → ${next} comes back`
-  : `Cut after image ${film}: hard cut, image ${next} starts fresh. Prompt ${film} empty = no film, text = open film from image ${film}`);
-const CUT_HINT = "Empty = no film, just the hard cut. Text = open film from this image (no end image), then the cut";
-const TEXT_HINT = "No image on either side: write this prompt yourself (text to video)";
+  : `Cut after image ${film}: hard cut, image ${next} starts fresh. Prompt ${film} empty = no film, text = film from image ${film} into ∅`);
+const CUT_HINT = "Cut after this image: the end is empty (∅). Empty prompt = no film here. Text = film from this image into ∅, then the cut";
+const TEXT_HINT = "∅ → ∅: no image on either side - write this prompt yourself (text to video)";
 const hint = (cutRow, textOnly) => (textOnly ? TEXT_HINT : cutRow ? CUT_HINT : "What happens from this image to the next…");
 
 function setCut(node, i, on) {
@@ -351,7 +351,7 @@ function promptEl(node, rows, i, loop) {
   // black = empty (user 2026-11-15): an empty frame gives the engine nothing on that side - ∅ in the header
   const e0 = isEmptyImage(r.image), e1 = !cutRow && n > 1 && isEmptyImage(rows[j]?.image);
   const textOnly = e0 && (e1 || cutRow || n === 1);
-  hd.append(el("span", null, `${e0 ? "∅" : i + 1} → ${n === 1 ? "open" : cutRow ? "open" : e1 ? "∅" : j + 1}`), bg, sec);
+  hd.append(el("span", null, `${e0 ? "∅" : i + 1} → ${n === 1 ? "open" : cutRow || e1 ? "∅" : j + 1}`), bg, sec);
   // user 2026-11-15: no ✂ in the prompt box - cuts are set only between the images (hover ✂ in the image column)
   const busy = !!st.busy?.has(i);
   const ta = Object.assign(el("textarea"), { value: r.prompt, disabled: busy,
