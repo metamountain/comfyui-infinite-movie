@@ -209,11 +209,15 @@ function dragPrompt(node, e, i, box) {
   const lo = st.size.cells.img[i], hi = lo + row / 2;
   const prev = !readRows(node)[i - 1]?.cut ? st.boxes?.[i - 1] : null;   // a transition box right above
   const scale = () => (bd.getBoundingClientRect().height / bd.offsetHeight) || 1;
+  // Down past the middle to the next image = cut as well (user 2026-11-15): the box shows next to image i+1 with the
+  // line above it while dragging; dropped, it sits next to its own image (same cut, the line stays put).
+  const below = i + 1 < (st.size.cells.img.length || 0);
   let cut = top0 < lo + row / 4;
   box.classList.add("lift");
   const onMove = (ev) => {
-    cut = top0 + (ev.clientY - y0) / scale() < lo + row / 4;
-    box.style.top = `${cut ? lo : hi}px`;
+    const y = top0 + (ev.clientY - y0) / scale(), down = below && y > hi + row / 4;
+    cut = y < lo + row / 4 || down;
+    box.style.top = `${down ? lo + row : cut ? lo : hi}px`;
     box.classList.toggle("cut", cut);
     if (prev) { prev.style.height = `${boxHeight(row, ih, cut)}px`; prev.classList.toggle("short", cut); }
   };
@@ -375,7 +379,7 @@ function promptEl(node, rows, i, loop) {
     ct.onpointerdown = (e) => e.stopPropagation();
     ct.onclick = (e) => { e.stopPropagation(); setCut(node, i, !cut); };
     hd.insertBefore(ct, sec);
-    hd.title = "Drag: up next to the image = cut (film ends open) · down between the images = transition to the next image";
+    hd.title = "Drag: up next to the image (or down to the next image) = cut (film ends open) · between the images = transition";
     hd.onpointerdown = (e) => {
       if (e.button !== 0 || e.target.closest("input, .ct")) return;
       e.stopPropagation();
