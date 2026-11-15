@@ -2,6 +2,7 @@ import { app } from "../../scripts/app.js";
 import { api } from "../../scripts/api.js";
 import { fcReviewToast, imFilmDoneNotice } from "./im_common.js";
 import { fcChooseFocus, fcChooseStatus } from "./im_cut_state.js";
+import { fcFilmShowFilm } from "./im_film.js";
 import { imToggleWidget } from "./im_settings.js";
 import { imSyncGet, imvShotDur } from "./im_sync.js";
 // Normalize Time: draw the graph of the last run below the widgets (user 2026-10-26:
@@ -493,6 +494,13 @@ app.registerExtension({
       // ui["film_info"] from Cut (review_nodes.py) and Even Motion (retime_nodes.py).
       const fi = d.output?.film_info?.[0];
       if (fi && !fe) { node._fc_film_done = fi; imFilmDoneNotice(node, fi); }
+      // Cut built the film itself: the Film players it feeds show it (they are not part of a shot run)
+      const fv = d.output?.film?.[0];
+      if (fi && !fe && fv?.filename) {
+        const info = { exists: true, path: fi.path, view: { filename: fv.filename, subfolder: fv.subfolder || "", type: fv.type || "output" },
+          status: `Saved: ${fi.path} · ${fi.seconds} s · ${fi.shots} shots`, saved_at: Date.now() };
+        for (const f of films) fcFilmShowFilm(f, info);
+      }
       for (const f of films) if (f.properties?.im_viz) imvDraw(f);
       fcChooseStatus(node);
     });

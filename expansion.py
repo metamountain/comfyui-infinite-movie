@@ -507,12 +507,14 @@ def _drop_end_image(graph: dict, source_id: str) -> None:
 
 
 def _reusable_segment(path: str, key: str) -> bool:
-    """Reuse an existing shot unless its seed changed (user 2026-11-10: only 'reseed' decides what is rendered
-    again - edited prompts, images or lengths do not). The key file still stores the full key; only its
-    'seed=…' part is compared. A missing file or key file -> render."""
+    """Reuse an existing shot unless its seed or its render size changed (user 2026-11-10: only 'reseed' decides
+    what is rendered again - edited prompts, images or lengths do not; a shot of another size cannot join the film).
+    The key file still stores the full key; only its 'seed=…' and 'size=…' parts are compared. A missing file or
+    key file -> render."""
+    def head(k):
+        return [p for p in k.strip().split(";") if p.startswith(("seed=", "size="))]
     try:
-        return (os.path.getsize(path) > 0
-                and open(path + ".key", encoding="utf-8").read().strip().split(";")[0] == key.split(";")[0])
+        return os.path.getsize(path) > 0 and head(open(path + ".key", encoding="utf-8").read()) == head(key)
     except OSError:
         return False
 
@@ -730,7 +732,7 @@ def build_expansion_graph(unique_id: str, preset: str,
 
         # --- Variant A (seed as before, seg_XXX.mp4) ---
         prefix_a = f"{unique_id}_s{i}_"
-        key_a = f"seed={seg_seed};len={seg_length};{base_hash}"
+        key_a = f"seed={seg_seed};size={width}x{height};len={seg_length};{base_hash}"
         if _reusable_segment(segment_path(output_dir, i), key_a):
             save_id_a = _reuse_node(graph, f"{prefix_a}reuse", segment_path(output_dir, i))
         else:
@@ -755,7 +757,7 @@ def build_expansion_graph(unique_id: str, preset: str,
         # --- Variant B (seed A + 500, seg_XXX_b.mp4) – only when variants >= 2 ---
         if variants >= 2:
             prefix_b = f"{unique_id}_s{i}b_"
-            key_b = f"seed={seed_b};len={seg_length};{base_hash}"
+            key_b = f"seed={seed_b};size={width}x{height};len={seg_length};{base_hash}"
             if _reusable_segment(segment_path_b(output_dir, i), key_b):
                 save_id_b = _reuse_node(graph, f"{prefix_b}reuse", segment_path_b(output_dir, i))
             else:

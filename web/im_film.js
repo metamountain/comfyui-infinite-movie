@@ -69,6 +69,7 @@ function fcFilmWidgets(node) {
 }
 // 79: current film = the newest entry of im_recent (survives reload) or _fc_film_info.
 function fcFilmCurrentInfo(node) {
+  if (node._fc_film_info === false) return null;   // cleared by a new shot run: no old film until the next one
   return node._fc_film_info || node.properties?.im_recent?.[0] || null;
 }
 const fcShortStatus = (info) => String(info?.status || "").replace(/^(Saved|Preview):\s*/, "").replace(/^[^·]*[\\/]/, "");
@@ -174,6 +175,19 @@ export function fcFilmRender(node) {
   if (Math.abs(node.size[0] - need[0]) > 1 || Math.abs(node.size[1] - need[1]) > 1) node.setSize(need);
   node.setDirtyCanvas(true, true);
 }
+// Show a newly built film (own run, or the film Cut built); the last 3 stay in properties.im_recent (survive reload).
+export function fcFilmShowFilm(node, info) {
+  node._fc_film_info = info;
+  if (info?.exists) {
+    node.properties = node.properties || {};
+    const recent = (node.properties.im_recent || []).slice();
+    recent.unshift(info);
+    while (recent.length > 3) recent.pop();
+    node.properties.im_recent = recent;
+    node.properties.im_source = "film";   // a new film was built: show it (not the last single shot)
+  }
+  fcFilmRender(node);
+}
 // Cut's ▶ play: show one shot in this Film node and switch it to "Single shot" (called from im_cut_state.js).
 export function fcFilmShowShot(node, shot) {
   node._fc_shot = shot;
@@ -246,18 +260,7 @@ app.registerExtension({
     const origExecuted = nodeType.prototype.onExecuted;
     nodeType.prototype.onExecuted = function (message) {
       origExecuted?.apply(this, arguments);
-      const info = (message && message.infinite_movie_film && message.infinite_movie_film[0]) || null;
-      this._fc_film_info = info;
-      // 79: remember the last 3 films in node.properties.im_recent (survives page reload).
-      if (info?.exists) {
-        this.properties = this.properties || {};
-        const recent = (this.properties.im_recent || []).slice();
-        recent.unshift(info);
-        while (recent.length > 3) recent.pop();
-        this.properties.im_recent = recent;
-        this.properties.im_source = "film";   // a new film was built: show it (not the last single shot)
-      }
-      fcFilmRender(this);
+      fcFilmShowFilm(this, (message && message.infinite_movie_film && message.infinite_movie_film[0]) || null);
     };
     // 2026-11-13: fps/file and the Film|Shot switch follow the connections
     const origConn = nodeType.prototype.onConnectionsChange;

@@ -220,7 +220,7 @@ export async function fcQueueFixedSeeds(targets) {
 // Remove films/previews of an old run (new shot run or cancel): Film, Assemble, Choose.
 export function fcClearFilms({ choose = false } = {}) {
   for (const n of app.graph?._nodes || []) {
-    if (n.comfyClass === "InfiniteMovieFilm") { n._fc_film_info = null; fcFilmRender(n); }
+    if (n.comfyClass === "InfiniteMovieFilm") { n._fc_film_info = false; fcFilmRender(n); }
     else if (n.comfyClass === "InfiniteMovieAssemble") { n.imgs = undefined; n.images = undefined; n.setDirtyCanvas?.(true, true); }
     else if (n.comfyClass === "InfiniteMovieChooser") {
       if (choose) { n._fc_choose_entries = []; n._fc_redo_pending = null; }

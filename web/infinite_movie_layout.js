@@ -244,6 +244,26 @@ export function fcWorkflowLayout(director, second = false) {
     delete n.properties.imv_h;
     n.size = [n.size[0], n.computeSize()[1]];
   }
+  // Cut mirrors the Director: film row i sits at the height of the Director's prompt box i. Measured on the rendered
+  // DOM, so it takes effect in the second pass (the DOM then shows the positions of the first pass: _im_lay_y).
+  const domY = (n, sel) => {
+    for (const w of n.widgets || []) {
+      const t = w.element?.querySelector?.(sel);
+      if (t && t.offsetParent) {
+        const ds = app.canvas.ds, cr = app.canvas.canvas.getBoundingClientRect();
+        return (t.getBoundingClientRect().top - cr.top) / ds.scale - ds.offset[1];
+      }
+    }
+    return null;
+  };
+  for (const c of cut) {
+    const dY = domY(director, ".imsb-p"), cY = domY(c, ".fc-info");
+    if (second && dY != null && cY != null && director._im_lay_y != null && c._im_lay_y != null) {
+      const want = director.pos[1] + (dY - director._im_lay_y), now = c.pos[1] + (cY - c._im_lay_y);
+      c.pos = [c.pos[0], c.pos[1] + Math.max(0, Math.round(want - now))];   // only down: above it sit the group head and help
+    }
+  }
+  for (const n of [director, ...cut]) n._im_lay_y = n.pos[1];
   // Cut: the preview sits at the right edge of the double-width group
   if (row[CUT][0]) for (const f of cutFilms) f.pos = [row[CUT][0].pos[0] + sizes[CUT][0] - PAD - f.size[0], f.pos[1]];
   // A single Film player beside Cut (analysis above the video) is vertically centred on Cut
