@@ -65,7 +65,10 @@ const CSS = `
 .imsb-p .ct { cursor:pointer; padding:1px 5px; border-radius:3px; color:#aaa; font:700 15px system-ui; }
 .imsb-p .ct.busy { cursor:progress; color:#666; }
 .imsb-p .ct:hover { background:#383838; color:#fff; }
-.imsb-p.nofilm { opacity:.6; }   /* cut row without a prompt: no film there */
+.imsb-p.nofilm { opacity:.6; }
+.imsb-ghost { position:absolute; left:0; border-radius:5px; background:#222; border:1px solid #4a4a4a; overflow:hidden; pointer-events:none; }
+.imsb-ghost img { width:100%; height:100%; object-fit:cover; display:block; }
+.imsb-ghost .no { position:absolute; left:4px; top:4px; background:#000a; border-radius:3px; padding:0 5px; font:700 12px system-ui; }   /* cut row without a prompt: no film there */
 .imsb-cut { position:absolute; left:0; height:4px; border-radius:2px; background:#000; pointer-events:none; }
 .imsb-p .lamp { display:inline-block; width:10px; height:10px; border-radius:50%; margin:0 1px 0 2px; flex:none;
   background:radial-gradient(circle at 40% 35%, var(--c1) 0 18%, var(--c2) 45%, var(--c3) 100%); box-shadow:0 0 3px 1px var(--g), 0 0 9px 2px var(--g); }
@@ -211,7 +214,7 @@ function setCut(node, i, on) {
 }
 
 // y of the insert line above image k (k = n: below the last tile) - an empty ✂ tile stays with the image above it
-const gapTop = (st, k) => (k < st.size.cells.img.length ? st.size.cells.img[k] : st.size.cells.end) - GAP / 2;
+const gapTop = (st, k) => (k < st.size.cells.img.length ? st.size.cells.img[k] : st.size.cells.ghost ?? st.size.cells.end) - GAP / 2;
 
 // End the "writing" state of a storyboard: clear busy and redraw (no-op when it already ended).
 const endBusy = (node) => { if (node._imsb?.busy) { node._imsb.busy = null; render(node); } };
@@ -459,6 +462,17 @@ export function render(node) {
       c.style.cssText = `top:${st.size.cells.cut[i] - 2}px;width:${iw + GAP + st.size.pw}px`;
       st.board.appendChild(c);
     }
+  }
+  // loop: image 1 once more below the last one - display only (the loop film ends there)
+  if (st.size.cells.ghost != null && rows[0]?.image) {
+    const gt = el("div", "imsb-ghost");
+    gt.style.cssText = `top:${st.size.cells.ghost}px;width:${iw}px;height:${st.size.cells.hts[0]}px`;
+    const gi = el("img");
+    gi.src = imageUrl(rows[0].image);
+    gi.draggable = false;
+    gt.append(gi, el("div", "no", "1 · loop"));
+    gt.title = "Loop: the last film ends on image 1 again";
+    st.board.appendChild(gt);
   }
   // ✎ Write all over every prompt column (user 2026-11-15): each button writes only its own column (variant)
   const first = rows.findIndex((_, i) => st.size.cells.box[i] != null);
