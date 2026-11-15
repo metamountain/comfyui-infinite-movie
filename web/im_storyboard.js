@@ -91,9 +91,9 @@ document.head.appendChild(Object.assign(document.createElement("style"), { textC
 
 const el = (tag, cls, txt) => { const e = document.createElement(tag); if (cls) e.className = cls; if (txt != null) e.textContent = txt; return e; };
 
-function pickFiles(multiple) {
+function pickFiles(multiple, accept = "image/*") {
   return new Promise((resolve) => {
-    const inp = Object.assign(el("input"), { type: "file", accept: "image/*", multiple });
+    const inp = Object.assign(el("input"), { type: "file", accept, multiple });
     inp.onchange = () => resolve([...(inp.files || [])]);
     inp.click();
   });
@@ -526,21 +526,37 @@ export function addStoryboard(node) {
     commit(node, [...rows, emptyRow()]);
   };
   // Load images appends: empty rows at the end are filled first, then new rows follow (max MAX_IMAGES).
-  const append = (names) => {
+  const append = (names, prompts = {}) => {
     if (!names.length) return;
     const rows = readRows(node);
     while (rows.length && !rows[rows.length - 1].image && !rows[rows.length - 1].prompt) rows.pop();
     const room = MAX_IMAGES - rows.length;
     if (names.length > room) fcReviewToast(`${names.length - room} images skipped (max ${MAX_IMAGES})`, "#e68929");
-    commit(node, [...rows, ...names.slice(0, room).map((image) => ({ ...emptyRow(), image }))]);
+    commit(node, [...rows, ...names.slice(0, room).map((image, k) => {
+      const prompt = prompts[k] || "";
+      return { ...emptyRow(), image, prompt, own: !!prompt };   // a .txt prompt counts as manual: Write all keeps it
+    })]);
   };
   const bLoad = el("button", null, "📂 Load images…");
-  bLoad.title = `Adds the chosen images below the last one (sorted by name, max ${MAX_IMAGES})`;
+  bLoad.title = `Adds the chosen images below the last one (sorted by name, max ${MAX_IMAGES}). ` +
+    "Select .txt files along with them: shark1.txt becomes the prompt of shark1.jpg (the film from that image on)";
   bLoad.onclick = async () => {
-    const files = (await pickFiles(true)).sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true }));
-    const names = [];
-    for (const f of files.slice(0, MAX_IMAGES)) { const nm = await uploadImage(f); if (nm) names.push(nm); }
-    append(names);
+    // user 2026-11-15: a prompt travels as a text file with the image's name (shark1.jpg + shark1.txt)
+    const all = await pickFiles(true, "image/*,.txt,text/plain");
+    const stem = (f) => f.name.replace(/\.[^.]*$/, "").toLowerCase();
+    const isTxt = (f) => /\.txt$/i.test(f.name);
+    const texts = new Map(await Promise.all(all.filter(isTxt).map(async (f) => [stem(f), (await f.text()).trim()])));
+    const files = all.filter((f) => !isTxt(f)).sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true }));
+    const names = [], prompts = {};
+    for (const f of files.slice(0, MAX_IMAGES)) {
+      const nm = await uploadImage(f);
+      if (!nm) continue;
+      if (texts.get(stem(f))) prompts[names.length] = texts.get(stem(f));
+      names.push(nm);
+    }
+    append(names, prompts);
+    const used = Object.keys(prompts).length;
+    if (texts.size) fcReviewToast(`${used} prompt${used === 1 ? "" : "s"} loaded from .txt` + (texts.size > used ? `, ${texts.size - used} without a matching image` : ""), "#888");
   };
   const pbar = el("div", "imsb-pp");   // prompt writing progress (im_prompt_progress.js)
   pbar.appendChild(el("span"));
