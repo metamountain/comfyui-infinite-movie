@@ -345,15 +345,24 @@ def _probe_size(video_path: str) -> tuple[int, int]:
     return size["width"], size["height"]
 
 
-def warn_ui(text: str) -> None:
-    """Amber toast in the browser (event infinite_movie.warning) + console line; silent without ComfyUI (tests)."""
-    print(f"[InfiniteMovie] WARNING: {text}")
+def send_ui(event: str, data: dict) -> None:
+    """A pack event to the browser tab that queued the running prompt only (like ComfyUI's own "executing"):
+    broadcasting made other tabs with a node of the same id show foreign progress (user 2026-11-15). No client
+    (API run) or no ComfyUI (tests): nothing is sent."""
     try:
         from server import PromptServer
-        if PromptServer.instance is not None:
-            PromptServer.instance.send_sync("infinite_movie.warning", {"text": text})
+        inst = PromptServer.instance
+        sid = getattr(inst, "client_id", None)
+        if inst is not None and sid is not None:
+            inst.send_sync(event, data, sid)
     except Exception:  # noqa: BLE001
         pass
+
+
+def warn_ui(text: str) -> None:
+    """Amber toast in the browser (event infinite_movie.warning) + console line."""
+    print(f"[InfiniteMovie] WARNING: {text}")
+    send_ui("infinite_movie.warning", {"text": text})
 
 
 def alloc_frames(n: int, h: int, w: int, disk_dir: str | None = None, what: str = "images output"):

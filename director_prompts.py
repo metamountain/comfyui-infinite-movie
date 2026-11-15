@@ -67,14 +67,9 @@ def _estimates(model: str, n_images: int) -> tuple[float, float]:
 
 
 def _progress(node_id, **data) -> None:
-    if node_id is None:
-        return
-    try:
-        from server import PromptServer
-        if PromptServer.instance is not None:
-            PromptServer.instance.send_sync("infinite_movie.prompt_progress", {"node": str(node_id), **data})
-    except Exception:  # noqa: BLE001 - without ComfyUI (tests)
-        pass
+    if node_id is not None:
+        from .media import send_ui
+        send_ui("infinite_movie.prompt_progress", {"node": str(node_id), **data})
 
 
 def write_prompts(board, indices, loop, settings, node_id=None) -> list[dict]:

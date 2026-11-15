@@ -300,13 +300,8 @@ def storyboard_text(sb, raw=None) -> str:
 
 def announce_storyboard(sb, cached: bool = False, raw=None):
     """Send the plan to the browser (event infinite_movie.storyboard), shown in the Story Mode node."""
-    try:
-        from server import PromptServer
-        inst = PromptServer.instance
-        if inst is not None:
-            inst.send_sync("infinite_movie.storyboard", {"text": storyboard_text(sb, raw), "cached": bool(cached)})
-    except Exception:  # noqa: BLE001 - without ComfyUI (tests)
-        pass
+    from .media import send_ui
+    send_ui("infinite_movie.storyboard", {"text": storyboard_text(sb, raw), "cached": bool(cached)})
 
 
 def shot_context(sb, k: int) -> str:

@@ -27,7 +27,8 @@ from comfy_api.latest import io
 
 from . import vram
 from .expansion import build_expansion_graph, engine_to_template, segment_path, segment_path_b
-from .media import (_count_frames, _encode_dir_to_mp4, _ffmpeg, _no_window, _segment_is_complete, _write_audio_to_wav, _write_frames_to_dir)
+from .media import (_count_frames, _encode_dir_to_mp4, _ffmpeg, _no_window, _segment_is_complete, _write_audio_to_wav, _write_frames_to_dir,
+                    send_ui)
 from .shot_utils import (_clean_prompt, _parse_reseed, _parse_shot_seconds, _scene_frames, _seconds_to_frames,
                            center_crop_resize)
 # settings_nodes imports only .vram + lazy .autoprompt - no cycle
@@ -136,13 +137,7 @@ def _send_render_plan(node_id, segments: int, width: int, height: int, frames: i
             "width": int(width), "height": int(height),
             "seg_seconds": (est or {}).get("seconds"), "n": (est or {}).get("n", 0),
             "match": (est or {}).get("match", "")}
-    try:
-        from server import PromptServer
-        inst = PromptServer.instance
-        if inst is not None:
-            inst.send_sync("infinite_movie.render_plan", data)
-    except Exception:  # noqa: BLE001
-        pass
+    send_ui("infinite_movie.render_plan", data)
     return data
 
 
@@ -181,13 +176,7 @@ def _send_segment_done(unique_id, index, total, frames):
             data["view"] = {"filename": name, "subfolder": "", "type": "temp"}
     except Exception:  # noqa: BLE001
         pass
-    try:
-        from server import PromptServer
-        inst = PromptServer.instance
-        if inst is not None:
-            inst.send_sync("infinite_movie.segment_done", data)
-    except Exception:  # noqa: BLE001
-        pass
+    send_ui("infinite_movie.segment_done", data)
     return data
 
 
