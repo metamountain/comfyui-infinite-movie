@@ -1,6 +1,6 @@
 import { app } from "../../scripts/app.js";
 import { api } from "../../scripts/api.js";
-import { FC_REVIEW_LINE_COLORS, fcQueueFixedSeeds, fcReviewToast, fcShotSecondsOf, getLink, imFilmCount, imParseStoryboard, imRowCut } from "./im_common.js";
+import { FC_REVIEW_LINE_COLORS, fcQueueFixedSeeds, fcReviewToast, fcShotSecondsOf, getLink, imFilmCount, imParseStoryboard } from "./im_common.js";
 import { fcChooseDirectorOf, fcChooseEditPrompt, fcChooseEditSeconds, fcRerenderMarked } from "./im_cut_edit.js";
 import { FC_CHOOSE_BIG_H, FC_CHOOSE_GAP, FC_CHOOSE_NODE_W, FC_CHOOSE_PAD, FC_CHOOSE_ROW_GAP, FC_CHOOSE_STATUS_H, fcAsmFocus, fcChooseApplyActive, fcChooseEff, fcChooseEffective, fcChooseEntries, fcChooseFocus, fcChooseGetChoices, fcChooseLayout, fcChoosePick, fcChoosePlay, fcChooseQuality, fcChooseSig, fcChooseStableUrl, fcChooseStatus, fcChooseWidth, fcRun } from "./im_cut_state.js";
 import { fcDownstreamOutputs } from "./im_film.js";
@@ -9,7 +9,7 @@ import { imToggleWidget } from "./im_settings.js";
 import { imSyncSet } from "./im_sync.js";
 
 // Cut marks of the Director's board: part of the redraw signature (a ✂ in the Director redraws Cut).
-const fcCutSig = (node) => { const d = fcChooseDirectorOf(node); return imParseStoryboard(d).map((r) => (imRowCut(d, r) ? "1" : "0")).join(""); };
+const fcCutSig = (node) => imParseStoryboard(fcChooseDirectorOf(node)).map((r) => (r.cut ? "1" : "0")).join("");
 export function fcChooseRender(node) {
   let el = node._fc_choose_el;
   if (!el) {
@@ -55,21 +55,20 @@ export function fcChooseRender(node) {
     board.style.cssText = `position:relative;height:${boardH}px;`;
     el.appendChild(board);
     // Director rows marked cut: that film ends open, a hard cut follows (live from the board, else the last run)
-    const dir = fcChooseDirectorOf(node), sb = imParseStoryboard(dir);
-    const isCut = (e, i) => (sb.length > 1 ? imRowCut(dir, sb[i]) : !!e.cut);
+    const sb = imParseStoryboard(fcChooseDirectorOf(node));
+    const isCut = (e, i) => (sb.length > 1 ? !!sb[i]?.cut : !!e.cut);
     entries.forEach((e, i) => {
-      const top = tops[i];   // = the Director's prompt box i (cell division included)
+      const top = tops[i];   // = the Director's prompt box i (empty ✂ tiles included)
       const cut = isCut(e, i);
       if (cut) {
+        // the Director's empty ✂ tile, mirrored: one row below this film, as wide as the row
         const ln = document.createElement("div");
         ln.className = "fc-cut-line";
+        ln.textContent = "✂ CUT";
         ln.title = "Hard cut: this film ends open, the next one starts fresh at its own image";
-        ln.style.cssText = `position:absolute;left:0;right:0;top:${top + ih + (row - ih) / 2 - 1}px;height:0;` +
-          "border-top:3px solid #000;pointer-events:none;z-index:2;";
-        const lb = document.createElement("span");
-        lb.textContent = "✂ CUT";
-        lb.style.cssText = "position:absolute;right:8px;top:-10px;padding:1px 6px;border-radius:3px;background:#000;color:#ddd;font:bold 11px sans-serif;";
-        ln.appendChild(lb);
+        ln.style.cssText = `position:absolute;left:0;right:0;top:${top + row}px;height:${ih}px;box-sizing:border-box;` +
+          "background:#000;border:2px dashed #555;border-radius:5px;display:flex;align-items:center;justify-content:center;" +
+          "color:#bbb;font:bold 14px sans-serif;pointer-events:none;";
         board.appendChild(ln);
       }
 

@@ -8,7 +8,7 @@ import { IMV_NODE_W, imvDraw, imvStop } from "./im_viewer.js";
 import { fcChooseDirectorOf } from "./im_cut_edit.js";
 import { boardFormat } from "./im_storyboard_io.js";
 import { cellTops } from "./im_storyboard_model.js";
-import { imParseStoryboard, imRowCut } from "./im_common.js";
+import { imParseStoryboard } from "./im_common.js";
 // 124d: one row per film (mirror of the Director's prompt boxes): tile box 283×205 scaled to the
 // connected Director's format, rows staggered half a row, node width fixed 672.
 const FC_CHOOSE_LI_W = 283, FC_CHOOSE_LI_H = 205;
@@ -144,11 +144,11 @@ export function fcChooseLayout(node, entries) {
   const k = Math.min(FC_CHOOSE_LI_W / fmt.w, FC_CHOOSE_LI_H / fmt.h);
   const iw = Math.round(fmt.w * k), ih = Math.round(fmt.h * k);
   const row = ih + FC_CHOOSE_ROW_GAP;
-  // rows mirror the Director's prompt boxes, including the cell division of cut films (cellTops)
-  const dir = fcChooseDirectorOf(node), sb = imParseStoryboard(dir);
-  const cells = cellTops(sb.map((r) => ({ ...r, cut: imRowCut(dir, r) })), !!dir?.widgets?.find((w) => w.name === "loop")?.value, row);
+  // rows mirror the Director's prompt boxes, including the empty ✂ tiles of cut films (cellTops)
+  const dir = fcChooseDirectorOf(node), sb = imParseStoryboard(dir).map((r) => ({ ...r, cut: !!r.cut }));
+  const cells = cellTops(sb, !!dir?.widgets?.find((w) => w.name === "loop")?.value, row);
   const tops = entries.map((_, i) => cells.box[i] ?? i * row + row / 2);
-  const boardH = entries.length ? Math.max(...tops) + ih : 0;
+  const boardH = entries.length ? Math.max(...tops) + ih + (entries.some((_, i) => cells.gap[i] != null && i === entries.length - 1) ? row : 0) : 0;
   // 2026-11-13: no play field in Cut any more – the analysis viewer is its own widget (im_viz) below this one.
   const domH = boardH + FC_CHOOSE_GAP + FC_CHOOSE_STATUS_H + FC_CHOOSE_GAP + FC_CHOOSE_BIG_H + 8;
   return { iw, ih, row, boardH, domH, sheet: null, tops };

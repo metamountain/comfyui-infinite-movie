@@ -62,10 +62,6 @@ export function fcShotSecondsOf(director, shotNumber) {
 export const imWidget = (node, name) => node?.widgets?.find((w) => w.name === name);
 
 // The Director's storyboard: the raw JSON entries of its storyboard widget ([] when empty or broken).
-// Effective cut of a storyboard row: the manual choice `end` ("open" | "image"), else the Director's film_ends switch.
-export const imFilmEndsOpen = (director) => imWidget(director, "film_ends")?.value === "start → open";
-export const imRowCut = (director, r) => (r?.end === "open" || r?.end === "image" ? r.end === "open" : imFilmEndsOpen(director));
-
 export function imParseStoryboard(director) {
   try {
     const v = JSON.parse(imWidget(director, "storyboard")?.value || "[]");
@@ -97,8 +93,7 @@ export function imEmptyPromptFilms(director) {
 }
 
 // Storyboard rows without an image (1-based); empty when the images batch is linked (it provides the images).
-// A row with a prompt but no image is a black image (storyboard.load_images) - only rows without both are empty.
-export const imEmptyImageRows = (d) => imagesBatchLinked(d) ? [] : imParseStoryboard(d).flatMap((r, i) => (r.image || String(r.prompt || "").trim() ? [] : [i + 1]));
+export const imEmptyImageRows = (d) => imagesBatchLinked(d) ? [] : imParseStoryboard(d).flatMap((r, i) => (r.image ? [] : [i + 1]));
 
 // 124b: a prompt-writing run (storyboard ↻ / Write all) = Director with a non-empty regen widget. Renders nothing.
 export const imPromptRun = (n) => n?.comfyClass === "InfiniteMovieRender"

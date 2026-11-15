@@ -2,9 +2,9 @@
 // right, half a row lower (between its two images). Rules in im_storyboard_model.js, widgets/server in
 // im_storyboard_io.js. User decisions: tiles as large as a standard Load Image preview, format from Settings; one
 // delete button (image + prompt); a dragged image takes its prompt along, prompts whose images changed glow red.
-// Cut (user 2026-11-15): dragging a prompt's header up to its image (or ✂) = that film ends open ("First to Open").
-// The box snaps live between its two slots and stays where it is dropped; the cells re-divide (cellTops: the image
-// below moves down half a row). Black top edge, "i → open" and a black ✂ line under the image mark the hard cut.
+// Cut (user 2026-11-15): ✂ in a prompt box = that film ends open ("First to Open"), an empty black ✂ tile follows its
+// image (always image pairs, the geometry never changes) and the next film starts fresh at its own image. Its ✕ or the
+// ✂ again removes the cut. Black, not red: a cut is a choice, not a warning.
 import { app } from "../../scripts/app.js";
 import { api } from "../../scripts/api.js";
 import { fcQueueFixedSeeds, fcReviewToast, imWidget, settingsNodeOf } from "./im_common.js";
@@ -12,7 +12,7 @@ import {
   MAX_IMAGES, cellTops, emptyRow, hasFilm, isCut, isStale, moveRow, nextOf, pairOf, samePair,
 } from "./im_storyboard_model.js";
 import {
-  boardFormat, defaultSeconds, imageUrl, isLoop, readRows, setRowCut, uploadImage, writeRows,
+  boardFormat, defaultSeconds, imageUrl, isLoop, readRows, uploadImage, writeRows,
 } from "./im_storyboard_io.js";
 
 // LI_W x LI_H: preview box of a standard Load Image node (measured 2026-11-14: 16:9 = 283x159, 4:5 = 164x205)
@@ -58,9 +58,14 @@ const CSS = `
 .imsb-p .ct:hover { background:#383838; color:#fff; }
 .imsb-p.cut { border-top:4px solid #000; }
 .imsb-p.cut .ct { background:#000; color:#fff; }
-.imsb-p.lift { box-shadow:0 0 0 2px #000; }
-.imsb-cut { position:absolute; left:0; height:0; border-top:3px solid #000; pointer-events:none; z-index:2; }
-.imsb-cut span { position:absolute; top:-10px; padding:1px 6px; border-radius:3px; background:#000; color:#ddd; font:700 11px system-ui; }
+.imsb-cut { position:absolute; left:0; border-radius:5px; background:#000; border:2px dashed #555; display:flex; align-items:center; justify-content:center; color:#bbb; font:700 14px system-ui; user-select:none; }
+.imsb-cut .x { position:absolute; right:4px; top:4px; width:22px; height:22px; border-radius:3px; background:#222; color:#ddd; text-align:center; line-height:22px; cursor:pointer; font:12px system-ui; }
+.imsb-cut .x:hover { background:#444; }
+.imsb-menu { position:fixed; z-index:10000; min-width:210px; background:#1f1f1f; border:1px solid #4a4a4a; border-radius:6px; padding:4px; box-shadow:0 6px 18px #000a; font:13px system-ui,sans-serif; color:#ddd; }
+.imsb-menu div { padding:6px 10px; border-radius:4px; cursor:pointer; white-space:nowrap; }
+.imsb-menu div:hover { background:#2f5d8a; }
+.imsb-menu div.off { color:#666; cursor:default; background:none; }
+.imsb-menu hr { border:0; border-top:1px solid #3a3a3a; margin:4px 2px; }
 .imsb-anchor { position:absolute; left:0; width:1px; height:0; pointer-events:none; }
 .imsb-ins { position:absolute; left:0; height:18px; z-index:3; cursor:pointer; display:flex; align-items:center; justify-content:center; }
 .imsb-ins span { display:none; width:22px; height:22px; border-radius:50%; background:#4af; color:#fff; font:700 17px/22px system-ui; text-align:center; box-shadow:0 0 0 3px #1b1b1b; }
@@ -89,15 +94,14 @@ function boardSize(node, rows, loop) {
   const iw = Math.round(fmt.w * k), ih = Math.round(fmt.h * k), row = ih + GAP;
   const pw = Math.max(PROMPT_W, Math.round(node.size[0]) - iw - GAP - 2 * MARGIN);
   const cells = cellTops(rows, loop, row);
-  const last = n ? cells.img[n - 1] : 0;
-  // + room for the insert strip below the last image; a prompt box may reach further down
-  const h = Math.max(n ? last + ih + (n < MAX_IMAGES ? GAP / 2 + 10 : 0) : 0, ...cells.box.filter((t) => t != null).map((t) => t + ih));
+  // + room for the insert strip below the last tile; a prompt box may reach further down
+  const h = Math.max(n ? cells.end - GAP + (n < MAX_IMAGES ? GAP / 2 + 10 : 0) : 0, ...cells.box.filter((t) => t != null).map((t) => t + ih));
   return { iw, ih, row, pw, h, w: iw + GAP + PROMPT_W + 2 * MARGIN, cells };
 }
 
 function signature(node) {
   const s = settingsNodeOf(node), v = (n, k) => imWidget(n, k)?.value;
-  return [v(node, "storyboard"), v(node, "film_ends"), v(node, "loop"), v(node, "seconds"), v(node, "shot_seconds"), v(s, "aspect"), v(s, "long_side")].join("|");
+  return [v(node, "storyboard"), v(node, "loop"), v(node, "seconds"), v(node, "shot_seconds"), v(s, "aspect"), v(s, "long_side")].join("|");
 }
 
 function commit(node, rows) { writeRows(node, rows); render(node); }
@@ -134,6 +138,55 @@ async function insertAt(node, k) {
   commit(node, rows);
 }
 
+// Right-click menu of a tile (user 2026-11-15): order, cut and image in one place. items: [label, fn | null] or "-".
+function showMenu(e, items) {
+  e.preventDefault();
+  e.stopPropagation();
+  document.querySelector(".imsb-menu")?.remove();
+  const m = el("div", "imsb-menu");
+  for (const it of items) {
+    if (it === "-") { m.appendChild(el("hr")); continue; }
+    const [label, fn] = it, d = el("div", fn ? null : "off", label);
+    if (fn) d.onclick = () => { close(); fn(); };
+    m.appendChild(d);
+  }
+  document.body.appendChild(m);
+  const r = m.getBoundingClientRect();
+  m.style.left = `${Math.min(e.clientX, innerWidth - r.width - 4)}px`;
+  m.style.top = `${Math.min(e.clientY, innerHeight - r.height - 4)}px`;
+  const away = (ev) => { if (!m.contains(ev.target)) close(); };
+  const key = (ev) => { if (ev.key === "Escape") close(); };
+  function close() {
+    m.remove();
+    window.removeEventListener("pointerdown", away, true);
+    window.removeEventListener("keydown", key, true);
+  }
+  setTimeout(() => { window.addEventListener("pointerdown", away, true); window.addEventListener("keydown", key, true); }, 0);
+}
+
+function tileMenu(node, e, i) {
+  const rows = readRows(node), n = rows.length, loop = isLoop(node), r = rows[i];
+  const canCut = n > 1 && hasFilm(n, i, loop);
+  showMenu(e, [
+    ["↑ Move up", i > 0 ? () => move(node, i, i - 1) : null],
+    ["↓ Move down", i < n - 1 ? () => move(node, i, i + 2) : null],
+    "-",
+    [r.cut ? "Remove cut" : "✂ Cut after this image", canCut ? () => setCut(node, i, !r.cut) : null],
+    ["✂ Replace with cut", i > 0 && n > 2 ? () => replaceWithCut(node, i) : null],
+    "-",
+    ["Change image…", () => pickImage(node, i)],
+    ["✕ Remove image and prompt", () => remove(node, i)],
+  ]);
+}
+
+// The image goes, the film before it ends open: image i-1 -> ✂ -> image i+1.
+function replaceWithCut(node, i) {
+  const rows = readRows(node);
+  rows.splice(i, 1);
+  rows[i - 1].cut = true;
+  commit(node, rows);
+}
+
 function remove(node, i) {
   const rows = readRows(node);
   rows.splice(i, 1);
@@ -142,36 +195,13 @@ function remove(node, i) {
 
 function setCut(node, i, on) {
   const rows = readRows(node);
-  if (!rows[i] || rows[i].cut === on) return;
-  setRowCut(node, rows[i], on);
+  if (!!rows[i]?.cut === on) return;
+  rows[i].cut = on;
   commit(node, rows);
 }
 
-// Prompt header drag: the box snaps live to one of its two slots - at its image (cut, film ends open) or between
-// its image and the next (transition) - and stays where it is dropped; then the cells re-divide.
-function dragPrompt(node, e, i, box) {
-  const st = node._imsb, bd = st.board, { row } = st.size, y0 = e.clientY, top0 = parseFloat(box.style.top);
-  const lo = st.size.cells.img[i], hi = lo + row / 2;   // the two slots, measured in the current cells
-  const scale = () => (bd.getBoundingClientRect().height / bd.offsetHeight) || 1;
-  let cut = top0 < lo + row / 4;
-  const onMove = (ev) => {
-    const y = top0 + (ev.clientY - y0) / scale();
-    cut = y < lo + row / 4;
-    box.style.top = `${cut ? lo : hi}px`;
-    box.classList.toggle("cut", cut);
-    box.classList.add("lift");
-  };
-  const end = () => {
-    window.removeEventListener("pointermove", onMove, true);
-    window.removeEventListener("pointerup", end, true);
-    window.removeEventListener("pointercancel", end, true);
-    setCut(node, i, cut);
-    render(node);
-  };
-  window.addEventListener("pointermove", onMove, true);
-  window.addEventListener("pointerup", end, true);
-  window.addEventListener("pointercancel", end, true);
-}
+// y of the insert line above image k (k = n: below the last tile) - an empty ✂ tile stays with the image above it
+const gapTop = (st, k) => (k < st.size.cells.img.length ? st.size.cells.img[k] : st.size.cells.end) - GAP / 2;
 
 // End the "writing" state of a storyboard: clear busy and redraw (no-op when it already ended).
 const endBusy = (node) => { if (node._imsb?.busy) { node._imsb.busy = null; render(node); } };
@@ -214,9 +244,6 @@ api.addEventListener("status", (e) => {
   if (e.detail?.exec_info?.queue_remaining === 0) for (const n of app.graph?._nodes || []) endBusy(n);
 });
 
-// y of the line above image k (k = n: below the last image)
-const gapTop = (st, k) => { const img = st.size.cells.img; return (k < img.length ? img[k] : img[img.length - 1] + st.size.row) - GAP / 2; };
-
 function startDrag(node, e, i, tile) {
   const st = node._imsb, bd = st.board, x0 = e.clientX, y0 = e.clientY, { row } = st.size;
   let active = false, gap = -1;
@@ -226,8 +253,7 @@ function startDrag(node, e, i, tile) {
     active = true;
     tile.classList.add("drag");
     const y = (ev.clientY - bd.getBoundingClientRect().top) / scale();
-    const img = st.size.cells.img, ih = st.size.ih;
-    gap = img.filter((t) => t + ih / 2 < y).length;   // gap k = above image k (n = below the last)
+    gap = st.size.cells.img.filter((t) => t + st.size.ih / 2 < y).length;   // gap k = above image k (n = below the last)
     st.gap.style.display = gap === i || gap === i + 1 ? "none" : "block";
     st.gap.style.top = `${gapTop(st, gap) - 2}px`;
   };
@@ -261,11 +287,7 @@ function tileEl(node, rows, i) {
     t.onpointerdown = (e) => { if (e.button === 0) { e.stopPropagation(); startDrag(node, e, i, t); } };
     t.ondblclick = () => pickImage(node, i);
   } else {
-    // with a prompt the empty row renders as a black image
-    const black = !!r.prompt.trim();
-    if (black) t.style.background = "#000";
-    t.appendChild(el("span", null, black ? "black · click: image" : "+ image – click"));
-    t.title = black ? "No image: this film uses a black image (rises out of / ends in black). Click to load an image." : "";
+    t.appendChild(el("span", null, "+ image – click"));
     t.onclick = () => pickImage(node, i);
   }
   const x = el("div", "x", "✕");
@@ -273,6 +295,7 @@ function tileEl(node, rows, i) {
   x.onpointerdown = (e) => e.stopPropagation();
   x.onclick = (e) => { e.stopPropagation(); remove(node, i); };
   t.append(el("div", "no", String(i + 1)), x);
+  t.oncontextmenu = (e) => tileMenu(node, e, i);
   t.ondragover = (e) => e.preventDefault();
   t.ondrop = (e) => { e.preventDefault(); e.stopPropagation(); const f = e.dataTransfer?.files?.[0]; if (f) setImage(node, i, f); };
   return t;
@@ -302,17 +325,11 @@ function promptEl(node, rows, i, loop) {
   hd.append(el("span", null, `${i + 1} → ${n === 1 || cut ? "open" : j + 1}`), bg, red, sec);
   if (n > 1) {
     const ct = el("span", "ct", "✂");
-    ct.title = cut ? "Cut: this film ends open, a hard cut follows – click (or drag the header down between the images) to join it to the next image"
-      : "Click (or drag the header up to the image) = cut: this film ends open, the next one starts fresh at its image";
+    ct.title = cut ? "Cut: this film ends open, a hard cut follows – click to join it to the next image again"
+      : "Cut: this film ends open (no end image), the next film starts fresh at its own image";
     ct.onpointerdown = (e) => e.stopPropagation();
     ct.onclick = (e) => { e.stopPropagation(); setCut(node, i, !cut); };
     hd.insertBefore(ct, sec);
-    hd.title = "Drag: up to the image = cut (film ends open) · down between the images = transition to the next image";
-    hd.onpointerdown = (e) => {
-      if (e.button !== 0 || e.target.closest("input")) return;
-      e.stopPropagation();
-      dragPrompt(node, e, i, box);
-    };
   }
   const busy = !!st.busy?.has(i);
   const ta = Object.assign(el("textarea"), { value: r.prompt, disabled: busy,
@@ -329,7 +346,6 @@ function promptEl(node, rows, i, loop) {
   };
   const rg = Object.assign(el("button", "rg", busy ? "… writing" : "↻ Regenerate prompt"), { disabled: busy });
   rg.onclick = () => regen(node, [i]);
-  if (!r.image) Object.assign(rg, { disabled: true, title: "Black image: nothing for the LLM to look at – type the prompt" });
   box.append(hd, ta, rg);
   return box;
 }
@@ -348,18 +364,21 @@ export function render(node) {
   for (let i = 0; i < rows.length; i++) {
     st.board.appendChild(tileEl(node, rows, i));
     if (hasFilm(rows.length, i, loop)) st.board.appendChild(promptEl(node, rows, i, loop));
-    if (isCut(rows, i, loop)) {
-      const ln = el("div", "imsb-cut"), lb = el("span", null, "✂ CUT");
-      ln.style.cssText = `top:${st.size.cells.img[i] + st.size.ih + GAP / 2 - 1}px;width:${iw + GAP + st.size.pw}px`;
-      lb.style.left = "6px";
-      ln.title = "Hard cut: the film above ends open, the next film starts fresh at its own image";
-      ln.appendChild(lb);
-      st.board.appendChild(ln);
+    if (st.size.cells.gap[i] != null) {   // empty ✂ tile: the end of the open film above, no row of its own
+      const c = el("div", "imsb-cut", "✂ CUT"), x = el("div", "x", "✕");
+      c.style.cssText = `top:${st.size.cells.gap[i]}px;width:${iw}px;height:${st.size.ih}px`;
+      c.title = `Cut: film ${i + 1} ends open, a hard cut follows`;
+      x.title = "Remove the cut";
+      x.onpointerdown = (e) => e.stopPropagation();
+      x.onclick = (e) => { e.stopPropagation(); setCut(node, i, false); };
+      c.appendChild(x);
+      c.oncontextmenu = (e) => showMenu(e, [["Remove cut", () => setCut(node, i, false)]]);
+      st.board.appendChild(c);
     }
   }
   // Mark for the auto layout: where prompt box 1 sits (Cut's first row mirrors it)
   const anchor = el("div", "imsb-anchor");
-  anchor.style.top = `${st.size.cells.box[0] ?? row / 2}px`;
+  anchor.style.top = `${row / 2}px`;
   st.board.appendChild(anchor);
   for (let k = 1; k <= rows.length && rows.length < MAX_IMAGES; k++) {   // k = n: below the last image
     const z = el("div", "imsb-ins");
@@ -410,7 +429,7 @@ export function addStoryboard(node) {
   bAll.title = "Writes every prompt except the ✎ manual ones (typed by you)";
   bAll.onclick = () => {
     const rows = readRows(node), loop = isLoop(node);
-    regen(node, rows.flatMap((r, i) => (pairOf(rows, i, loop) && r.image && !r.own ? [i] : [])));   // black rows: by hand
+    regen(node, rows.flatMap((r, i) => (pairOf(rows, i, loop) && !r.own ? [i] : [])));
   };
   tb.append(cnt, bAll, bLoad);
   const board = el("div", "imsb-bd");
