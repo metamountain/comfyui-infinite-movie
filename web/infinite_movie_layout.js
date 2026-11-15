@@ -223,7 +223,8 @@ export function fcWorkflowLayout(director, second = false) {
     sizes[k][0] = U;
     for (const n of row[k][1]) if (!isHelp(n)) n.size = [U - 2 * PAD, n.size[1]];
   }
-  sizes[CUT][0] = Math.max(sizes[CUT][0], 2 * U + GAP);
+  // Cut group: no fixed module width (user 2026-11-15: "close the gap, dynamic with variants") - Cut + PAD + the
+  // preview column, so it grows and shrinks with Cut's variant columns
   // user 2026-11-13 ("1 wider"): the engine on top spans Settings + Director (2U + GAP); help stays on the left
   for (const [k, e] of engines.entries()) {
     if (engines.length !== 1) break;
