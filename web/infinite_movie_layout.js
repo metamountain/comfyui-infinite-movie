@@ -267,13 +267,16 @@ export function fcWorkflowLayout(director, second = false) {
   // Cut: the preview sits at the right edge of the double-width group
   if (row[CUT][0]) for (const f of cutFilms) f.pos = [row[CUT][0].pos[0] + sizes[CUT][0] - PAD - f.size[0], f.pos[1]];
   // A single Film player beside Cut: top flush with Director and Cut, at most as tall as they are
-  const placeCutCol = () => {
+  // bottom: where the players of the groups behind end (user 2026-11-15: "4 images = video preview same y, same size
+  // in all groups Cut to the end") - the preview stays there, the analysis above takes the rest of the Director height
+  const placeCutCol = (bottom = null) => {
     if (!oneCol) return;
     const f = cutFilms[0], a = cutAnas[0];
     if (a) {
-      fitTo(a, director.computeSize()[1] - f.size[1] - T - NGAP);
+      const fy = bottom != null ? bottom - f.size[1] : director.pos[1] + director.computeSize()[1] - f.size[1];
+      fitTo(a, fy - NGAP - T - director.pos[1]);
       a.pos = [f.pos[0], director.pos[1]];
-      f.pos = [f.pos[0], a.pos[1] + a.size[1] + NGAP + T];
+      f.pos = [f.pos[0], fy];
     } else f.pos = [f.pos[0], director.pos[1]];
   };
   placeCutCol();
@@ -309,6 +312,7 @@ export function fcWorkflowLayout(director, second = false) {
     H456 = Math.max(sizes[3][1], upNeed, gifNeed);
   }
   H456 = Math.max(H456, H456ref);
+  placeCutCol(Y + H456 - PAD);   // Cut's preview level with the players behind
   row.forEach(([grp, ns], k) => { if (grp && (ns.length || grp)) grp.size = [sizes[k][0], k <= CUT ? H123 : H456]; });
   // Film player(s) of 6 and 7 sit at the bottom edge of their group (user: "films at the bottom"); 6 is 1-3 tall, 7 is 4-6 tall
   for (const [fs, hh] of [[cutFilms.length === 1 && cut.length ? [] : cutFilms, H123], [asmFilms, H456]]) { let b = Y + hh - PAD; for (const f of [...fs].reverse()) { f.pos = [f.pos[0], b - f.size[1]]; b -= T + f.size[1] + NGAP; } }
